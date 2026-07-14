@@ -34,6 +34,20 @@ except Exception as e:
 
 # --- 1. SIDEBAR: ĐIỀU HƯỚNG ---
 with st.sidebar:
+    # 🌟 THÊM CSS TÙY CHỈNH CHO RADIO BUTTON
+    st.markdown("""
+        <style>
+            /* Đẩy container của radio buttons thụt vào 1cm (xa lề trái) */
+            div.stRadio > div[role="radiogroup"] {
+                padding-left: 1cm; 
+            }
+            /* Chỉnh cỡ chữ 16px cho các tùy chọn bên trong */
+            div.stRadio > div[role="radiogroup"] label p {
+                font-size: 16px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     # Header
     st.markdown("""
         <p style='font-size: 26px; color: red; font-weight: bold; text-align: center;'>
@@ -43,9 +57,9 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Chọn phân hệ
+    # Chọn phân hệ (Chữ màu xanh dương, cỡ chữ 20)
     st.markdown("""
-        <p style='font-size: 26px; color: red; font-weight: bold; text-align: center;'>
+        <p style='font-size: 20px; color: blue; font-weight: bold; text-align: center;'>
             CHỌN PHÂN HỆ
         </p>
     """, unsafe_allow_html=True)
@@ -58,7 +72,7 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Quản trị (Admin) (Thư mục: modules/admin/)
+    # Quản trị (Admin)
     if st.checkbox("🛡️ Quản trị (Admin)"):
         try:
             from modules.admin.user_management import render_user_management
