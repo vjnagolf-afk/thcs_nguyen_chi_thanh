@@ -13,17 +13,45 @@ from modules.ho_tro_giang_day.rag_ask import render_rag
 ai_engine = AIEngine(api_key=st.secrets["GEMINI_API_KEY"])
 st.set_page_config(page_title="Hệ sinh thái số", layout="wide")
 
-# --- SIDEBAR ---
 with st.sidebar:
-    st.markdown("### 🏢 HỆ SINH THÁI SỐ\n### HỖ TRỢ GIÁO VIÊN")
+    # --- HEADER: HỆ SINH THÁI SỐ ---
+    st.markdown("""
+        <p style='font-size: 26px; color: red; font-weight: bold; text-align: center;'>
+            HỆ SINH THÁI SỐ<br>HỖ TRỢ GIÁO VIÊN
+        </p>
+    """, unsafe_allow_html=True)
+    
     st.markdown("---")
     
-    # Radio buttons cho phân hệ chính
-    phan_he = st.radio("CHỌN PHÂN HỆ", [
+    # --- CHỌN PHÂN HỆ ---
+    st.markdown("""
+        <p style='font-size: 26px; color: red; font-weight: bold; text-align: center;'>
+            CHỌN PHÂN HỆ
+        </p>
+    """, unsafe_allow_html=True)
+    
+    # Radio buttons
+    phan_he = st.radio("", [
         "Hỗ trợ Giáo viên",
         "Hỗ trợ Giảng dạy",
         "Quản lý Tổ chuyên môn"
     ])
+    
+    st.markdown("---")
+    
+    # Admin Gate
+    if st.checkbox("🛡️ Quản trị (Admin)"):
+        from modules.admin.user_management import render_user_management
+        render_user_management()
+
+    # --- FOOTER: TÁC GIẢ ---
+    st.markdown("---")
+    st.markdown("""
+        <div style='text-align: center; font-style: italic; color: #555;'>
+            Tác giả: Lê Hồng Dưỡng<br>
+            THCS Nguyễn Chí Thanh
+        </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     if st.checkbox("🛡️ Quản trị (Admin)"):
