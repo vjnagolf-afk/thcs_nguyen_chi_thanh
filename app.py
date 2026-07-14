@@ -10,8 +10,7 @@ from modules.quan_ly_to.bien_ban import render_bien_ban
 from modules.ho_tro_giang_day.rag_ask import render_rag
 
 # Khởi tạo AI Engine
-ai_engine = AIEngine() 
-
+ai_engine = AIEngine(api_key=st.secrets["GEMINI_API_KEY"])
 st.set_page_config(page_title="Hệ sinh thái số", layout="wide")
 
 # --- 1. SIDEBAR: ĐIỀU HƯỚNG ---
