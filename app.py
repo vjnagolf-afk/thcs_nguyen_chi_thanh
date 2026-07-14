@@ -45,13 +45,16 @@ with st.sidebar:
 
 # --- 2. MAIN BODY: HIỂN THỊ NỘI DUNG ---
 if phan_he == "Quản lý Tổ chuyên môn":
-    if sub_menu == "Danh sách thành viên": danh_sach.render_danh_sach()
-    elif sub_menu == "Phân công": phan_cong.render_phan_cong(db)
-    elif sub_menu == "Biên bản": bien_ban.render_bien_ban(db)
+    if sub_menu == "Danh sách thành viên": 
+        render_danh_sach()
+    elif sub_menu == "Phân công": 
+        render_phan_cong(db)
+    elif sub_menu == "Biên bản": 
+        render_bien_ban(db)
 
 elif phan_he == "Hỗ trợ Giảng dạy":
     if sub_menu == "Hỏi-Đáp (RAG)":
-        render_rag(ai_engine) # Gọi hàm render RAG đã tạo
+        render_rag(ai_engine) 
     else:
         st.info(f"Đang phát triển chức năng: {sub_menu}")
 
