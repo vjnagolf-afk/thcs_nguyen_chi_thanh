@@ -1,0 +1,5 @@
+loguru
+PyYAML
+httpx
+beautifulsoup4
+lxml
