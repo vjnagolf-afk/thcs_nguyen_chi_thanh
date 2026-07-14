@@ -1,21 +1,22 @@
 import streamlit as st
 from utils.db_connector import db
+from modules.management.danh_sach import render_danh_sach
+from modules.management.phan_cong import render_phan_cong
 from modules.management.bien_ban import render_bien_ban
 
-# Cấu hình trang
 st.set_page_config(page_title="Hệ sinh thái số", layout="wide")
 
-# Sidebar cấu hình
+# Sidebar
 with st.sidebar:
-    st.title("⚙️ Cấu hình")
-    api_key = st.text_input("Gemini API Key", type="password")
-    if api_key:
-        st.session_state['gemini_api_key'] = api_key
-        st.success("Đã nạp API Key!")
+    st.title("⚙️ Hệ thống")
+    if 'gemini_api_key' not in st.session_state:
+        st.session_state['gemini_api_key'] = st.text_input("Gemini API Key", type="password")
 
-# Điều hướng chính
-menu = st.sidebar.radio("CHỌN PHÂN HỆ", ["Quản lý Tổ chuyên môn", "Hỗ trợ Giảng dạy"])
+menu = st.sidebar.radio("CHỌN PHÂN HỆ", ["Danh sách", "Phân công", "Biên bản"])
 
-if menu == "Quản lý Tổ chuyên môn":
-    # Gọi trực tiếp module từ thư mục modules/management
-    render_bien_ban(db) # Truyền 'db' vào thay vì 'supabase'
+if menu == "Danh sách":
+    render_danh_sach()
+elif menu == "Phân công":
+    render_phan_cong(db)
+elif menu == "Biên bản":
+    render_bien_ban(db)
