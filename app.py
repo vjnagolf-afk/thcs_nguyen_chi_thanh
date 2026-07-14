@@ -94,8 +94,15 @@ with st.sidebar:
 # PHÂN HỆ 1: QUẢN LÝ TỔ CHUYÊN MÔN
 if phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "👥 Danh sách thành viên", "📋 Phân công", "📝 Biên bản", "📁 Kế hoạch", "🏆 Thi đua"
+    
+    # Thêm tab6 vào danh sách
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "👥 Danh sách thành viên", 
+        "📋 Phân công", 
+        "📝 Biên bản", 
+        "📁 Kế hoạch", 
+        "🏆 Thi đua", 
+        "🔍 Kiểm tra KHBD"
     ])
     
     with tab1: render_danh_sach()
@@ -103,6 +110,8 @@ if phan_he == "Quản lý Tổ chuyên môn":
     with tab3: render_bien_ban(db)
     with tab4: st.info("Sẽ gọi hàm từ: `modules/quan_ly_to/ke_hoach.py`")
     with tab5: st.info("Sẽ gọi hàm từ: `modules/quan_ly_to/thi_dua.py`")
+    # Khai báo nội dung cho tab Kiểm tra KHBD
+    with tab6: st.info("Sẽ gọi hàm từ: `modules/quan_ly_to/kiem_tra_khbd.py`")
 
 # PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY
 elif phan_he == "Hỗ trợ Giảng dạy":
