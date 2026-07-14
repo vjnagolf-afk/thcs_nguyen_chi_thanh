@@ -1,42 +1,47 @@
 import streamlit as st
 from utils.db_connector import db
-from modules.management.danh_sach import render_danh_sach
-from modules.management.phan_cong import render_phan_cong
-from modules.management.bien_ban import render_bien_ban
+from utils.ai_engine import AIEngine
 
-# 1. CẤU HÌNH TRANG
+# Import các phân hệ
+from modules.quan_ly_to import danh_sach, phan_cong, bien_ban, ke_hoach, thi_dua
+from modules.ho_tro_giang_day import rag_ask # ... và các file khác
+from modules.ho_tro_gv import xd_khbd # ... và các file khác
+
 st.set_page_config(page_title="Hệ sinh thái số", layout="wide")
 
-# 2. LẤY THÔNG TIN NGƯỜI DÙNG (Cần có bước đăng nhập của Supabase)
-# Trong Streamlit, ta dùng st.experimental_user để lấy thông tin email từ phiên đăng nhập
-user = st.experimental_user 
+# --- 1. GATEKEEPER & AUTH ---
+# Giả định đã tích hợp Auth, ở đây em check email để phân quyền Admin
+user_email = "vjnagolf@gmail.com" # Thay bằng logic lấy user thực tế
 
-# 3. SIDEBAR CHỨC NĂNG
 with st.sidebar:
-    st.title("⚙️ Hệ thống")
+    st.title("⚙️ HỆ THỐNG")
     
-    # Kiểm tra trạng thái đăng nhập
-    if not user.is_logged_in:
-        st.warning("Vui lòng đăng nhập để sử dụng hệ thống.")
-        st.stop()
+    # Menu chọn phân hệ chính
+    phan_he = st.radio("CHỌN PHÂN HỆ", [
+        "Quản lý Tổ chuyên môn", 
+        "Hỗ trợ Giảng dạy", 
+        "Hỗ trợ Giáo viên"
+    ])
     
-    # Lấy email từ user object
-    user_email = user.email
-    st.write(f"👤 Chào thầy/cô: **{user_email}**")
+    st.markdown("---")
+    
+    # Điều hướng chi tiết dựa trên phân hệ chọn
+    if phan_he == "Quản lý Tổ chuyên môn":
+        sub_menu = st.selectbox("Chức năng:", ["Danh sách thành viên", "Phân công", "Biên bản", "Kế hoạch", "Thi đua"])
+    elif phan_he == "Hỗ trợ Giảng dạy":
+        sub_menu = st.selectbox("Chức năng:", ["Hỏi-Đáp (RAG)", "Chấm bài", "Mô phỏng", "Ngân hàng đề", "Camera chấm bài"])
+    else:
+        sub_menu = st.selectbox("Chức năng:", ["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Quản lý điểm"])
 
-    # MENU ĐIỀU HƯỚNG
-    menu = st.radio("CHỌN PHÂN HỆ", ["Danh sách", "Phân công", "Biên bản"])
-
-    # PHÂN QUYỀN ADMIN (Cửa ải)
-    if user_email == "vjnagolf@gmail.com": 
+    # Admin Gate
+    if user_email == "vjnagolf@gmail.com":
         if st.checkbox("🛡️ Quản trị (Admin)"):
             from modules.admin.user_management import render_user_management
             render_user_management()
 
-# 4. ĐIỀU HƯỚNG CHÍNH
-if menu == "Danh sách":
-    render_danh_sach()
-elif menu == "Phân công":
-    render_phan_cong(db)
-elif menu == "Biên bản":
-    render_bien_ban(db)
+# --- 2. ĐIỀU HƯỚNG LOGIC ---
+if phan_he == "Quản lý Tổ chuyên môn":
+    if sub_menu == "Danh sách thành viên": danh_sach.render()
+    elif sub_menu == "Phân công": phan_cong.render(db)
+    elif sub_menu == "Biên bản": bien_ban.render(db)
+    # ... các case khác
