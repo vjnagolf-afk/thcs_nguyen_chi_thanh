@@ -3,7 +3,9 @@ from utils.db_connector import db
 from utils.ai_engine import AIEngine
 
 # Import các phân hệ
-from modules.quan_ly_to import danh_sach, phan_cong, bien_ban
+from modules.quan_ly_to import danh_sach
+from modules.quan_ly_to import phan_cong
+from modules.quan_ly_to import bien_ban
 from modules.ho_tro_giang_day.rag_ask import render_rag
 
 # Khởi tạo AI Engine
