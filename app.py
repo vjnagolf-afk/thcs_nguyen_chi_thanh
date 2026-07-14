@@ -4,16 +4,36 @@ from modules.management.danh_sach import render_danh_sach
 from modules.management.phan_cong import render_phan_cong
 from modules.management.bien_ban import render_bien_ban
 
+# 1. CẤU HÌNH TRANG
 st.set_page_config(page_title="Hệ sinh thái số", layout="wide")
 
-# Sidebar
+# 2. LẤY THÔNG TIN NGƯỜI DÙNG (Cần có bước đăng nhập của Supabase)
+# Trong Streamlit, ta dùng st.experimental_user để lấy thông tin email từ phiên đăng nhập
+user = st.experimental_user 
+
+# 3. SIDEBAR CHỨC NĂNG
 with st.sidebar:
     st.title("⚙️ Hệ thống")
-    if 'gemini_api_key' not in st.session_state:
-        st.session_state['gemini_api_key'] = st.text_input("Gemini API Key", type="password")
+    
+    # Kiểm tra trạng thái đăng nhập
+    if not user.is_logged_in:
+        st.warning("Vui lòng đăng nhập để sử dụng hệ thống.")
+        st.stop()
+    
+    # Lấy email từ user object
+    user_email = user.email
+    st.write(f"👤 Chào thầy/cô: **{user_email}**")
 
-menu = st.sidebar.radio("CHỌN PHÂN HỆ", ["Danh sách", "Phân công", "Biên bản"])
+    # MENU ĐIỀU HƯỚNG
+    menu = st.radio("CHỌN PHÂN HỆ", ["Danh sách", "Phân công", "Biên bản"])
 
+    # PHÂN QUYỀN ADMIN (Cửa ải)
+    if user_email == "vjnagolf@gmail.com": 
+        if st.checkbox("🛡️ Quản trị (Admin)"):
+            from modules.admin.user_management import render_user_management
+            render_user_management()
+
+# 4. ĐIỀU HƯỚNG CHÍNH
 if menu == "Danh sách":
     render_danh_sach()
 elif menu == "Phân công":
