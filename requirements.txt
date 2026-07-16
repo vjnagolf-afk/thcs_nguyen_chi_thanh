@@ -1,6 +1,8 @@
--r requirements/core.txt
--r requirements/office.txt
--r requirements/analytics.txt
--r requirements/ai.txt
--r requirements/document.txt
--r requirements/simulation.txt
+streamlit
+google-generativeai
+openai
+docxtpl
+PyPDF2
+loguru
+tenacity
+cachetools
