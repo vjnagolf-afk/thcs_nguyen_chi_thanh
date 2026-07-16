@@ -55,6 +55,12 @@ with st.sidebar:
     
     # Nút Admin và Đăng xuất ở cuối Sidebar
     st.markdown("<br>" * 10, unsafe_allow_html=True) # Đẩy phần dưới xuống thấp
+    
+    # --- CHÈN THÊM THÔNG TIN TÁC GIẢ VÀ ĐƠN VỊ NGAY TẠI ĐÂY ---
+    st.markdown("*Tác giả: Lê Hồng Dưỡng*")
+    st.markdown("*Đơn vị: Trường THCS Nguyễn Chí Thanh*")
+    # ---------------------------------------------------------
+    
     st.session_state.is_admin_mode = st.checkbox("🛡️ Quản trị (Admin)", value=st.session_state.is_admin_mode)
     if st.button("🚪 Đăng xuất/Đổi Key", use_container_width=True):
         st.session_state.user_api_key = None
