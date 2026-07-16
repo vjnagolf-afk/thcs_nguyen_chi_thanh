@@ -40,7 +40,7 @@ def get_ai_engine():
         return AIEngine(api_key=key) if key else None
 
 # ==========================================
-# GIAO DIỆN SIDEBAR
+# GIAO DIỆN SIDEBAR (ĐÃ TỐI ƯU KHOẢNG CÁCH VÀ MÀU CHỮ)
 # ==========================================
 with st.sidebar:
     # Tiêu đề Sidebar như ảnh gốc
@@ -56,15 +56,23 @@ with st.sidebar:
     # Nút Admin và Đăng xuất ở cuối Sidebar
     st.markdown("<br>" * 10, unsafe_allow_html=True) # Đẩy phần dưới xuống thấp
     
-    # --- CHÈN THÊM THÔNG TIN TÁC GIẢ VÀ ĐƠN VỊ NGAY TẠI ĐÂY ---
-    st.markdown("*Tác giả: Lê Hồng Dưỡng*")
-    st.markdown("*Đơn vị: Trường THCS Nguyễn Chí Thanh*")
-    # ---------------------------------------------------------
+    # --- THAY THẾ: CHÈN THÔNG TIN TÁC GIẢ SÁT NHAU VÀ MÀU XANH DƯƠNG ---
+    st.markdown(
+        """
+        <div style='color: #007AFF; font-style: italic; line-height: 1.2;'>
+            <p style='margin: 0 0 2px 0;'>Tác giả: Lê Hồng Dưỡng</p>
+            <p style='margin: 0 0 10px 0;'>Đơn vị: Trường THCS Nguyễn Chí Thanh</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+    # ------------------------------------------------------------------
     
     st.session_state.is_admin_mode = st.checkbox("🛡️ Quản trị (Admin)", value=st.session_state.is_admin_mode)
     if st.button("🚪 Đăng xuất/Đổi Key", use_container_width=True):
         st.session_state.user_api_key = None
         st.rerun()
+
 
 # ==========================================
 # CỔNG BẢO MẬT (LOGIN)
