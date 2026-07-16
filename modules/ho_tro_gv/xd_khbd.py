@@ -45,9 +45,9 @@ def render_xd_khbd(ai_engine):
         )
         # Chuyển đổi tên hiển thị sang mã model chuẩn của Google
         if "Flash" in loai_ai:
-            model_chon = "gemini-1.5-flash" # Đã bỏ -latest
+            model_chon = "gemini-3.5-flash"
         else:
-            model_chon = "gemini-1.5-pro"   # Đã bỏ -latest
+            model_chon = "gemini-3.1-pro-preview"
 
     # HÀNG 3: Tích chọn và Tải file
     col_file, col_check = st.columns([3, 1])
