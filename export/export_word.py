@@ -1,7 +1,7 @@
 # =========================================================================
 # MODULE: export/export_word.py
 # Nhiệm vụ: Lớp điều phối trung tâm (Facade Pattern) chuẩn hành chính
-# CHUẨN KIẾN TRÚC: Gọi tuyệt đối từ gốc dự án nhìn xuống, không file phụ, không importlib
+# CHUẨN KIẾN TRÚC: Gọi tuyệt đối từ gốc dự án nhìn xuống, đã đồng bộ tên file trên Git
 # =========================================================================
 import io
 import logging
@@ -31,14 +31,14 @@ class WordExportEngine:
             doc = docx.Document()
 
             # =========================================================================
-            # NHẬP KHẨU TRỄ (LAZY IMPORTS) CHUẨN KIẾN TRÚC TUYỆT ĐỐI GỐC DỰ ÁN
-            # Giải quyết dứt điểm lỗi Circular Import và lỗi nạp Package trên Cloud
+            # NHẬP KHẨU TRỄ (LAZY IMPORTS) ĐỒNG BỘ 100% THEO TÊN FILE THỰC TẾ TRÊN GIT
+            # Giải quyết dứt điểm lỗi lệch tên module gây sập hệ thống
             # =========================================================================
-            from export.word_markdown import MarkdownTokenizer
+            from export.markdown_tokenizer import MarkdownTokenizer
             from export.word_math import MathRenderer
             from export.word_styles import StyleManager
             from export.word_tables import TableRenderer
-            from export.word_images import ImageRenderer  # Đã sửa: Nạp đầy đủ để chống lỗi NameError
+            from export.word_images import ImageRenderer
 
             # 1. KHỞI TẠO ĐỊNH DẠNG CHUẨN (A4, Margins, Base Fonts)
             StyleManager.setup_base_styles(doc)
@@ -82,7 +82,7 @@ class WordExportEngine:
                 elif node_type == "callout":
                     StyleManager.render_callout(doc, node, TableRenderer, MathRenderer)
                     
-                elif node_type == "code":  # Đã đồng bộ: Đổi từ 'code_block' sang 'code' khớp 1:1 với Tokenizer
+                elif node_type == "code":  # Đồng bộ kiểu node code_block sang code
                     StyleManager.render_code_block(doc, node)
                     
                 elif node_type == "table":
@@ -91,13 +91,13 @@ class WordExportEngine:
                 elif node_type == "image":
                     ImageRenderer.render_image(doc, node)
                     
-                elif node_type == "hr":  # Bổ sung: Tự động vẽ đường kẻ vách ngăn paragraph border nâng cao
+                elif node_type == "hr":  # Tự động kẻ vách ngăn native paragraph border
                     StyleManager.render_hr(doc)
                     
                 elif node_type == "page_break":
                     doc.add_page_break()
                     
-                elif node_type in ["inline_math", "display_math"]:  # Đồng bộ các khối phương trình lớn
+                elif node_type in ["inline_math", "display_math"]:  # Đồng bộ khối phương trình lớn
                     MathRenderer.render_display_math(doc, node.get("content", ""))
                     
                 else:
@@ -117,9 +117,9 @@ class WordExportEngine:
     @staticmethod
     def _generate_failsafe_document(error_msg: str) -> bytes:
         """
-        Bảo hiểm cuối cùng: Tạo file Word báo cáo lỗi OpenXML chi tiết thay vì làm treo sập ứng dụng web.
+        Bảo hiểm cuối cùng: Tạo file Word báo cáo lỗi chi tiết thay vì làm treo sập ứng dụng web.
         """
-        from docx.shared import RGBColor  # Đã sửa: Nạp trực tiếp tại runtime để chống NameError
+        from docx.shared import RGBColor
         
         err_doc = docx.Document()
         err_doc.add_heading("⚠️ SỰ CỐ KẾT XUẤT TÀI LIỆU", level=1)
@@ -129,7 +129,7 @@ class WordExportEngine:
         run = p.add_run(f"Chi tiết mã lỗi: {error_msg}")
         run.bold = True
         run.font.size = docx.shared.Pt(11)
-        run.font.color.rgb = RGBColor(255, 0, 0) # Ép màu đỏ cảnh báo hành chính
+        run.font.color.rgb = RGBColor(255, 0, 0)
         
         bio = io.BytesIO()
         err_doc.save(bio)
