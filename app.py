@@ -47,16 +47,15 @@ def validate_key(key: str) -> bool:
     """Kiểm tra xem chuỗi nhập vào có đúng định dạng API Key phổ biến không"""
     k = key.strip()
     return (
-        k.startswith("AIza")       # Gemini
-        or k.startswith("sk-ant-") # Claude
-        or k.startswith("sk-")     # OpenAI
+        k.startswith("AIza")
+        or k.startswith("sk-ant-")
+        or (k.startswith("sk-") and not k.startswith("sk-ant-"))
     )
 
 # ========================================== #
 # 5. HÀM LẤY ENGINE TỐI ƯU (BẢO VỆ CHỐNG RERUN) #
 # ========================================== #
 def get_ai_engine_instance():
-    # Khóa bảo vệ: Nếu đã tồn tại Engine, trả về ngay lập tức để chặn khởi tạo lại
     if st.session_state.get("ai_engine_instance"):
         return st.session_state.ai_engine_instance
 
@@ -73,7 +72,6 @@ def get_ai_engine_instance():
             elif k.startswith("sk-"): keys["openai"] = k
             else: keys["gemini"] = k
 
-    # Lọc bỏ key rỗng
     keys = {k: v for k, v in keys.items() if v}
     
     if keys:
@@ -113,7 +111,6 @@ with st.sidebar:
     )
     st.markdown("---")
     
-    # Nút đăng xuất làm sạch Session triệt để
     if st.session_state.user_api_key or st.session_state.is_admin_mode:
         if st.button("🚪 Đăng xuất / Đổi Key", use_container_width=True, type="secondary"):
             st.session_state.user_api_key = None
@@ -144,11 +141,13 @@ if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
                 st.error("⚠️ Vui lòng không để trống trường thông tin!")
             elif clean_input == admin_password:
                 st.session_state.is_admin_mode = True
+                st.session_state.pop("ai_engine_instance", None)
                 st.success("🎉 Đăng nhập quyền Quản trị hệ thống thành công!")
                 st.rerun()
             elif validate_key(clean_input):
                 st.session_state.user_api_key = clean_input
                 st.session_state.is_admin_mode = False
+                st.session_state.pop("ai_engine_instance", None)
                 st.success("🚀 Khởi tạo với API Key cá nhân thành công!")
                 st.rerun()
             else:
