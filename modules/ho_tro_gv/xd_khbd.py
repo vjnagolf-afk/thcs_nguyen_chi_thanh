@@ -1,10 +1,7 @@
 import streamlit as st
-import sys
-from pathlib import Path
 from pypdf import PdfReader
 
-# Đảm bảo import được thư viện từ thư mục gốc
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+# Đường dẫn gốc đã được app.py nạp vào hệ thống, chỉ cần import thẳng là được
 from export.export_word import WordExportEngine
 
 def render_xd_khbd(ai_engine):
