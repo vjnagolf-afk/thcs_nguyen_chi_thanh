@@ -1,6 +1,9 @@
 import os
 import json
 import hashlib
+import streamlit as st
+
+st.write("MODEL ĐANG DÙNG:", self.model_name)
 from typing import List, Dict, Any, Optional
 from loguru import logger
 import google.generativeai as genai
