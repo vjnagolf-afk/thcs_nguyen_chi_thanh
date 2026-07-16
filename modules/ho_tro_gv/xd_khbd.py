@@ -1,9 +1,9 @@
 import streamlit as st
-import sys
-import importlib.util
-from pathlib import Path
 from loguru import logger
 from pypdf import PdfReader
+
+# ĐỒNG BỘ CÁCH SỬA ĐÚNG: Gọi trực tiếp từ Package cha hệ thống, không dùng spec thủ công
+from export.export_word import WordExportEngine
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
@@ -96,45 +96,16 @@ def render_xd_khbd(ai_engine):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
-        # Giữ nguyên cấu trúc logic 2 nút bấm gốc của thầy
+        # Bảo toàn nguyên bản cấu trúc logic 2 nút bấm gốc của thầy
         if st.button("📥 Xuất file Word", use_container_width=True):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
-                    current_file = Path(__file__).resolve()
-                    project_root = current_file.parent.parent.parent
-                    export_word_path = project_root / "export" / "export_word.py"
-                    
-                    if not export_word_path.exists():
-                        st.error(f"Không tìm thấy file tại đường dẫn vật lý: {export_word_path}")
-                        return
-                    
-                    # Nạp thư mục gốc vào hệ thống tìm kiếm nếu chưa có
-                    if str(project_root) not in sys.path:
-                        sys.path.insert(0, str(project_root))
-                        
-                    # =========================================================================
-                    # GIẢI PHÁP ĐÓNG GÓI PACKAGES: ÉP KHAI BÁO NGỮ CẢNH KHỐI (GIẢI QUYẾT LỖI ẢNH)
-                    # Thiết lập thuộc tính __package__ và __name__ động để Python chấp nhận relative import
-                    # =========================================================================
-                    spec = importlib.util.spec_from_file_location("export.export_word", str(export_word_path))
-                    export_word = importlib.util.module_from_spec(spec)
-                    
-                    # Gán thông tin gói cha một cách tường minh vào module trước khi thực thi nạp
-                    export_word.__package__ = "export"
-                    export_word.__name__ = "export.export_word"
-                    sys.modules["export.export_word"] = export_word
-                    
-                    # Thực thi nạp tệp (Lúc này các dấu chấm tương đối bên trong folder export sẽ chạy mượt)
-                    spec.loader.exec_module(export_word)
-                    # =========================================================================
-                    
-                    # Thực hiện gọi hàm đóng gói và truyền tham số dạng dict của thầy
-                    word_bytes = export_word.WordExportEngine.export_to_word({
+                    # Chạy hàm đóng gói chính thức từ Engine dùng chung của dự án
+                    word_bytes = WordExportEngine.export_to_word({
                         "ai_generated_content": st.session_state['khbd_content'],
                         "is_khbd": True
                     })
                     
-                    # Lưu luồng bytes vào session state để hiển thị nút tải xuống ở lượt rerun tiếp theo
                     st.session_state['khbd_word_bytes'] = word_bytes
                     st.rerun()
                 except Exception as e:
