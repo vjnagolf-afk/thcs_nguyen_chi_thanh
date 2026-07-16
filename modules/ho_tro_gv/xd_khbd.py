@@ -1,12 +1,26 @@
 import streamlit as st
 import sys
+import os
 from pathlib import Path
 from loguru import logger
 from pypdf import PdfReader
 
-# Đảm bảo import được thư viện từ thư mục gốc
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+# =========================================================================
+# ĐỊNH TUYẾN ĐƯỜNG DẪN ĐỘNG CHO STREAMLIT CLOUD (SỬA LỖI NO MODULE)
+# Ép Python phải tìm thấy file export_word.py nằm ở thư mục gốc của trường
+# =========================================================================
+CURRENT_FILE = Path(__file__).resolve()
+# Cấu trúc của thầy: xd_khbd.py nằm trong ho_tro_gv/ -> modules/ -> thư mục gốc (3 cấp ngược lên)
+PROJECT_ROOT = CURRENT_FILE.parents[2] 
 
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+    # Đồng bộ cả đường dẫn làm việc hiện tại của hệ thống (Current Working Directory)
+    os.chdir(str(PROJECT_ROOT))
+
+# =========================================================================
+# LÕI GIAO DIỆN PHÂN HỆ CỦA THẦY (BẢO TOÀN NGUYÊN BẢN 100% LOGIC GỐC)
+# =========================================================================
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
@@ -102,10 +116,10 @@ def render_xd_khbd(ai_engine):
         if st.button("📥 Xuất file Word", use_container_width=True):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
-                    # Gọi tệp export_word.py nằm phẳng tại thư mục gốc chuẩn theo ảnh cây thư mục
+                    # Lệnh gọi import an toàn nhờ có khối nạp sys.path động ở đầu file
                     import export_word
                     
-                    # Gọi hàm chuyển đổi tối ưu từ lõi ExportEngine mới của hệ thống
+                    # Gọi hàm chuyển đổi từ lõi kết xuất cao cấp dạng phẳng của thầy
                     word_bytes = export_word.WordExportEngine.convert_markdown_to_docx_bytes(st.session_state['khbd_content'])
                     
                     # Lưu luồng bytes vào session state để hiển thị nút tải xuống ở lượt rerun tiếp theo
