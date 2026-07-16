@@ -19,7 +19,6 @@ class MarkdownTokenizer:
     _CHECKBOX_RE = re.compile(r'^(\s*)([\*\-])\s+\[([ xX])\]\s+(.*)')
     _HR_RE = re.compile(r'^\s*([-*_])\1{2,}\s*$')
     _CODE_BLOCK_START_RE = re.compile(r'^```(\w*)')
-    _BLOCKQUOTE_RE = re.compile(r'^\s*>\s*(.*)')
     
     _MATH_RE = re.compile(r'(\$(?:\\[\s\S]|[^\$])+\$|\\\([\s\S]+?\\\))')
     _LINK_RE = re.compile(r'\[(.*?)\](.*?)')
@@ -33,21 +32,18 @@ class MarkdownTokenizer:
     @classmethod
     def parse(cls, markdown_text: str) -> List[Dict[str, Any]]:
         forbidden = ("Chào bạn", "Với vai trò", "Tôi là", "Lưu ý về")
-        ast_nodes, table_buf, code_buf, bq_buf = [], [], [], []
-        code_lang, in_code, in_bq = "", False, False
+        ast_nodes, table_buf, code_buf = [], [], []
+        code_lang, in_code = "", False
 
         def flush_table():
             if table_buf:
                 ast_nodes.append(cls._parse_table(table_buf))
                 table_buf.clear()
 
-        def flush_bq():
-            if bq_buf:
-                inner = cls.parse("\n".join(bq_buf))
-                ast_nodes.append({"type": "callout", "style": "quote", "children": inner})
-                bq_buf.clear()
-
         for raw_line in markdown_text.splitlines():
+            # TIỀN XỬ LÝ: Xóa sạch các dấu > dư thừa của blockquote do AI tạo ra
+            raw_line = re.sub(r'^\s*>\s*', '', raw_line)
+            
             if any(raw_line.lstrip().startswith(p) for p in forbidden): continue
             
             if in_code:
@@ -61,14 +57,7 @@ class MarkdownTokenizer:
 
             s_line = raw_line.strip()
             if match := cls._CODE_BLOCK_START_RE.match(s_line):
-                flush_table(); flush_bq(); in_code = True; code_lang = match.group(1).lower() or "text"; continue
-            
-            if match := cls._BLOCKQUOTE_RE.match(raw_line):
-                flush_table(); in_bq = True; bq_buf.append(match.group(1)); continue
-            elif in_bq and not match and s_line:
-                bq_buf.append(raw_line); continue
-            elif in_bq and not s_line:
-                in_bq = False; flush_bq(); continue
+                flush_table(); in_code = True; code_lang = match.group(1).lower() or "text"; continue
 
             if not s_line: flush_table(); continue
             if s_line.startswith('|'): table_buf.append(s_line); continue
@@ -82,7 +71,7 @@ class MarkdownTokenizer:
             elif match := cls._NUMBER_RE.match(raw_line): ast_nodes.append({"type": "list_item", "style": "number", "level": (len(match.group(1))//2)+1, "tokens": cls._parse_inline_content(match.group(3))})
             else: ast_nodes.append({"type": "paragraph", "tokens": cls._parse_inline_content(s_line)})
 
-        flush_table(); flush_bq()
+        flush_table()
         return ast_nodes
 
     @classmethod
@@ -137,9 +126,13 @@ class MarkdownTokenizer:
 class ScienceNormalizer:
     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
     SUP = str.maketrans("0123456789+-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻")
+    
     MAP = {
-        r'\perp': '⊥', r'\circ': '°', r'\ne': '≠', r'\le': '≤', r'\ge': '≥', r'\times': '×', r'\div': '÷',
-        r'\triangle': '△', r'\angle': '∠', r'\rightarrow': '→', r'\Rightarrow': '⇒', r'\approx': '≈',
+        r'\perp': '⊥', r'\circ': '°', r'\neq': '≠', r'\ne': '≠', 
+        r'\leq': '≤', r'\le': '≤', r'\geq': '≥', r'\ge': '≥', 
+        r'\times': '×', r'\div': '÷', r'\cdot': '·',
+        r'\triangle': '△', r'\angle': '∠', r'\rightarrow': '→', 
+        r'\Rightarrow': '⇒', r'\Leftrightarrow': '⇔', r'\approx': '≈', r'\pm': '±',
         r'\alpha': 'α', r'\beta': 'β', r'\gamma': 'γ', r'\pi': 'π', r'\sum': '∑', r'\int': '∫'
     }
 
@@ -147,15 +140,19 @@ class ScienceNormalizer:
     def normalize(cls, text: str) -> str:
         if not text: return ""
         text = text.replace('$', '').replace(r'\(', '').replace(r'\)', '').strip()
-        # Xử lý phân số
+        
+        # Làm phẳng phân số (ví dụ: \frac{A}{B} thành A/B)
         while r'\frac{' in text:
-            text = re.sub(r'\\frac\{([\s\S]+?)\}\{([\s\S]+?)\}', r'((\1)/(\2))', text)
+            text = re.sub(r'\\frac\{([^{}]+?)\}\{([^{}]+?)\}', r' \1/\2 ', text)
+            
         text = re.sub(r'\\sqrt\{([\s\S]+?)\}', r'√(\1)', text)
         text = re.sub(r'([A-Z][a-z]?|\))(\d+)', lambda m: m.group(1) + m.group(2).translate(cls.SUB), text)
         text = re.sub(r'([A-Za-z₀₁₂₃₄₅₆₇₈₉\)]+)\^(\d*[+\-])', lambda m: m.group(1) + m.group(2).translate(cls.SUP), text)
-        for k, v in cls.MAP.items(): text = text.replace(k, v)
+        
+        for k, v in cls.MAP.items(): 
+            text = text.replace(k, v)
+            
         return re.sub(r'\\text\{([\s\S]+?)\}', r'\1', text)
-
 # ==========================================
 # 3. KẾT XUẤT TÀI LIỆU WORD (ENGINE)
 # ==========================================
@@ -206,11 +203,65 @@ class WordExportEngine:
                 cls._set_font(run, "Times New Roman")
 
     @classmethod
-    def convert_markdown_to_docx_bytes(cls, markdown_text: str) -> bytes:
+    def _render_khbd_header(cls, doc, metadata: dict):
+        # Tạo bảng 1 hàng 2 cột, không viền để căn chỉnh Header
+        table = doc.add_table(rows=1, cols=2)
+        
+        # Logic ẩn viền chuẩn XML
+        tblPr = table._element.xpath('w:tblPr')
+        if tblPr:
+            tblBorders = OxmlElement('w:tblBorders')
+            for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+                border = OxmlElement(f'w:{border_name}')
+                border.set(qn('w:val'), 'none')
+                border.set(qn('w:sz'), '0')
+                border.set(qn('w:space'), '0')
+                border.set(qn('w:color'), 'auto')
+                tblBorders.append(border)
+            tblPr[0].append(tblBorders)
+
+        # Cột Trái (Trường/Tổ)
+        c0 = table.cell(0, 0)
+        p0 = c0.paragraphs[0]
+        p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r0 = p0.add_run("TRƯỜNG: ....................................\nTỔ: ........................................")
+        r0.bold = True
+        cls._set_font(r0)
+
+        # Cột Phải (Giáo viên/Môn/Lớp)
+        c1 = table.cell(0, 1)
+        p1 = c1.paragraphs[0]
+        p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r1 = p1.add_run(f"HỌ VÀ TÊN GIÁO VIÊN: ..........................\nMÔN: {metadata.get('mon', '.......').upper()}\nLỚP: {metadata.get('lop', '.......')}")
+        r1.bold = True
+        cls._set_font(r1)
+
+        doc.add_paragraph()
+
+        # Tên Bài Dạy
+        p_title = doc.add_paragraph()
+        p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        rt = p_title.add_run(f"TÊN BÀI DẠY: {metadata.get('title', '.........................').upper()}")
+        rt.bold = True
+        rt.font.size = Pt(16)
+        cls._set_font(rt)
+
+        # Thông tin Thời gian
+        p_time = doc.add_paragraph()
+        p_time.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r_time = p_time.add_run(f"Môn học/Hoạt động giáo dục: {metadata.get('mon', '.......')}; Thời gian thực hiện: {metadata.get('so_tiet', '...')} tiết")
+        r_time.font.italic = True
+        cls._set_font(r_time)
+
+        # Thêm 1 dòng trống trước khi vào thân bài AI soạn
+        doc.add_paragraph()
+
+    @classmethod
+    def convert_markdown_to_docx_bytes(cls, markdown_text: str, metadata: dict = None) -> bytes:
         ast_nodes = MarkdownTokenizer.parse(markdown_text)
         doc = docx.Document()
         
-        # Cấu hình chuẩn A4 Giáo dục
+        # Cấu hình chuẩn A4 Giáo dục (Lề Trái 3cm, Trên Dưới Phải 2cm)
         for s in doc.sections:
             s.page_height, s.page_width = Inches(11.69), Inches(8.27)
             s.top_margin, s.bottom_margin, s.right_margin = Inches(0.79), Inches(0.79), Inches(0.79)
@@ -220,6 +271,11 @@ class WordExportEngine:
         ns.font.name, ns.font.size = 'Times New Roman', Pt(13)
         ns.paragraph_format.space_after = Pt(6)
 
+        # GỌI HÀM VẼ HEADER 5512
+        if metadata and metadata.get("is_khbd"):
+            cls._render_khbd_header(doc, metadata)
+
+        # Vẽ nội dung từ AI
         for node in ast_nodes:
             nt = node.get("type")
             if nt == "paragraph":
@@ -230,6 +286,7 @@ class WordExportEngine:
                 p = doc.add_paragraph()
                 p.paragraph_format.space_before, p.paragraph_format.space_after = Pt(10), Pt(4)
                 p.paragraph_format.keep_with_next = True
+                # Form chuẩn: Heading lớn luôn ở giữa (VD: I. MỤC TIÊU)
                 if lv == 1: p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 cls._render_inline(p, node.get("tokens", []))
                 for r in p.runs: 
@@ -298,14 +355,7 @@ class WordExportEngine:
         doc.save(bio)
         return bio.getvalue()
 
-    # ==========================================
-    # HÀM ADAPTER ĐỂ TƯƠNG THÍCH VỚI GIAO DIỆN
-    # ==========================================
     @classmethod
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
-        """
-        Hàm này giúp module xd_khbd.py gọi xuất file an toàn 
-        mà không cần sửa lại code phần Frontend.
-        """
         markdown_content = data_cache.get("ai_generated_content", "")
-        return cls.convert_markdown_to_docx_bytes(markdown_content)
+        return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
