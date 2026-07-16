@@ -79,18 +79,32 @@ def render_xd_khbd(ai_engine):
                 except Exception as e:
                     st.error(f"Lỗi hệ thống AI: {e}")
 
+    # CHỈNH SỬA 1: Không dùng clear() để tránh bị văng khỏi hệ thống
     if c2.button("🗑️ XÓA DỮ LIỆU"):
-        st.session_state.clear()
+        st.session_state.pop('khbd_content', None)
+        st.session_state.pop('khbd_meta', None)
         st.rerun()
 
     if st.session_state.get('khbd_content'):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
-        if st.button("📥 Xuất file Word (Chuẩn 5512)"):
+        # CHỈNH SỬA 2: Đưa nút Tải file ra độc lập, chuẩn bị sẵn Word Bytes
+        try:
             data_export = st.session_state['khbd_meta'].copy()
             data_export["ai_generated_content"] = st.session_state['khbd_content']
             data_export["is_khbd"] = True
             
+            # Quá trình tạo file chạy ngầm ngay khi văn bản sinh xong
             word_bytes = WordExportEngine.export_to_word(data_export)
-            st.download_button("Tải file Kế hoạch bài dạy", word_bytes, f"KHBD_{st.session_state['khbd_meta']['title']}.docx")
+            
+            # Hiển thị nút Tải file mượt mà, không bao giờ bị treo
+            st.download_button(
+                label="📥 TẢI FILE KẾ HOẠCH BÀI DẠY (WORD)", 
+                data=word_bytes, 
+                file_name=f"KHBD_{st.session_state['khbd_meta']['title']}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                type="primary"
+            )
+        except Exception as e:
+            st.error(f"❌ Có lỗi trong quá trình đóng gói file Word: {e}")
