@@ -1,12 +1,12 @@
 import os
 import json
 import hashlib
+import time
 import streamlit as st
 
 from typing import List, Dict, Any, Optional
 from loguru import logger
 import google.generativeai as genai
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Cấu hình Cache cục bộ (Mô phỏng in-memory caching để giảm API calls)
 try:
@@ -34,77 +34,66 @@ class ChatMemory:
 class AIEngine:
     """
     TỔNG ĐỘNG CƠ AI - TRÁI TIM CỦA HỆ SINH THÁI SỐ
-    Hỗ trợ Đa nền tảng, Tự động Fallback, Quản lý Quota, Caching và Đa phương thức.
+    Kiến trúc cấp doanh nghiệp: Đa Key, Fallback thông minh, Timeout & Retry an toàn.
     """
     
-    # Biến lớp mặc định
+    # 1. Thống nhất Model mặc định (Dùng chuẩn models/...)
     MODELS = {
-        "flash": "gemini-1.5-flash",
-        "pro": "gemini-1.5-pro"
+        "flash": "models/gemini-2.5-flash",
+        "pro": "models/gemini-2.5-pro"
     }
 
     def __init__(self, api_key: str = None, keys: Dict[str, str] = None):
-        """Khởi tạo hỗ trợ cả chuẩn cũ (app.py gọi api_key) và chuẩn mới đa nền tảng (keys)"""
         self.keys = keys if keys is not None else {}
-        
         if api_key and "gemini" not in self.keys:
             self.keys["gemini"] = api_key
             
         self.token_usage = {"gemini": 0, "openai": 0, "claude": 0}
         self.cost_estimate = 0.0
-        # Thứ tự ưu tiên Fallback: Gemini -> OpenAI -> Claude
-        self.provider_priority = ["gemini", "openai", "claude"]
         
-        # 1. Khởi tạo Gemini
+        # Hàng đợi Endpoints (Góp ý 12: Danh sách các điểm cuối cần chạy tuần tự)
+        self.active_endpoints = []
+
+        # 1. Nạp danh sách Gemini Keys (Hỗ trợ 1 key hoặc nhiều key cách nhau bằng dấu phẩy)
         if self.keys.get("gemini"):
-            genai.configure(api_key=self.keys["gemini"])
-            logger.info(f"Gemini key: {self.keys['gemini'][:12]}...")
-            
-            # Quét model trước khi in log để tránh lỗi AttributeError
+            g_keys = [k.strip() for k in self.keys["gemini"].split(",")] if isinstance(self.keys["gemini"], str) else self.keys["gemini"]
+            for k in g_keys:
+                if k: self.active_endpoints.append(("gemini", k))
+
+        # 2. Nạp OpenAI Key
+        if self.keys.get("openai"):
+            self.active_endpoints.append(("openai", self.keys["openai"]))
+
+        # 3. Nạp Claude Key
+        if self.keys.get("claude"):
+            self.active_endpoints.append(("claude", self.keys["claude"]))
+
+        # Khởi tạo tự động nhận diện Model Gemini (Chỉ cần mượn Key Gemini đầu tiên để quét)
+        self.gemini_models = {"text": self.MODELS["flash"], "vision": self.MODELS["pro"]}
+        first_gemini_key = next((k for p, k in self.active_endpoints if p == "gemini"), None)
+        if first_gemini_key:
+            genai.configure(api_key=first_gemini_key)
             self.gemini_models = self._auto_detect_gemini_models()
-            logger.info(f"Gemini models: {self.gemini_models}")
-            
             self.MODELS["flash"] = self.gemini_models["text"]
             self.MODELS["pro"] = self.gemini_models["vision"]
-        
-        # 2. Khởi tạo OpenAI (nếu có)
-        self.openai_client = None
-        if self.keys.get("openai"):
-            try:
-                import openai
-                self.openai_client = openai.Client(api_key=self.keys["openai"])
-                logger.info("OpenAI API Initialized.")
-            except ImportError:
-                logger.warning("Chưa cài thư viện openai. Chạy: pip install openai")
 
-        # 3. Khởi tạo Claude / Anthropic (nếu có)
-        self.claude_client = None
-        if self.keys.get("claude"):
-            try:
-                import anthropic
-                self.claude_client = anthropic.Anthropic(api_key=self.keys["claude"])
-                logger.info("Claude API Initialized.")
-            except ImportError:
-                logger.warning("Chưa cài thư viện anthropic. Chạy: pip install anthropic")
-
-        logger.info("🚀 AI Engine Core Initialized successfully.")
+        logger.info(f"🚀 AI Engine Core Initialized. Active Endpoints: {len(self.active_endpoints)}")
 
     # ==========================================
-    # 1. TỰ ĐỘNG PHÁT HIỆN MODEL (Auto-discovery)
+    # 1. TỰ ĐỘNG PHÁT HIỆN MODEL (BỀN VỮNG)
     # ==========================================
     def _auto_detect_gemini_models(self) -> Dict[str, str]:
-        """✅ Tự động quét các model đang sống của Google"""
-        available = {"text": "models/gemini-1.5-flash", "vision": "models/gemini-1.5-pro"} 
+        """✅ Tự động quét Model bằng Keyword thay vì hardcode phiên bản (Góp ý 2)"""
+        available = {"text": self.MODELS["flash"], "vision": self.MODELS["pro"]} 
         try:
             models = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
             
-            if any("1.5-flash" in m for m in models):
-                available["text"] = "models/gemini-1.5-flash"
-            elif any("pro" in m for m in models):
-                available["text"] = "models/gemini-1.5-pro"
-                
-            if any("1.5-pro" in m for m in models):
-                available["vision"] = "models/gemini-1.5-pro"
+            # Quét bằng chuỗi ký tự linh hoạt
+            flash_model = next((m for m in models if "flash" in m.lower()), None)
+            pro_model = next((m for m in models if "pro" in m.lower()), None)
+            
+            if flash_model: available["text"] = flash_model
+            if pro_model: available["vision"] = pro_model
                 
             logger.info(f"Detected Gemini Models: {available}")
         except Exception as e:
@@ -115,18 +104,19 @@ class AIEngine:
     # 2. CACHING & TOKEN TRACKING
     # ==========================================
     def _get_cache_key(self, prompt: str, kwargs: dict) -> str:
+        """✅ Sử dụng SHA256 cho an toàn với prompt dài (Góp ý 6)"""
         raw = prompt + json.dumps(kwargs, sort_keys=True)
-        return hashlib.md5(raw.encode()).hexdigest()
+        return hashlib.sha256(raw.encode()).hexdigest()
 
-    def _update_stats(self, provider: str, tokens: int):
-        self.token_usage[provider] = self.token_usage.get(provider, 0) + tokens
-        self.cost_estimate += (tokens / 1000) * 0.0001 
+    def _update_stats(self, provider: str, estimated_tokens: int):
+        self.token_usage[provider] = self.token_usage.get(provider, 0) + estimated_tokens
+        self.cost_estimate += (estimated_tokens / 1000) * 0.0001 
 
     # ==========================================
-    # 3. ROUTER LÕI & QUẢN LÝ QUOTA FALLBACK
+    # 3. ROUTER LÕI & MULTI-KEY FALLBACK
     # ==========================================
     def generate_text(self, prompt: str, memory: Optional[ChatMemory] = None, use_cache: bool = True, **kwargs) -> str:
-        """✅ Hàm sinh văn bản thống nhất có Caching và Fallback an toàn"""
+        """✅ Sinh văn bản với Retry/Fallback tuấn tự trên toàn bộ kho API Keys"""
         
         full_prompt = prompt
         if memory:
@@ -139,79 +129,105 @@ class AIEngine:
             return api_cache[cache_key]
 
         last_error = None
-        has_valid_provider = False
 
-        # Vòng lặp Fallback tự động
-        for provider in self.provider_priority:
-            if not self.keys.get(provider):
-                continue
-                
-            has_valid_provider = True
-            try:
-                logger.info(f"Đang gọi AI qua nhà cung cấp: {provider.upper()}")
-                response_text = self._call_provider(provider, full_prompt, **kwargs)
-                
-                # Lưu Cache & Memory
-                if use_cache:
-                    api_cache[cache_key] = response_text
-                if memory:
-                    memory.add_message("User", prompt)
-                    memory.add_message("AI", response_text)
+        # Vòng lặp Hàng đợi (Duyệt qua từng Key của Gemini -> OpenAI -> Claude)
+        for provider, api_key in self.active_endpoints:
+            # Góp ý 3: Retry 2 lần cho MỖI Endpoint
+            for attempt in range(2): 
+                try:
+                    response_text = self._call_provider(provider, api_key, full_prompt, **kwargs)
                     
-                self._update_stats(provider, len(full_prompt.split()) + len(response_text.split()))
-                return response_text
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Lỗi {provider.upper()}: {str(e)}. Tự động chuyển nguồn...")
-                last_error = e
+                    # Lưu Cache & Memory
+                    if use_cache:
+                        api_cache[cache_key] = response_text
+                    if memory:
+                        memory.add_message("User", prompt)
+                        memory.add_message("AI", response_text)
+                    
+                    # Ước lượng Token (Góp ý 8: Hệ số nhân 1.3 theo cấu trúc tiếng Việt)
+                    est_tokens = int((len(full_prompt.split()) + len(response_text.split())) * 1.3)
+                    self._update_stats(provider, est_tokens)
+                    
+                    return response_text
+                    
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    logger.warning(f"⚠️ Lỗi {provider.upper()} (Key: ...{api_key[-4:]}) - Lần {attempt+1}: {e}")
+                    last_error = e
+                    
+                    # Kỹ thuật Fast-Fail: Nếu hết Quota (429) hoặc Cấm (403), không cần Retry, nhảy Key kế tiếp
+                    if "429" in error_msg or "quota" in error_msg or "403" in error_msg or "exhausted" in error_msg:
+                        logger.warning(f"⏩ Bỏ qua Key này do cạn Quota. Chuyển nhà cung cấp / Key tiếp theo...")
+                        break # Phá vòng lặp attempt, đi tới Key kế tiếp trong active_endpoints
+                    
+                    time.sleep(2) # Nghỉ 2s trước khi Retry với các lỗi 500/503
 
-        if not has_valid_provider:
-            raise ValueError("❌ Không có API Key của nhà cung cấp AI nào được cấu hình.")
+        if not self.active_endpoints:
+            raise ValueError("❌ Không có API Key nào được cấu hình.")
             
-        error_msg = str(last_error) if last_error else "Lỗi không xác định"
-        raise Exception(f"❌ Toàn bộ AI đều quá tải hoặc hết Quota. Lỗi cuối cùng: {error_msg}")
+        raise Exception(f"❌ Toàn bộ kho AI Key đều quá tải hoặc hết Quota. Lỗi cuối: {last_error}")
 
-    def _call_provider(self, provider: str, prompt: str, **kwargs) -> str:
-        """Thực thi gọi API cụ thể cho từng nhà cung cấp"""
+    def _call_provider(self, provider: str, api_key: str, prompt: str, **kwargs) -> str:
+        """Thực thi gọi API cụ thể, chèn Log và giới hạn Timeout 60s (Góp ý 4, 7)"""
+        
         if provider == "gemini":
+            genai.configure(api_key=api_key)
             model_name = kwargs.get("model_name") or kwargs.get("model") or self.gemini_models["text"]
+            logger.info(f"Provider: GEMINI | Model: {model_name} | Prompt length: {len(prompt)}")
+            
             model = genai.GenerativeModel(model_name)
-            return model.generate_content(prompt).text
+            # Giới hạn timeout 60s thông qua request_options
+            return model.generate_content(prompt, request_options={"timeout": 60}).text
             
         elif provider == "openai":
-            if not self.openai_client: raise ValueError("Chưa cấu hình OpenAI")
             model_name = kwargs.get("model_name") or kwargs.get("model") or "gpt-4o-mini"
-            response = self.openai_client.chat.completions.create(
+            logger.info(f"Provider: OPENAI | Model: {model_name} | Prompt length: {len(prompt)}")
+            
+            import openai
+            client = openai.Client(api_key=api_key)
+            response = client.chat.completions.create(
                 model=model_name,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                timeout=60 # Giới hạn chống treo máy
             )
             return response.choices[0].message.content
             
         elif provider == "claude":
-            if not self.claude_client: raise ValueError("Chưa cấu hình Claude")
             model_name = kwargs.get("model_name") or kwargs.get("model") or "claude-3-5-sonnet-20240620"
-            response = self.claude_client.messages.create(
+            logger.info(f"Provider: CLAUDE | Model: {model_name} | Prompt length: {len(prompt)}")
+            
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
                 model=model_name,
                 max_tokens=kwargs.get("max_tokens", 8192),
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                timeout=60 # Giới hạn chống treo máy
             )
             return response.content[0].text
             
         raise NotImplementedError(f"Nhà cung cấp {provider} đang được xây dựng.")
 
     # ==========================================
-    # 4. CÁC TÍNH NĂNG NÂNG CAO (RAG, VISION, TTS)
+    # 4. CÁC TÍNH NĂNG NÂNG CAO (VISION, RAG)
     # ==========================================
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), reraise=True)
     def generate_vision(self, prompt: str, image_bytes: Any) -> str:
-        """✅ Xử lý Đa phương thức (Hình ảnh + Text)"""
-        try:
-            model = genai.GenerativeModel(self.gemini_models["vision"])
-            response = model.generate_content([prompt, image_bytes])
-            return response.text
-        except Exception as e:
-            logger.exception("Lỗi Vision API")
-            raise
+        """✅ Xử lý Đa phương thức (Tìm key Gemini đầu tiên để chạy kèm Retry thủ công)"""
+        gemini_key = next((k for p, k in self.active_endpoints if p == "gemini"), None)
+        if not gemini_key:
+            raise Exception("Tính năng Vision yêu cầu ít nhất 1 API Key của Gemini.")
+            
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel(self.gemini_models["vision"])
+        
+        for attempt in range(2):
+            try:
+                logger.info(f"Provider: GEMINI VISION | Prompt length: {len(prompt)}")
+                return model.generate_content([prompt, image_bytes], request_options={"timeout": 60}).text
+            except Exception as e:
+                logger.warning(f"Lỗi Vision Lần {attempt+1}: {e}")
+                if attempt == 1: raise e
+                time.sleep(2)
 
     def rag_query(self, query: str, documents: List[str]) -> str:
         """✅ Hàm chuẩn cho RAG: Chèn tài liệu vào Prompt"""
@@ -220,9 +236,12 @@ class AIEngine:
         return self.generate_text(prompt, use_cache=False)
 
     def generate_image(self, prompt: str):
-        """✅ Sinh ảnh (Dự phòng cho DALL-E 3 hoặc Midjourney)"""
-        if "openai" in self.keys and self.openai_client:
-            response = self.openai_client.images.generate(
+        """✅ Sinh ảnh (Dự phòng cho DALL-E 3)"""
+        openai_key = next((k for p, k in self.active_endpoints if p == "openai"), None)
+        if openai_key:
+            import openai
+            client = openai.Client(api_key=openai_key)
+            response = client.images.generate(
                 model="dall-e-3", prompt=prompt, n=1, size="1024x1024"
             )
             return response.data[0].url
