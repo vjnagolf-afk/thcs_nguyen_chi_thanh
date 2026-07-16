@@ -2,4 +2,4 @@ streamlit
 supabase
 pandas
 loguru
-google-generativeai
+google-generativeai>=0.8.5
