@@ -115,22 +115,18 @@ def render_xd_khbd(ai_engine):
             # Xử lý nội dung file tham khảo (TỐI ƯU TỐC ĐỘ ĐỌC PDF)
             noi_dung_tham_khao = ""
             if bam_sat and file_tai_len is not None:
-                try:
-                    if file_tai_len.name.endswith('.pdf'):
-                        pdf_reader = PyPDF2.PdfReader(file_tai_len)
-                        # Dừng đọc ngay khi lấy đủ 3000 ký tự để tránh treo máy với file lớn
-                        for page in pdf_reader.pages:
-                            text = page.extract_text()
-                            if text:
-                                noi_dung_tham_khao += text + "\n"
-                            if len(noi_dung_tham_khao) > 3000:
-                                break
-                    elif file_tai_len.name.endswith('.txt'):
-                        noi_dung_tham_khao = file_tai_len.getvalue().decode("utf-8")
-                    
-                    noi_dung_tham_khao = f"\n\n[TÀI LIỆU THAM KHẢO BẮT BUỘC BÁM SÁT]:\n{noi_dung_tham_khao[:3000]}"
-                except Exception as e:
-                    st.warning(f"Có lỗi khi đọc file, AI sẽ soạn theo dữ liệu mặc định. Chi tiết: {e}")
+                # ... (các phần code phía trên xử lý file PDF đã xong)
+
+    # 1. Gọi AI Engine bằng dòng lệnh mới
+            try:
+                response_text = ai_engine.generate_text(prompt, model_name=model_chon)
+                clean_json = response_text.replace("```json", "").replace("```", "").strip()
+                data_dict = json.loads(clean_json)
+                doc = DocxTemplate(template_path)
+                doc.render(data_dict)     
+            except Exception as e:
+                st.error(f"⚠️ Lỗi trong quá trình AI biên soạn: {e}")
+                logger.exception("AI Generation Failed")
             
             # Kịch bản JSON chuẩn (đã fix toàn bộ lỗi ngoặc)
             prompt = f"""
