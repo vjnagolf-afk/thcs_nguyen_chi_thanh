@@ -1,5 +1,0 @@
-Streamlit
-Supabase
-FastAPI
-Config
-Logging
