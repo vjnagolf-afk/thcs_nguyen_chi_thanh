@@ -19,8 +19,7 @@ class MarkdownTokenizer:
     _CHECKBOX_RE = re.compile(r'^(\s*)([\*\-])\s+\[([ xX])\]\s+(.*)')
     _HR_RE = re.compile(r'^\s*([-*_])\1{2,}\s*$')
     _CODE_BLOCK_START_RE = re.compile(r'^```(\w*)')
-    
-    _MATH_RE = re.compile(r'(\$(?:\\[\s\S]|[^\$])+\$|\\\([\s\S]+?\\\))')
+    _MATH_RE = re.compile(r'(\$.+?\$|\\\([\s\S]+?\\\))')
     _LINK_RE = re.compile(r'\[(.*?)\](.*?)')
     _INLINE_CODE_RE = re.compile(r'`([^`]+)`')
     _BOLD_RE = re.compile(r'(\*\*\*|___\b)(.*?)\1|(\*\*|__\b)(.*?)\3')
@@ -121,7 +120,7 @@ class MarkdownTokenizer:
         return tokens
 
 # ==========================================
-# 2. CHUẨN HÓA CÔNG THỨC TOÁN/HÓA HỌC (FIX LỖI TREO MÁY)
+# 2. CHUẨN HÓA CÔNG THỨC TOÁN/HÓA HỌC (ĐÃ KHÓA LỖI TREO MÁY)
 # ==========================================
 class ScienceNormalizer:
     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
@@ -141,15 +140,15 @@ class ScienceNormalizer:
         if not text: return ""
         text = text.replace('$', '').replace(r'\(', '').replace(r'\)', '').strip()
         
-        # BỎ VÒNG LẶP WHILE GÂY TREO MÁY CHỦ. 
-        # Dùng vòng lặp for giới hạn 3 cấp độ lồng nhau của phân số.
+        # FIX LỖI TREO MÁY: Thay vòng lặp while bằng vòng lặp for giới hạn (chỉ lặp tối đa 3 lần).
+        # Hỗ trợ thêm khoảng trắng nếu AI viết lỏng lẻo (VD: \frac {A} {B})
         for _ in range(3):
-            text = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1)/(\2)', text)
+            text = re.sub(r'\\frac\s*\{([^{}]+?)\}\s*\{([^{}]+?)\}', r'(\1)/(\2)', text)
             
-        # Dọn dẹp rác LaTeX nếu AI dùng lệnh đặc biệt bên trong công thức
-        text = text.replace(r'\frac', '').replace(r'\text', '').replace('{', '').replace('}', '')
+        # Dọn dẹp rác nếu AI viết công thức bị gãy/thiếu ngoặc
+        text = text.replace(r'\frac', '')
             
-        text = re.sub(r'\\sqrt\(([\s\S]+?)\)', r'√(\1)', text)
+        text = re.sub(r'\\sqrt\s*\{([\s\S]+?)\}', r'√(\1)', text)
         text = re.sub(r'([A-Z][a-z]?|\))(\d+)', lambda m: m.group(1) + m.group(2).translate(cls.SUB), text)
         text = re.sub(r'([A-Za-z₀₁₂₃₄₅₆₇₈₉\)]+)\^(\d*[+\-])', lambda m: m.group(1) + m.group(2).translate(cls.SUP), text)
         
