@@ -2,6 +2,13 @@ import streamlit as st
 import sys
 from pathlib import Path
 
+st.set_page_config(
+    page_title="THCS Nguyễn Chí Thanh",
+    layout="wide"
+)
+
+key = st.secrets["GEMINI_API_KEY"]
+st.write("API key đang dùng:", key[:10] + "..." + key[-4:])
 # ==========================================
 # CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG
 # ==========================================
