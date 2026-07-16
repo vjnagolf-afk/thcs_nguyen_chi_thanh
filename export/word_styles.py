@@ -1,11 +1,47 @@
+import docx
+from docx.shared import Pt, Inches, RGBColor
 from docx.oxml import OxmlElement
-from docx.oxml.ns import qn, nsdecls
-from docx.oxml import parse_xml
+from docx.oxml.ns import qn
+
+class BaseStyleSetup:
+    @staticmethod
+    def setup_base_styles(doc: docx.Document):
+        """Thiết lập kích thước trang A4 và Margins chuẩn hành chính Giáo dục"""
+        for section in doc.sections:
+            section.page_height = Inches(11.69)
+            section.page_width = Inches(8.27)
+            section.top_margin = Inches(0.79)     # 2.0 cm
+            section.bottom_margin = Inches(0.79)  # 2.0 cm
+            section.left_margin = Inches(1.18)    # 3.0 cm
+            section.right_margin = Inches(0.79)   # 2.0 cm
+
+        # Cấu hình phông chữ hệ thống mẫu dùng chung tốc độ cao
+        styles_config = {
+            'Normal': (13, False, False, 0, 6),
+            'Heading 1': (16, True, False, 12, 6),
+            'Heading 2': (14, True, False, 8, 4),
+            'Heading 3': (13, True, True, 6, 2),
+            'List Bullet': (13, False, False, 0, 3),
+            'List Number': (13, False, False, 0, 3)
+        }
+
+        for name, (size, bold, italic, before, after) in styles_config.items():
+            style = doc.styles[name]
+            style.font.name = 'Times New Roman'
+            style.font.size = Pt(size)
+            style.font.bold = bold
+            style.font.italic = italic
+            style.font.color.rgb = RGBColor(0, 0, 0)
+            style.paragraph_format.space_before = Pt(before)
+            style.paragraph_format.space_after = Pt(after)
+            if 'Heading' in name:
+                style.paragraph_format.keep_with_next = True
+
 
 class XmlHelpers:
     @staticmethod
     def set_font_safely(run, font_name: str = "Times New Roman"):
-        """Sửa điểm 1: Tìm và cập nhật rFonts hiện có, tránh tạo trùng lặp thẻ XML"""
+        """Sửa lỗi trùng lặp thẻ rFonts khi cập nhật đè phần tử XML của Word"""
         rPr = run._element.get_or_add_rPr()
         rFonts = rPr.find(qn("w:rFonts"))
         if rFonts is None:
@@ -17,8 +53,8 @@ class XmlHelpers:
         rFonts.set(qn('w:cs'), font_name)
 
     @staticmethod
-    def apply_paragraph_shading(paragraph, color_hex: str = "F4F4F4"):
-        """Sửa điểm 7: Đổ màu nền xám (Shading) nguyên khối cho cả Paragraph Code Block"""
+    def apply_paragraph_shading(paragraph, color_hex: str = "F5F5F5"):
+        """Đổ màu nền xám nguyên block bao phủ trọn đoạn văn bản"""
         pPr = paragraph._element.get_or_add_pPr()
         shd = pPr.find(qn("w:shd"))
         if shd is None:
@@ -29,8 +65,8 @@ class XmlHelpers:
         shd.set(qn("w:fill"), color_hex)
 
     @staticmethod
-    def apply_bottom_border(paragraph, color_hex: str = "B4B4B4", size: int = 12):
-        """Sửa điểm 6: Tạo đường kẻ ngang (HR) native bằng Paragraph Bottom Border cực đẹp"""
+    def apply_bottom_border(paragraph, color_hex: str = "CCCCCC", size: int = 8):
+        """Tạo đường kẻ ngang (HR) native bằng Paragraph Bottom Border"""
         pPr = paragraph._element.get_or_add_pPr()
         pBdr = pPr.find(qn("w:pBdr"))
         if pBdr is None:
@@ -38,253 +74,104 @@ class XmlHelpers:
             pPr.append(pBdr)
         bottom = OxmlElement("w:bottom")
         bottom.set(qn("w:val"), "single")
-        bottom.set(qn("w:sz"), str(size))  # 12 = 1.5 pt
+        bottom.set(qn("w:sz"), str(size))
         bottom.set(qn("w:space"), "4")
         bottom.set(qn("w:color"), color_hex)
         pBdr.append(bottom)
-from docx.shared import Pt, Inches, RGBColor
-from docx.enum.style import WD_STYLE_TYPE
+from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-class BaseStyleSetup:
-    @staticmethod
-    def setup_base_styles(doc):
-        # 1. Định dạng trang A4 & Margins
-        for section in doc.sections:
-            section.page_height = Inches(11.69)
-            section.page_width = Inches(8.27)
-            section.top_margin = Inches(0.79)
-            section.bottom_margin = Inches(0.79)
-            section.left_margin = Inches(1.18)
-            section.right_margin = Inches(0.79)
-
-        # Helper cấu hình thuộc tính font của một Style hệ thống
-        def configure_style(style_obj, font_size, bold=False, italic=False, color=(0,0,0), space_after=6, space_before=0):
-            style_obj.font.name = 'Times New Roman'
-            style_obj.font.size = Pt(font_size)
-            style_obj.font.bold = bold
-            style_obj.font.italic = italic
-            style_obj.font.color.rgb = RGBColor(*color)
-            style_obj.paragraph_format.space_after = Pt(space_after)
-            style_obj.paragraph_format.space_before = Pt(space_before)
-
-        # 2. Cập nhật các Style Hệ thống chuẩn (Sửa điểm 3)
-        configure_style(doc.styles['Normal'], 13, space_after=6)
-        configure_style(doc.styles['Heading 1'], 16, bold=True, space_before=12, space_after=6)
-        configure_style(doc.styles['Heading 2'], 14, bold=True, space_before=8, space_after=4)
-        configure_style(doc.styles['Heading 3'], 13, bold=True, italic=True, space_before=6, space_after=2)
-        configure_style(doc.styles['List Bullet'], 13, space_after=3)
-        configure_style(doc.styles['List Number'], 13, space_after=3)
-        
-        # Thiết lập chống mồ côi dòng cho toàn bộ Heading
-        doc.styles['Heading 1'].paragraph_format.keep_with_next = True
-        doc.styles['Heading 2'].paragraph_format.keep_with_next = True
-        doc.styles['Heading 3'].paragraph_format.keep_with_next = True
-from typing import List, Dict, Any
-from docx.shared import RGBColor
-from styles.xml_helpers import XmlHelpers
-
-class TextRenderer:
+class BlockRenderer:
     @classmethod
-    def render_inline_tokens(cls, paragraph, tokens: List[Dict[str, Any]], math_renderer: Any):
-        """Sửa điểm 8: Hỗ trợ link, highlight, subscript, superscript, bold, italic,..."""
-        if not tokens:
-            return
-
-        for token in tokens:
-            t_type = token.get("type")
-            
-            if t_type in ["text", "bold", "italic", "underline", "strike", "subscript", "superscript", "highlight"]:
-                content = token.get("content") or token.get("text", "")
-                run = paragraph.add_run(content)
-                XmlHelpers.set_font_safely(run, "Times New Roman")
-                
-                # Áp thuộc tính định dạng trực tiếp
-                if t_type == "bold": run.bold = True
-                elif t_type == "italic": run.italic = True
-                elif t_type == "underline": run.underline = True
-                elif t_type == "strike": run.font.strike = True
-                elif t_type == "subscript": run.font.subscript = True      # Hạ chỉ số (H₂SO₄) không cần gọi Math
-                elif t_type == "superscript": run.font.superscript = True  # Nâng số mũ (x²) không cần gọi Math
-                elif t_type == "highlight": run.font.highlight_color = 4   # Màu vàng mặc định
-
-            elif t_type == "inline_math":
-                if math_renderer:
-                    math_renderer.render_inline_math(paragraph, token.get("content", ""))
-                else:
-                    run = paragraph.add_run(f" {token.get('content')} ")
-                    run.font.italic = True
-                    XmlHelpers.set_font_safely(run, "Times New Roman")
-# --- heading_renderer.py ---
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from renderers.text_renderer import TextRenderer
-from styles.xml_helpers import XmlHelpers
-
-class HeadingRenderer:
-    @classmethod
-    def render(cls, doc, node: dict, math_renderer: Any):
-        level = min(max(node.get("level", 1), 1), 3) # Giới hạn từ Heading 1 -> Heading 3
+    def render_heading(cls, doc, node: dict, text_renderer, math_renderer):
+        level = min(max(node.get("level", 1), 1), 3)
         p = doc.add_paragraph(style=f'Heading {level}')
-        
-        # Nếu là tiêu đề chương mục lớn cấp 1, tự động căn giữa theo Mã 1 của trường
         if level == 1:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-        TextRenderer.render_inline_tokens(p, node.get("tokens", []), math_renderer)
-        
-        # Sửa điểm 4: Áp dụng helper đồng bộ cho toàn bộ runs tạo ra, tránh viết lặp
+        text_renderer.render_inline_tokens(p, node.get("tokens", []), math_renderer)
         for run in p.runs:
             XmlHelpers.set_font_safely(run, "Times New Roman")
 
-
-# --- list_renderer.py ---
-from docx.shared import Inches
-from renderers.text_renderer import TextRenderer
-
-class ListRenderer:
     @classmethod
-    def render(cls, doc, node: dict, math_renderer: Any):
+    def render_list_item(cls, doc, node: dict, text_renderer, math_renderer):
         style_name = 'List Number' if node.get("style") == "number" else 'List Bullet'
         p = doc.add_paragraph(style=style_name)
         
-        # Sửa điểm 5: Cấu hình thụt lề treo (Hanging Indent) chuẩn chỉnh cho dòng văn bản dài
+        # Thụt lề treo (Hanging Indent) chuẩn chỉnh cho danh sách đa cấp của AI
         level = node.get("level", 1)
         base_left = 0.25 * level
-        
         p.paragraph_format.left_indent = Inches(base_left + 0.25)
-        p.paragraph_format.first_line_indent = Inches(-0.25)  # Thụt dòng đầu ra phía trước dấu bullet
+        p.paragraph_format.first_line_indent = Inches(-0.25)
         
-        TextRenderer.render_inline_tokens(p, node.get("tokens", []), math_renderer)
-# --- code_renderer.py ---
-from docx.shared import Pt, Inches, RGBColor
-from styles.xml_helpers import XmlHelpers
+        text_renderer.render_inline_tokens(p, node.get("tokens", []), math_renderer)
 
-class CodeRenderer:
     @classmethod
-    def render(cls, doc, node: dict):
+    def render_checkbox(cls, doc, node: dict, text_renderer, math_renderer):
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.25 * node.get("level", 1))
+        
+        box_char = "☑ " if node.get("checked", False) else "☐ "
+        run_box = p.add_run(box_char)
+        XmlHelpers.set_font_safely(run_box, "MS Gothic")  # Font native tối ưu hiển thị ô vuông
+        run_box.bold = True
+        
+        text_renderer.render_inline_tokens(p, node.get("tokens", []), math_renderer)
+
+
+class ContainerRenderer:
+    @classmethod
+    def render_code_block(cls, doc, node: dict):
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = Inches(0.4)
         p.paragraph_format.space_before = Pt(4)
         p.paragraph_format.space_after = Pt(4)
-        
-        # Sửa điểm 7: Đổ phủ nền xám toàn khối đoạn mã
         XmlHelpers.apply_paragraph_shading(p, "F5F5F5")
         
         run = p.add_run(node.get("text", ""))
         run.font.size = Pt(10.5)
-        run.font.color.rgb = RGBColor(40, 40, 40)
         XmlHelpers.set_font_safely(run, "Courier New")
 
-
-# --- table_renderer.py --- (Sửa điểm 9)
-from renderers.text_renderer import TextRenderer
-
-class TableRenderer:
     @classmethod
-    def render(cls, doc, node: dict, math_renderer: Any):
-        headers = node.get("headers", [])
-        rows = node.get("rows", [])
-        if not headers and not rows:
-            return
-            
-        # Khởi tạo bảng hệ thống với Style lưới chuẩn Word
-        table = doc.add_table(rows=0, cols=node.get("cols", 1))
-        table.style = 'Table Grid'
+    def render_callout(cls, doc, node: dict, text_renderer, math_renderer):
+        style = node.get("style", "quote")
+        bg_color = "FFF5F5" if style == "warning" else ("F0F7FF" if style == "tip" else "F9F9F9")
+        border_color = "FF3B30" if style == "warning" else ("007AFF" if style == "tip" else "8E8E93")
         
-        # Render hàng đầu (Header)
-        if headers:
-            hdr_cells = table.add_row().cells
-            for idx, cell_node in enumerate(headers):
-                p = hdr_cells[idx].paragraphs[0]
-                p.paragraph_format.space_after = Pt(2)
-                TextRenderer.render_inline_tokens(p, cell_node.get("content", []), math_renderer)
-                for run in p.runs: run.bold = True
-                
-        # Render các hàng dữ liệu nội dung (Rows)
-        for row_data in rows:
-            row_cells = table.add_row().cells
-            for idx, cell_node in enumerate(row_data):
-                p = row_cells[idx].paragraphs[0]
-                p.paragraph_format.space_after = Pt(2)
-                TextRenderer.render_inline_tokens(p, cell_node.get("content", []), math_renderer)
+        # Thiết lập bảng 1 ô bọc khối Callout nâng cao
+        table = doc.add_table(rows=1, cols=1)
+        table.alignment = docx.enum.table.WD_TABLE_ALIGNMENT.CENTER
+        table.autofit = False
+        table.columns.width = Inches(6.3)
+        
+        cell = table.cell(0, 0)
+        tcPr = cell._element.get_or_add_tcPr()
+        
+        # Đổ màu nền ô hệ thống
+        shd = OxmlElement('w:shd')
+        shd.set(qn('w:val'), 'clear')
+        shd.set(qn('w:fill'), bg_color)
+        tcPr.append(shd)
+        
+        # Thiết lập đường viền trái dày dặn, xóa 3 biên còn lại
+        borders = OxmlElement('w:tcBorders')
+        left_b = OxmlElement('w:left')
+        left_b.set(qn('w:val'), 'single')
+        left_b.set(qn('w:sz'), '24')  # Độ dày viền ~3pt
+        left_b.set(qn('w:color'), border_color)
+        borders.append(left_b)
+        
+        for side in ['top', 'bottom', 'right']:
+            b = OxmlElement(f'w:{side}')
+            b.set(qn('w:val'), 'none')
+            borders.append(b)
+        tcPr.append(borders)
 
-
-# --- image_renderer.py --- (Sửa điểm 10)
-from docx.shared import Inches
-import io
-import requests
-
-class ImageRenderer:
-    @classmethod
-    def render(cls, doc, node: dict):
-        """Tự động tải ảnh từ URL do AI đề xuất và ép kích thước an toàn vừa trang giáo án"""
-        url = node.get("url", "")
-        alt = node.get("alt", "image")
-        if not url:
-            return
-        try:
-            p = doc.add_paragraph()
-            p.alignment = 1  # Căn giữa ảnh
-            
-            # Nếu là đường dẫn URL, thực hiện tải luồng bytes về bộ nhớ tạm
-            if url.startswith("http"):
-                response = requests.get(url, timeout=5)
-                image_stream = io.BytesIO(response.content)
-                p.add_run().add_picture(image_stream, width=Inches(5.0))
-            else:
-                # Nếu là đường dẫn file cục bộ trong hệ thống trường
-                p.add_run().add_picture(url, width=Inches(5.0))
-        except Exception as e:
-            p.add_run(f"[Không hiển thị được hình ảnh: {alt} - Đường dẫn: {url}]")
-from styles.base_styles import BaseStyleSetup
-from styles.xml_helpers import XmlHelpers
-
-from renderers.text_renderer import TextRenderer
-from renderers.heading_renderer import HeadingRenderer
-from renderers.list_renderer import ListRenderer
-from renderers.code_renderer import CodeRenderer
-from renderers.table_renderer import TableRenderer
-from renderers.image_renderer import ImageRenderer
-
-class StyleManager:
-    @staticmethod
-    def setup_base_styles(doc):
-        """Kế thừa thiết lập cấu hình trang từ BaseStyleSetup"""
-        BaseStyleSetup.setup_base_styles(doc)
-
-    @classmethod
-    def render_ast_to_word(cls, doc, ast_nodes: list, math_renderer: Any):
-        """Nhạc trưởng điều phối duyệt cây AST của Tokenizer và phân phối về đúng Module chuyên trách"""
-        for node in ast_nodes:
-            n_type = node.get("type")
-            
-            if n_type == "paragraph":
-                p = doc.add_paragraph()
-                TextRenderer.render_inline_tokens(p, node.get("tokens", []), math_renderer)
-                
-            elif n_type == "heading":
-                HeadingRenderer.render(doc, node, math_renderer)
-                
-            elif n_type == "list_item":
-                ListRenderer.render(doc, node, math_renderer)
-                
-            elif n_type == "code":
-                CodeRenderer.render(doc, node)
-                
-            elif n_type == "table":
-                TableRenderer.render(doc, node, math_renderer)
-                
-            elif n_type == "image":
-                ImageRenderer.render(doc, node)
-                
-            elif n_type == "hr":
-                # Sửa điểm 6: Tạo một paragraph trống và áp viền dưới native cực tinh tế
-                p = doc.add_paragraph()
-                p.paragraph_format.space_before = Pt(12)
-                p.paragraph_format.space_after = Pt(12)
-                XmlHelpers.apply_bottom_border(p, color_hex="CCCCCC", size=8)
-                
-            elif n_type == "display_math":
-                # Kích hoạt bộ chuyển đổi XML OMML chuẩn nếu gặp khối phương trình độc lập
-                if math_renderer:
-                    math_renderer.render_display_math(doc, node.get("content", ""))
+        # Ghi nội dung đệ quy tokens vào khối Callout bọc
+        p = cell.paragraphs
+        for i, child in enumerate(node.get("children", [])):
+            if i > 0: 
+                p = cell.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            if child.get("type") == "paragraph":
+                text_renderer.render_inline_tokens(p, child.get("tokens", []), math_renderer)
