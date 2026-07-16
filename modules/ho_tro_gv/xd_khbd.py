@@ -100,11 +100,6 @@ def render_xd_khbd(ai_engine):
         if st.button("📥 Xuất file Word", use_container_width=True):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
-                    # =========================================================================
-                    # ĐỊNH VỊ CHÍNH XÁC THEO CÂU TRÚC THƯ MỤC THỰC TẾ TRÊN GITHUB
-                    # Ngược 3 cấp ra gốc: xd_khbd.py -> ho_tro_gv -> modules -> gốc
-                    # Sau đó đi vào gói mới: -> /export/export_word.py
-                    # =========================================================================
                     current_file = Path(__file__).resolve()
                     project_root = current_file.parent.parent.parent
                     export_word_path = project_root / "export" / "export_word.py"
@@ -113,7 +108,7 @@ def render_xd_khbd(ai_engine):
                         st.error(f"Không tìm thấy file tại đường dẫn vật lý: {export_word_path}")
                         return
                     
-                    # Thêm thư mục export vào hệ thống tìm kiếm của Python để các file con tìm thấy nhau
+                    # Nạp thư mục export vào sys.path để các file vệ tinh (word_markdown, word_math) tìm thấy nhau
                     export_dir = str(project_root / "export")
                     if export_dir not in sys.path:
                         sys.path.insert(0, export_dir)
@@ -122,10 +117,15 @@ def render_xd_khbd(ai_engine):
                     spec = importlib.util.spec_from_file_location("export_word", str(export_word_path))
                     export_word = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(export_word)
-                    # =========================================================================
                     
-                    # Gọi hàm chuyển đổi từ lõi kết xuất cao cấp của thầy
-                    word_bytes = export_word.WordExportEngine.convert_markdown_to_docx_bytes(st.session_state['khbd_content'])
+                    # =========================================================================
+                    # ĐÃ SỬA: Đồng bộ gọi đúng tên hàm gốc 'export_to_word' và cấu trúc tham số dữ liệu đầu vào
+                    # =========================================================================
+                    word_bytes = export_word.WordExportEngine.export_to_word({
+                        "ai_generated_content": st.session_state['khbd_content'],
+                        "is_khbd": True
+                    })
+                    # =========================================================================
                     
                     # Lưu luồng bytes vào session state để hiển thị nút tải xuống ở lượt rerun tiếp theo
                     st.session_state['khbd_word_bytes'] = word_bytes
