@@ -5,3 +5,6 @@ PyPDF2
 loguru
 google-generativeai
 docxtpl
+-r requirements/core.txt
+-r requirements/office.txt
+-r requirements/analytics.txt
