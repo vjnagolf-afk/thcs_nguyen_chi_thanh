@@ -124,7 +124,6 @@ def render_xd_quizizz(ai_engine):
         st.session_state.pop('quizizz_content', None)
         st.session_state.pop('quizizz_meta', None)
         st.rerun()
-
     # 3. HIỂN THỊ KẾT QUẢ VÀ TẢI VỀ
     if st.session_state.get('quizizz_content'):
         st.markdown("---")
