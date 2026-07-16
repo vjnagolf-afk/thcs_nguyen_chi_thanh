@@ -59,9 +59,10 @@ class AIEngine:
     Kiến trúc Client Pool, Multi-Key Fallback, Timeout & Retry an toàn.
     """
     
+    # Đã loại bỏ tiền tố "models/" cho tương thích 100% với SDK google-genai
     MODELS = {
-        "flash": "models/gemini-2.5-flash",
-        "pro": "models/gemini-2.5-pro"
+        "flash": "gemini-2.5-flash",
+        "pro": "gemini-2.5-pro"
     }
 
     def __init__(self, api_key: str = None, keys: Dict[str, str] = None):
@@ -134,11 +135,11 @@ class AIEngine:
         client = self.gemini_clients[first_key]
         
         try:
-            # Lệnh list models chuẩn của SDK google-genai > 0.1.0
-            models = [m.name for m in client.models.list()]
+            # Lọc sạch tiền tố "models/" nếu API của Google trả về dạng cũ
+            clean_models = [m.name.replace("models/", "") for m in client.models.list()]
             
-            flash_model = next((m for m in models if "flash" in m.lower()), None)
-            pro_model = next((m for m in models if "pro" in m.lower()), None)
+            flash_model = next((m for m in clean_models if "flash" in m.lower()), None)
+            pro_model = next((m for m in clean_models if "pro" in m.lower()), None)
             
             if flash_model: available["text"] = flash_model
             if pro_model: available["vision"] = pro_model
@@ -199,9 +200,9 @@ class AIEngine:
                     logger.warning(f"⚠️ Lỗi {provider.upper()} (Key: ...{api_key[-4:]}) - Lần {attempt+1}: {e}")
                     last_error = e
                     
-                    # Fast-Fail: Chuyển Key ngay nếu Hết Quota/Bị cấm
-                    if "429" in error_msg or "quota" in error_msg or "403" in error_msg or "exhausted" in error_msg:
-                        logger.warning(f"⏩ Bỏ qua Key này do cạn Quota. Chuyển nhà cung cấp / Key tiếp theo...")
+                    # Fast-Fail: Chuyển Key ngay nếu Hết Quota/Bị cấm/Không tìm thấy
+                    if "429" in error_msg or "quota" in error_msg or "403" in error_msg or "exhausted" in error_msg or "404" in error_msg:
+                        logger.warning(f"⏩ Bỏ qua Key/Model này do lỗi (Quota/404). Chuyển nhà cung cấp / Key tiếp theo...")
                         break 
                     
                     time.sleep(2) 
