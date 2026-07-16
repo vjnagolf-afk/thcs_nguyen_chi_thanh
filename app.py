@@ -184,11 +184,10 @@ if not ai_engine:
 if phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Quản lý điểm", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
-    
     with tabs_gv[0]:
         render_xd_khbd(ai_engine)
     with tabs_gv[1]:
-        st.info("💡 Tính năng Xây dựng Đề kiểm tra đang được phát triển.")
+        render_xd_de_kt(ai_engine)  <--- GỌI MODULE ĐỀ KIỂM TRA Ở ĐÂY
 
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
