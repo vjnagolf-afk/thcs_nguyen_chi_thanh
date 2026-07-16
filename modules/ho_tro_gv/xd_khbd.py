@@ -1,20 +1,20 @@
 import streamlit as st
 from docxtpl import DocxTemplate
 from jinja2 import Environment, Undefined
+from pathlib import Path
+from loguru import logger
 import io
 import json
 import PyPDF2
 import os
-from loguru import logger
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
-    # Session State khởi tạo
     if "khbd_docx" not in st.session_state: st.session_state.khbd_docx = None
     if "khbd_filename" not in st.session_state: st.session_state.khbd_filename = ""
 
-    # Giao diện Input
+    # Giao diện
     col1, col2, col3, col4 = st.columns(4)
     mon_hoc = col1.selectbox("Môn học", ["Toán", "Ngữ văn", "Khoa học Tự nhiên", "Tiếng Anh", "Tin học", "Công nghệ"])
     lop = col2.selectbox("Lớp", [str(i) for i in range(6, 13)], index=3)
@@ -28,19 +28,17 @@ def render_xd_khbd(ai_engine):
     bam_sat = st.checkbox("Bám sát nội dung file", value=False)
     yeu_cau_them = st.text_area("Yêu cầu bổ sung")
 
-    # Nút bấm
     tao_btn = st.button("🚀 Soạn KHBD", type="primary")
 
     if st.session_state.khbd_docx:
         st.download_button("📥 Tải file Word", data=st.session_state.khbd_docx, file_name=st.session_state.khbd_filename)
 
     if tao_btn:
-        if not ten_bai: 
-            st.warning("Vui lòng nhập tên bài!")
+        if not ten_bai: st.warning("Vui lòng nhập tên bài!")
         else:
             with st.spinner("🤖 AI đang biên soạn..."):
                 try:
-                    # 1. Đọc nội dung file tham khảo
+                    # 1. Xử lý tài liệu
                     noi_dung = ""
                     if bam_sat and file_tai_len:
                         if file_tai_len.name.endswith('.pdf'):
@@ -61,20 +59,20 @@ def render_xd_khbd(ai_engine):
                     with st.expander("👁️ Xem trước dữ liệu"):
                         st.json(data)
 
-                    # 4. Xác định đường dẫn file mẫu
-                    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-                    template_path = os.path.join(root_dir, "templates", "KHBD_Mau.docx")
+                    # 4. Định vị Template (Pathlib chuẩn)
+                    BASE_DIR = Path(__file__).resolve().parents[2]
+                    template_path = BASE_DIR / "templates" / "KHBD_Mau.docx"
                     
-                    if not os.path.exists(template_path):
-                        st.error(f"❌ Không tìm thấy file mẫu tại:\n{template_path}")
+                    if not template_path.exists():
+                        st.error(f"❌ Không tìm thấy file mẫu:\n{template_path}")
+                        logger.error(f"Missing template: {template_path}")
                         return
 
-                    # 5. Render file Word
+                    # 5. Render Word
                     doc = DocxTemplate(template_path)
                     jinja_env = Environment(undefined=Undefined)
                     doc.render(data, jinja_env=jinja_env)
                     
-                    # 6. Lưu file
                     bio = io.BytesIO()
                     doc.save(bio)
                     st.session_state.khbd_docx = bio.getvalue()
