@@ -120,7 +120,7 @@ def render_xd_quizizz(ai_engine):
                 except Exception as e:
                     st.error(f"Lỗi hệ thống AI: {e}")
 
-    if c_btn2.button("🗑️ Xóa làm lại", use_container_width=True):
+    if c_btn2.button("🗑️ Xóa làm lại", key="xoa_quiz", use_container_width=True):
         st.session_state.pop('quizizz_content', None)
         st.session_state.pop('quizizz_meta', None)
         st.rerun()
