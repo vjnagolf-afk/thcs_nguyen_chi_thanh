@@ -103,19 +103,53 @@ def render_xd_khbd(ai_engine):
     if tao_btn:
         if not ten_bai:
             st.warning("Thầy vui lòng nhập Tên bài dạy nhé!")
-            return
-            
-        if not ai_engine or not model_chon:
-            st.error("🔐 AI Engine chưa kết nối. Thầy vui lòng nhập API Key ở menu hoặc thiết lập SCHOOL_ADMIN_API_KEY trong phần Secrets của Streamlit nhé.")
-            return
+        elif not ai_engine or not model_chon:
+            st.error("🔐 AI Engine chưa kết nối. Vui lòng kiểm tra lại API Key.")
+        else:
+            with st.spinner(f"🤖 Trợ lý AI đang tư duy..."):
+                # 1. Xử lý nội dung file tham khảo
+                noi_dung_tham_khao = ""
+                if bam_sat and file_tai_len is not None:
+                    try:
+                        if file_tai_len.name.endswith('.pdf'):
+                            pdf_reader = PyPDF2.PdfReader(file_tai_len)
+                            for page in pdf_reader.pages:
+                                text = page.extract_text()
+                                if text:
+                                    noi_dung_tham_khao += text + "\n"
+                                if len(noi_dung_tham_khao) > 3000: break
+                        elif file_tai_len.name.endswith('.txt'):
+                            noi_dung_tham_khao = file_tai_len.getvalue().decode("utf-8")[:3000]
+                        noi_dung_tham_khao = f"\n\n[TÀI LIỆU]:\n{noi_dung_tham_khao}"
+                    except Exception as e:
+                        st.warning(f"Lỗi đọc file: {e}")
 
-        with st.spinner(f"🤖 Trợ lý AI đang tư duy và biên soạn KHBD theo hình thức {hinh_thuc}..."):
-            
-            # Xử lý nội dung file tham khảo
-            # Xử lý nội dung file tham khảo (TỐI ƯU TỐC ĐỘ ĐỌC PDF)
-            noi_dung_tham_khao = ""
-            if bam_sat and file_tai_len is not None:
-                # ... (các phần code phía trên xử lý file PDF đã xong)
+                # 2. Xây dựng Prompt
+                prompt = f"""
+                Đóng vai giáo viên {mon_hoc} THCS. Soạn Kế hoạch bài dạy: "{ten_bai}", lớp {lop}, {thoi_luong} tiết.
+                Hình thức: {hinh_thuc}. Yêu cầu: {yeu_cau_them}. {noi_dung_tham_khao}
+                Trả về JSON chuẩn với các key: CHU_DE, TEN_BAI_HOC, MON_HOC, THOI_LUONG, MUC_TIEU_KIEN_THUC, NANG_LUC_CHUNG, NANG_LUC_DAC_THU, NANG_LUC_SO_VA_AI, PHAM_CHAT, GIAO_VIEN, HOC_SINH, MUC_TIEU, NOI_DUNG, SAN_PHAM, CHUYEN_GIAO_NHIEM_VU_HOC_TAP, THUC_HIEN_NHIEM_VU_HOC_TAP, BAO_CAO_KET_QUA_VA_THAO_LUAN, DANH_GIA_KET_QUA, TEN_HOAT_DONG, HD1_MUC_TIEU, HD1_NOI_DUNG, HD1_SAN_PHAM, CHUYEN_GIAO_NHIEM_VU_HOC_TAP_1, THUC_HIEN_NHIEM_VU_HOC_TAP_1, BAO_CAO_KET_QUA_VA_THAO_LUAN_1, KET_LUAN_1, HD2_MUC_TIEU, HD2_NOI_DUNG, HD2_SAN_PHAM, HD2_CHUYEN_GIAO_NHIEM_VU_HOC_TAP, HD2_THUC_HIEN_NHIEM_VU_HOC_TAP, HD2_BAO_CAO_KET_QUA_VA_THAO_LUAN, HD2_KET_LUAN, LT_MUC_TIEU, LT_NOI_DUNG, LT_SAN_PHAM, CHUYEN_GIAO_NHIEM_VU_HOC_TAP_LT, LT_THUC_HIEN_NHIEM_VU_HOC_TAP, LT_BAO_CAO_KET_QUA_VA_THAO_LUAN, LT_KET_LUAN, VD_MUC_TIEU, VD_NOI_DUNG, VD_SAN_PHAM, TO_CHUC_THUC_HIEN, VD_CHUYEN_GIAO_NHIEM_VU_HOC_TAP, VD_THUC_HIEN_NHIEM_VU_HOC_TAP, VD_BAO_CAO_KET_QUA_VA_THAO_LUAN, VD_KET_LUAN, PHIEU_HOC_TAP.
+                """
+
+                # 3. Gọi AI và Render
+                try:
+                    response_text = ai_engine.generate_text(prompt, model_name=model_chon)
+                    clean_json = response_text.replace("```json", "").replace("```", "").strip()
+                    data_dict = json.loads(clean_json)
+
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    template_path = os.path.join(current_dir, "..", "..", "templates", "KHBD_Mau.docx")
+                    
+                    doc = DocxTemplate(template_path)
+                    doc.render(data_dict)
+
+                    bio = io.BytesIO()
+                    doc.save(bio)
+                    st.session_state.khbd_docx = bio.getvalue()
+                    st.session_state.khbd_filename = f"KHBD_{ten_bai.replace(' ', '_')}.docx"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi hệ thống: {e}")
 
     # 1. Gọi AI Engine bằng dòng lệnh mới
             try:
