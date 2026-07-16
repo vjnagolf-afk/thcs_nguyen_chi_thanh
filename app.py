@@ -2,15 +2,16 @@ import streamlit as st
 import sys
 from pathlib import Path
 
+# ==========================================
+# 1. CẤU HÌNH TRANG (Bắt buộc phải ở dòng đầu tiên và chỉ gọi 1 lần)
+# ==========================================
 st.set_page_config(
-    page_title="THCS Nguyễn Chí Thanh",
+    page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh",
     layout="wide"
 )
 
-key = st.secrets["GEMINI_API_KEY"]
-st.write("API key đang dùng:", key[:10] + "..." + key[-4:])
 # ==========================================
-# CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG
+# 2. CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG
 # ==========================================
 ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
@@ -25,31 +26,38 @@ from modules.quan_ly_to.bien_ban import render_bien_ban
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_gv.xd_khbd import render_xd_khbd
 
-# Cấu hình trang
-st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide")
-
-# Khởi tạo trạng thái phiên làm việc
+# ==========================================
+# 3. KHỞI TẠO TRẠNG THÁI PHIÊN LÀM VIỆC
+# ==========================================
 if "user_api_key" not in st.session_state:
     st.session_state.user_api_key = None
 if "is_admin_mode" not in st.session_state:
     st.session_state.is_admin_mode = False
 
-# Lấy Engine an toàn
-def get_ai_engine():
-    if st.session_state.is_admin_mode:
-        admin_key = st.secrets.get("SCHOOL_ADMIN_API_KEY")
-        return AIEngine(api_key=admin_key) if admin_key else None
+# ==========================================
+# 4. HÀM LẤY ENGINE TỐI ƯU (CÓ CACHE CHỐNG LAG)
+# ==========================================
+@st.cache_resource
+def get_ai_engine(is_admin, user_key, admin_secret):
+    if is_admin:
+        return AIEngine(api_key=admin_secret) if admin_secret else None
     else:
-        key = st.session_state.get("user_api_key")
-        return AIEngine(api_key=key) if key else None
+        return AIEngine(api_key=user_key) if user_key else None
+
+# Lấy Admin Key từ secrets một cách an toàn
+try:
+    admin_api_key = st.secrets.get("SCHOOL_ADMIN_API_KEY", None)
+except:
+    admin_api_key = None
 
 # ==========================================
-# GIAO DIỆN SIDEBAR
+# 5. GIAO DIỆN SIDEBAR
 # ==========================================
 with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: red;'>HỆ SINH THÁI SỐ<br>HỖ TRỢ GIÁO VIÊN</h2>", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("<h4 style='text-align: center; color: blue;'>CHỌN PHÂN HỆ</h4>", unsafe_allow_html=True)
+    
     phan_he = st.radio(
         "Chọn phân hệ:", 
         ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn"], 
@@ -68,7 +76,7 @@ with st.sidebar:
         unsafe_allow_html=True
     )
     
-    # FIX 3: Chỉ hiện nút Đăng xuất khi đã qua cổng đăng nhập, reset sạch trạng thái
+    # Chỉ hiện nút Đăng xuất khi đã đăng nhập
     if st.session_state.user_api_key or st.session_state.is_admin_mode:
         if st.button("🚪 Đăng xuất / Đổi Key", use_container_width=True):
             st.session_state.user_api_key = None
@@ -76,38 +84,37 @@ with st.sidebar:
             st.rerun()
 
 # ==========================================
-# CỔNG BẢO MẬT (LOGIN) - ĐÃ BỊT LỖ HỔNG
+# 6. CỔNG BẢO MẬT (LOGIN)
 # ==========================================
 if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
     st.warning("🔑 Vui lòng nhập API Key cá nhân HOẶC Mật khẩu Quản trị để bắt đầu.")
     with st.form("login"):
-        # Gộp chung ô nhập. Nhập mã admin thì vô quyền admin, nhập API key thì dùng cá nhân
-        key = st.text_input("Nhập API Key / Mật khẩu:", type="password")
+        key_input = st.text_input("Nhập API Key / Mật khẩu:", type="password")
         if st.form_submit_button("Xác nhận"):
-            if not key.strip():
+            if not key_input.strip():
                 st.error("⚠️ Vui lòng không để trống!")
-            # Kiểm tra xem có phải mật khẩu Admin không (Thầy cấu hình ADMIN_PASSWORD trong st.secrets)
-            elif key.strip() == st.secrets.get("ADMIN_PASSWORD", "admin123456"):
+            # Kiểm tra xem có phải mật khẩu Admin không
+            elif key_input.strip() == st.secrets.get("ADMIN_PASSWORD", "admin123456"):
                 st.session_state.is_admin_mode = True
                 st.rerun()
             else:
-                st.session_state.user_api_key = key.strip()
+                st.session_state.user_api_key = key_input.strip()
                 st.session_state.is_admin_mode = False
                 st.rerun()
     st.stop()
 
 # ==========================================
-# KHỞI TẠO ENGINE & KIỂM TRA TOÀN VẸN
+# 7. KHỞI TẠO ENGINE & KIỂM TRA TOÀN VẸN
 # ==========================================
-ai_engine = get_ai_engine()
+# Gọi hàm đã được cache để lấy engine (App sẽ tải cực nhanh từ lần click thứ 2 trở đi)
+ai_engine = get_ai_engine(st.session_state.is_admin_mode, st.session_state.user_api_key, admin_api_key)
 
-# FIX 2: Chặn lỗi Null Object Crash nếu Secrets bị thiết lập sai
 if not ai_engine:
-    st.error("❌ Không thể khởi tạo Hệ thống AI. API Key không hợp lệ hoặc thiếu cấu hình Server.")
+    st.error("❌ Không thể khởi tạo Hệ thống AI. Vui lòng kiểm tra lại API Key hoặc cấu hình Secrets.")
     st.stop()
 
 # ==========================================
-# CHUYỂN HƯỚNG PHÂN HỆ
+# 8. CHUYỂN HƯỚNG PHÂN HỆ (ROUTING)
 # ==========================================
 if phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
