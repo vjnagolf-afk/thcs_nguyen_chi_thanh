@@ -39,7 +39,8 @@ try:
     from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
     from modules.ho_tro_gv.xd_stem import render_xd_stem
     from modules.ho_tro_gv.xd_rubric import render_xd_rubric
-    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem # <--- Thêm dòng này
+    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
+    from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet # <--- Thêm dòng này
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -185,7 +186,7 @@ if not ai_engine:
 # ========================================== #
 elif phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-    tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Quản lý điểm", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
+    tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Chấm bài Viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
     
     with tabs_gv[0]:
         render_xd_khbd(ai_engine)
@@ -197,7 +198,8 @@ elif phan_he == "Hỗ trợ Giáo viên":
         render_xd_rubric(ai_engine)
     with tabs_gv[4]: # <--- Tab Chủ nhiệm là Tab số 5 (index 4)
         render_xd_chu_nhiem(ai_engine)
-        
+    with tabs_gv[5]: # <--- Đây là vị trí Tab số 6
+        render_xd_cham_viet(ai_engine)
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
