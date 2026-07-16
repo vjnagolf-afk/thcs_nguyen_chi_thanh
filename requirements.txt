@@ -1,8 +1,58 @@
-streamlit
-google-generativeai
-openai
-docxtpl
-PyPDF2
-loguru
-tenacity
-cachetools
+# Requirements v1.0 - Hệ sinh thái THCS Nguyễn Chí Thanh
+
+# Web Application
+streamlit>=1.40.0
+
+# Database
+supabase>=2.10.0
+
+# Data Processing
+pandas>=2.2.0
+openpyxl>=3.1.5
+
+# Logging
+loguru>=0.7.2
+
+# AI Providers
+google-generativeai>=0.4.0
+openai>=1.10.0
+
+# Cache & Retry
+cachetools>=5.5.0
+tenacity>=9.0.0
+
+# API Backend
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
+
+# Data validation
+pydantic>=2.9.0
+
+# ===============================
+# OFFICE DOCUMENT PROCESSING
+# ===============================
+python-docx>=1.1.0
+python-pptx>=1.0.2
+docxtpl>=0.18.0
+PyPDF2>=3.0.0
+
+# ===============================
+# DATA ANALYSIS
+# ===============================
+plotly>=5.24.0
+scikit-learn>=1.5.0
+scipy>=1.14.0
+sympy>=1.13.0
+joblib>=1.4.0
+
+# ===============================
+# IMAGE / MEDIA SUPPORT
+# ===============================
+Pillow>=10.4.0
+
+# ===============================
+# HTTP / UTILITIES
+# ===============================
+requests>=2.32.0
+python-dotenv>=1.0.1
