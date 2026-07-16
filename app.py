@@ -189,7 +189,7 @@ if not ai_engine:
 # ========================================== #
 elif phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-    tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Chấm bài Viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
+    tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Đánh giá kĩ năng Viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
     
     with tabs_gv[0]:
         render_xd_khbd(ai_engine)
