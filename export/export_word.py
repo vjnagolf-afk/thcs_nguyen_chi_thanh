@@ -121,7 +121,7 @@ class MarkdownTokenizer:
         return tokens
 
 # ==========================================
-# 2. CHUẨN HÓA CÔNG THỨC TOÁN/HÓA HỌC
+# 2. CHUẨN HÓA CÔNG THỨC TOÁN/HÓA HỌC (FIX LỖI TREO MÁY)
 # ==========================================
 class ScienceNormalizer:
     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
@@ -141,18 +141,22 @@ class ScienceNormalizer:
         if not text: return ""
         text = text.replace('$', '').replace(r'\(', '').replace(r'\)', '').strip()
         
-        # Làm phẳng phân số (ví dụ: \frac{A}{B} thành A/B)
-        while r'\frac{' in text:
-            text = re.sub(r'\\frac\{([^{}]+?)\}\{([^{}]+?)\}', r' \1/\2 ', text)
+        # BỎ VÒNG LẶP WHILE GÂY TREO MÁY CHỦ. 
+        # Dùng vòng lặp for giới hạn 3 cấp độ lồng nhau của phân số.
+        for _ in range(3):
+            text = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1)/(\2)', text)
             
-        text = re.sub(r'\\sqrt\{([\s\S]+?)\}', r'√(\1)', text)
+        # Dọn dẹp rác LaTeX nếu AI dùng lệnh đặc biệt bên trong công thức
+        text = text.replace(r'\frac', '').replace(r'\text', '').replace('{', '').replace('}', '')
+            
+        text = re.sub(r'\\sqrt\(([\s\S]+?)\)', r'√(\1)', text)
         text = re.sub(r'([A-Z][a-z]?|\))(\d+)', lambda m: m.group(1) + m.group(2).translate(cls.SUB), text)
         text = re.sub(r'([A-Za-z₀₁₂₃₄₅₆₇₈₉\)]+)\^(\d*[+\-])', lambda m: m.group(1) + m.group(2).translate(cls.SUP), text)
         
         for k, v in cls.MAP.items(): 
             text = text.replace(k, v)
             
-        return re.sub(r'\\text\{([\s\S]+?)\}', r'\1', text)
+        return text.strip()
 # ==========================================
 # 3. KẾT XUẤT TÀI LIỆU WORD (ENGINE)
 # ==========================================
