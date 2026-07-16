@@ -209,10 +209,11 @@ elif phan_he == "Hỗ trợ Giáo viên":
         render_xd_quizizz(ai_engine)
     with tabs_gv[8]: # <--- Đây là vị trí Tab Mô phỏng thực hành (index 8)
         render_xd_mo_phong(ai_engine)
-    elif phan_he == "Hỗ trợ Giảng dạy":
-        st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        # Danh sách tab của phân hệ Hỗ trợ Giảng dạy
-        tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
+elif phan_he == "Hỗ trợ Giảng dạy":
+    st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
+    # Danh sách tab của phân hệ Hỗ trợ Giảng dạy
+    tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
+    
     with tabs_gd[0]:
         render_rag(ai_engine) # <--- Gọi module vừa tạo
     with tabs_gd[1]:
