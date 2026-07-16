@@ -39,6 +39,7 @@ try:
     from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
     from modules.ho_tro_gv.xd_stem import render_xd_stem
     from modules.ho_tro_gv.xd_rubric import render_xd_rubric
+    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem # <--- Thêm dòng này
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -194,6 +195,8 @@ elif phan_he == "Hỗ trợ Giáo viên":
         render_xd_stem(ai_engine)
     with tabs_gv[3]:
         render_xd_rubric(ai_engine)
+    with tabs_gv[4]: # <--- Tab Chủ nhiệm là Tab số 5 (index 4)
+        render_xd_chu_nhiem(ai_engine)
         
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
