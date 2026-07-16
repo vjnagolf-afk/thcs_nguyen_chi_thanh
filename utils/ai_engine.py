@@ -59,7 +59,6 @@ class AIEngine:
     Kiến trúc Client Pool, Multi-Key Fallback, Timeout & Retry an toàn.
     """
     
-    # Đã loại bỏ tiền tố "models/" cho tương thích 100% với SDK google-genai
     MODELS = {
         "flash": "gemini-2.5-flash",
         "pro": "gemini-2.5-pro"
@@ -113,44 +112,13 @@ class AIEngine:
                     # Gán sẵn timeout vào Client
                     self.claude_clients[key] = anthropic.Anthropic(api_key=key, timeout=60.0)
 
-        # 5. Tự động nhận diện Model Gemini (Sử dụng SDK mới)
+        # Gán model mặc định an toàn cho Vision
         self.gemini_models = {"text": self.MODELS["flash"], "vision": self.MODELS["pro"]}
-        if self.gemini_clients:
-            self.gemini_models = self._auto_detect_gemini_models()
-            self.MODELS["flash"] = self.gemini_models["text"]
-            self.MODELS["pro"] = self.gemini_models["vision"]
 
         logger.info(f"🚀 AI Engine Core Initialized. Active Endpoints: {len(self.active_endpoints)}")
 
     # ==========================================
-    # 1. TỰ ĐỘNG PHÁT HIỆN MODEL (SDK google-genai mới)
-    # ==========================================
-    def _auto_detect_gemini_models(self) -> Dict[str, str]:
-        available = {"text": self.MODELS["flash"], "vision": self.MODELS["pro"]} 
-        if not self.gemini_clients:
-            return available
-            
-        # Mượn Client đầu tiên để quét Model
-        first_key = list(self.gemini_clients.keys())[0]
-        client = self.gemini_clients[first_key]
-        
-        try:
-            # Lọc sạch tiền tố "models/" nếu API của Google trả về dạng cũ
-            clean_models = [m.name.replace("models/", "") for m in client.models.list()]
-            
-            flash_model = next((m for m in clean_models if "flash" in m.lower()), None)
-            pro_model = next((m for m in clean_models if "pro" in m.lower()), None)
-            
-            if flash_model: available["text"] = flash_model
-            if pro_model: available["vision"] = pro_model
-                
-            logger.info(f"Detected Gemini Models: {available}")
-        except Exception as e:
-            logger.warning(f"Không thể tự phát hiện model SDK mới, dùng mặc định. Lỗi: {e}")
-        return available
-
-    # ==========================================
-    # 2. CACHING & TOKEN TRACKING
+    # 1. CACHING & TOKEN TRACKING
     # ==========================================
     def _get_cache_key(self, prompt: str, kwargs: dict) -> str:
         raw = prompt + json.dumps(kwargs, sort_keys=True)
@@ -161,7 +129,7 @@ class AIEngine:
         self.cost_estimate += (estimated_tokens / 1000) * 0.0001 
 
     # ==========================================
-    # 3. ROUTER LÕI & MULTI-KEY FALLBACK
+    # 2. ROUTER LÕI & MULTI-KEY FALLBACK
     # ==========================================
     def generate_text(self, prompt: str, memory: Optional[ChatMemory] = None, use_cache: bool = True, **kwargs) -> str:
         full_prompt = prompt
@@ -200,9 +168,10 @@ class AIEngine:
                     logger.warning(f"⚠️ Lỗi {provider.upper()} (Key: ...{api_key[-4:]}) - Lần {attempt+1}: {e}")
                     last_error = e
                     
-                    # Fast-Fail: Chuyển Key ngay nếu Hết Quota/Bị cấm/Không tìm thấy
-                    if "429" in error_msg or "quota" in error_msg or "403" in error_msg or "exhausted" in error_msg or "404" in error_msg:
-                        logger.warning(f"⏩ Bỏ qua Key/Model này do lỗi (Quota/404). Chuyển nhà cung cấp / Key tiếp theo...")
+                    # Fast-Fail: Chuyển Key ngay nếu Hết Quota/Bị cấm
+                    # Riêng 404 đã được bắt ở tầng _call_provider cho Gemini
+                    if "429" in error_msg or "quota" in error_msg or "403" in error_msg or "exhausted" in error_msg:
+                        logger.warning(f"⏩ Bỏ qua Key/Model này do lỗi Quota/Quyền truy cập. Chuyển nhà cung cấp / Key tiếp theo...")
                         break 
                     
                     time.sleep(2) 
@@ -219,15 +188,27 @@ class AIEngine:
             client = self.gemini_clients.get(api_key)
             if not client: raise ValueError("Lỗi Client Gemini")
             
-            model_name = kwargs.get("model_name") or kwargs.get("model") or self.gemini_models["text"]
+            # Khởi tạo model mặc định là gemini-2.5-flash
+            model_name = kwargs.get("model_name") or kwargs.get("model") or "gemini-2.5-flash"
             logger.info(f"Provider: GEMINI | Model: {model_name} | Prompt length: {len(prompt)}")
             
-            # Sử dụng cú pháp của google-genai
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt
-            )
-            return response.text
+            try:
+                # Sử dụng cú pháp của google-genai
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                return response.text
+            except Exception as e:
+                # Bẫy lỗi 404 Downgrade (Xuống đời 1.5)
+                if "404" in str(e):
+                    logger.warning("Gemini 2.5 lỗi (404 Not Found), tự động chuyển sang Gemini 1.5 Flash...")
+                    response = client.models.generate_content(
+                        model="gemini-1.5-flash",
+                        contents=prompt
+                    )
+                    return response.text
+                raise e
             
         elif provider == "openai":
             client = self.openai_clients.get(api_key)
@@ -259,7 +240,7 @@ class AIEngine:
         raise NotImplementedError(f"Nhà cung cấp {provider} đang được xây dựng.")
 
     # ==========================================
-    # 4. CÁC TÍNH NĂNG NÂNG CAO (VISION, RAG)
+    # 3. CÁC TÍNH NĂNG NÂNG CAO (VISION, RAG)
     # ==========================================
     def generate_vision(self, prompt: str, image_bytes: Any) -> str:
         """✅ Xử lý Đa phương thức (Sử dụng PIL.Image chuẩn mực)"""
@@ -270,7 +251,7 @@ class AIEngine:
                 raise Exception("Thiếu thư viện xử lý ảnh. Hãy chạy: pip install Pillow")
             img = Image.open(io.BytesIO(image_bytes))
         else:
-            img = image_bytes  # Giả định đã là PIL.Image nếu không phải bytes
+            img = image_bytes
 
         # 2. Tìm Gemini Key đầu tiên còn sống
         gemini_key = next((k for p, k in self.active_endpoints if p == "gemini"), None)
@@ -279,16 +260,22 @@ class AIEngine:
             
         client = self.gemini_clients[gemini_key]
         
-        # 3. Gọi SDK Mới
+        # 3. Gọi SDK Mới kèm Downgrade 404 cho model Vision
+        model_name = self.gemini_models["vision"] # Mặc định là gemini-2.5-pro
         for attempt in range(2):
             try:
-                logger.info(f"Provider: GEMINI VISION | Prompt length: {len(prompt)}")
+                logger.info(f"Provider: GEMINI VISION | Model: {model_name} | Prompt length: {len(prompt)}")
                 response = client.models.generate_content(
-                    model=self.gemini_models["vision"],
+                    model=model_name,
                     contents=[prompt, img]
                 )
                 return response.text
             except Exception as e:
+                if "404" in str(e):
+                    logger.warning("Gemini 2.5 Pro Vision lỗi (404), lùi về Gemini 1.5 Pro...")
+                    model_name = "gemini-1.5-pro"
+                    continue # Thử lại ngay với tên model cũ
+                
                 logger.warning(f"Lỗi Vision Lần {attempt+1}: {e}")
                 if attempt == 1: raise e
                 time.sleep(2)
