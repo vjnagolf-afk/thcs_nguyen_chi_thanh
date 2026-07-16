@@ -111,6 +111,7 @@ with st.sidebar:
     )
     st.markdown("---")
     
+    # Nút đăng xuất xóa sạch Engine cũ
     if st.session_state.user_api_key or st.session_state.is_admin_mode:
         if st.button("🚪 Đăng xuất / Đổi Key", use_container_width=True, type="secondary"):
             st.session_state.user_api_key = None
