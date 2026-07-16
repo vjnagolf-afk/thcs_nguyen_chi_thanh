@@ -39,10 +39,10 @@ class WordExportEngine:
             doc = docx.Document()
 
             # Nhập khẩu trễ (Lazy Imports) để tránh Circular Import và cô lập lỗi
-            from .word_markdown import MarkdownTokenizer
-            from .word_math import MathRenderer
-            from .word_styles import StyleManager
-            from .word_tables import TableRenderer
+            from export.word_markdown import MarkdownTokenizer
+            from export.word_math import MathRenderer
+            from export.word_styles import StyleManager
+            from export.word_tables import TableRenderer
 # (Nếu còn các file khác như template_loader, word_utils... cũng sửa tương tự sang dấu chấm)
 
             # 1. KHỞI TẠO ĐỊNH DẠNG CHUẨN (A4, Margins, Base Fonts)
