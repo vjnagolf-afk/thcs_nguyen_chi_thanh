@@ -27,7 +27,6 @@ if str(ROOT_DIR) not in sys.path:
 # Ép Python phải nạp thư mục cha vào sys.modules TRƯỚC KHI gọi thư mục con
 import utils
 import modules
-
 # Import các phân hệ con (Sau khi cha đã được nạp an toàn)
 try:
     from utils.db_connector import db
@@ -37,7 +36,7 @@ try:
     from modules.quan_ly_to.bien_ban import render_bien_ban
     from modules.ho_tro_giang_day.rag_ask import render_rag
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
-    from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt  <--- THÊM DÒNG NÀY
+    from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
