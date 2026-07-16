@@ -38,6 +38,7 @@ try:
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
     from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
     from modules.ho_tro_gv.xd_stem import render_xd_stem
+    from modules.ho_tro_gv.xd_rubric import render_xd_rubric
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -191,6 +192,9 @@ elif phan_he == "Hỗ trợ Giáo viên":
         render_xd_de_kt(ai_engine)
     with tabs_gv[2]:
         render_xd_stem(ai_engine)
+    with tabs_gv[3]:
+        render_xd_rubric(ai_engine)
+        
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
