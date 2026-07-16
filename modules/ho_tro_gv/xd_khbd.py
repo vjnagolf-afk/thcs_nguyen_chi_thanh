@@ -1,82 +1,88 @@
 import streamlit as st
-from docxtpl import DocxTemplate
-from jinja2 import Environment, Undefined
+import sys
+import io
 from pathlib import Path
 from loguru import logger
-import io
-import json
 from pypdf import PdfReader
 
-def extract_json(text):
-    text = text.replace("```json", "").replace("```", "").strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1: raise ValueError("AI không trả về JSON")
-    return text[start:end + 1]
+# Thiết lập đường dẫn để import module từ thư mục gốc
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+from export.export_word import WordExportEngine
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
-    # 1. Giao diện Input
+    # Khởi tạo session state
+    if 'khbd_content' not in st.session_state: st.session_state['khbd_content'] = None
+    if 'khbd_meta' not in st.session_state: st.session_state['khbd_meta'] = {}
+
+    # Giao diện nhập liệu
     col1, col2 = st.columns(2)
-    ten_bai = col1.text_input("Tên bài dạy")
-    mon_hoc = col2.selectbox("Môn học", ["Toán", "Ngữ văn", "Khoa học Tự nhiên", "Tiếng Anh"])
+    ten_bai = col1.text_input("Tên bài dạy / Chủ đề")
+    mon_hoc = col2.selectbox("Môn học", ["Toán", "Ngữ văn", "Khoa học Tự nhiên", "Tiếng Anh", "Tin học", "Công nghệ"])
     
     col3, col4 = st.columns(2)
-    lop = col3.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"])
-    hinh_thuc = col4.selectbox("Hình thức", ["Chuẩn 5512", "KHBD thu gọn"])
+    lop = col3.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10"])
+    hinh_thuc = col4.selectbox("Hình thức", ["Chuẩn 5512", "KHBD thu gọn", "KHBD Stem"])
     
-    model_choice = st.selectbox("🤖 Phiên bản AI", ["Flash (Nhanh)", "Pro (Sâu)"])
-    model_chon = ai_engine.MODELS["flash"] if "Flash" in model_choice else ai_engine.MODELS["pro"]
-    
-    file_tai_len = st.file_uploader("Tài liệu tham khảo", type=["pdf", "txt"])
+    file_tai_len = st.file_uploader("Tài liệu tham khảo (PDF, TXT)", type=["pdf", "txt"])
+    bam_sat = st.checkbox("Bám sát 100% tài liệu tải lên", value=True)
 
-    # 2. Xử lý Logic
-    if st.button("🚀 Soạn KHBD"):
-        if not ten_bai: st.warning("Vui lòng nhập tên bài!")
+    # Nút khởi tạo AI
+    if st.button("🚀 KHỞI TẠO TIẾN TRÌNH KẾ HOẠCH BÀI DẠY", type="primary", use_container_width=True):
+        if not ten_bai.strip():
+            st.warning("⚠️ Vui lòng điền 'Tên bài học'")
         else:
-            with st.spinner("⏳ AI đang soạn thảo..."):
+            with st.spinner("⏳ Trợ lý AI đang thiết kế giáo án..."):
                 file_context = ""
-                if file_tai_len:
-                    reader = PdfReader(file_tai_len)
-                    for page in reader.pages:
-                        file_context += (page.extract_text() or "")
-                
-                # Prompt chuẩn hóa cấu trúc
-                prompt = f"""Soạn bài {ten_bai}, môn {mon_hoc}, lớp {lop}, hình thức {hinh_thuc}.
-                Dựa trên tài liệu: {file_context[:3000]}.
-                Trả về JSON với các key: TEN_BAI, MON_HOC, LOP, HINH_THUC, MUC_TIEU, THIET_BI, HOAT_DONG_DAY_HOC, DANH_GIA."""
+                if bam_sat and file_tai_len:
+                    if file_tai_len.name.endswith('.pdf'):
+                        reader = PdfReader(file_tai_len)
+                        for page in reader.pages:
+                            txt = page.extract_text()
+                            if txt: file_context += txt + "\n"
+                    elif file_tai_len.name.endswith('.txt'):
+                        file_context = file_tai_len.read().decode("utf-8")
+
+                prompt = f"Soạn KHBD môn {mon_hoc}, lớp {lop}, bài '{ten_bai}', hình thức {hinh_thuc}. Dựa trên tài liệu: {file_context[:4000]}. Trình bày bằng Markdown chuyên nghiệp."
                 
                 try:
+                    # Truyền model_name chuẩn
+                    model_chon = ai_engine.MODELS["flash"] 
                     response = ai_engine.generate_text(prompt, model_name=model_chon)
-                    st.session_state['khbd_data'] = json.loads(extract_json(response))
-                    st.success("Soạn xong!")
+                    
+                    st.session_state['khbd_content'] = response
+                    st.session_state['khbd_meta'] = {"ten": ten_bai, "mon": mon_hoc, "lop": lop}
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Lỗi: {e}")
+                    st.error(f"❌ Lỗi AI: {e}")
 
-    # 3. Xuất Word chuyên nghiệp
-    if 'khbd_data' in st.session_state:
-        data = st.session_state['khbd_data']
-        st.json(data)
+    # Hiển thị và Xuất file
+    if st.session_state['khbd_content']:
+        st.markdown("---")
+        st.subheader(f"📄 Kết quả: {st.session_state['khbd_meta'].get('ten')}")
         
-        if st.button("📄 Tạo file Word"):
-            BASE_DIR = Path(__file__).resolve().parents[2]
-            template_path = BASE_DIR / "templates" / "KHBD_Mau.docx"
-            
+        with st.expander("👁️ Xem trước Kế hoạch bài dạy", expanded=True):
+            st.markdown(st.session_state['khbd_content'])
+        
+        if st.button("📥 Tải file Word"):
             try:
-                doc = DocxTemplate(str(template_path))
-                doc.render(data, jinja_env=Environment(undefined=Undefined))
+                data_export = {
+                    "title": st.session_state['khbd_meta'].get('ten'),
+                    "content": st.session_state['khbd_content'],
+                    "subject": st.session_state['khbd_meta'].get('mon'),
+                    "grade": st.session_state['khbd_meta'].get('lop')
+                }
                 
-                bio = io.BytesIO()
-                doc.save(bio)
-                st.session_state['khbd_file'] = bio.getvalue()
+                # Gọi Engine từ thư mục export
+                word_bytes = WordExportEngine.export_to_word(data_export)
+                
+                st.download_button(
+                    label="Tải file về máy",
+                    data=word_bytes,
+                    file_name=f"KHBD_{st.session_state['khbd_meta'].get('ten')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
             except Exception as e:
-                st.error(f"Lỗi render: {e}")
-
-    if 'khbd_file' in st.session_state:
-        st.download_button(
-            "📥 Tải file KHBD",
-            data=st.session_state['khbd_file'],
-            file_name=f"KHBD_{st.session_state['khbd_data']['TEN_BAI']}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+                st.error(f"Lỗi xuất file: {e}")
+                logger.exception("Lỗi xuất Word")
