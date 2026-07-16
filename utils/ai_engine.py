@@ -39,8 +39,8 @@ class AIEngine:
     
     # Biến lớp mặc định để các module (như xd_khbd.py) truy cập
     MODELS = {
-        "flash": "gemini-3.5-flash",
-        "pro": "gemini-3.1-pro-preview"
+        "flash": "gemini-1.5-flash",
+        "pro": "gemini-1.5-pro"
     }
 
     def __init__(self, api_key: str = None, keys: Dict[str, str] = None):
@@ -61,10 +61,13 @@ class AIEngine:
             logger.info(
                 f"Gemini key: {self.keys['gemini'][:12]}..."
             )
+            
+            # FIX LỖI ATTRIBUTE ERROR: Khởi tạo/Tìm model TRƯỚC, sau đó mới in log ra màn hình
+            self.gemini_models = self._auto_detect_gemini_models()
+            
             logger.info(
                 f"Gemini models: {self.gemini_models}"
             )
-            self.gemini_models = self._auto_detect_gemini_models()
             
             # Đồng bộ lại biến MODELS dựa trên model tự động quét được
             self.MODELS["flash"] = self.gemini_models["text"]
@@ -91,16 +94,14 @@ class AIEngine:
             models = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
             
             # Quét text model
-            if any("3.5-flash" in m for m in models):
-                available["text"] = "models/gemini-3.5-flash"
-            elif any("2.5-flash" in m for m in models):
-                available["text"] = "models/gemini-2.5-flash"
+            if any("1.5-flash" in m for m in models):
+                available["text"] = "models/gemini-1.5-flash"
+            elif any("pro" in m for m in models):
+                available["text"] = "models/gemini-1.5-pro"
                 
             # Quét vision/pro model
-            if any("3.1-pro" in m for m in models):
-                available["vision"] = "models/gemini-3.1-pro-preview"
-            elif any("2.5-pro" in m for m in models):
-                available["vision"] = "models/gemini-2.5-pro"
+            if any("1.5-pro" in m for m in models):
+                available["vision"] = "models/gemini-1.5-pro"
                 
             logger.info(f"Detected Gemini Models: {available}")
         except Exception as e:
