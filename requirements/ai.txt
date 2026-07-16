@@ -1,0 +1,4 @@
+Gemini
+RAG
+Embedding
+Vector database
