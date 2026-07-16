@@ -44,12 +44,10 @@ def render_xd_khbd(ai_engine):
             "🤖 Phiên bản AI", 
             ["Flash (Nhanh, Mặc định)", "Pro (Thông minh, Suy luận sâu)"]
         )
-        # Chuyển đổi tên hiển thị sang mã model chuẩn từ Engine
-        if "Flash" in loai_ai:
-            model_chon = ai_engine.MODELS["flash"]
-        else:
-            model_chon = ai_engine.MODELS["pro"]
-
+        # Sửa lỗi AttributeError khi ai_engine bị rỗng (chưa nhập Key)
+        model_chon = None
+        if ai_engine:
+            model_chon = ai_engine.MODELS["flash"] if "Flash" in loai_ai else ai_engine.MODELS["pro"]
     # HÀNG 3: Tích chọn và Tải file
     col_file, col_check = st.columns([3, 1])
     with col_file:
@@ -107,26 +105,32 @@ def render_xd_khbd(ai_engine):
             st.warning("Thầy vui lòng nhập Tên bài dạy nhé!")
             return
             
-        if not ai_engine:
-            st.error("AI Engine chưa được kết nối. Vui lòng kiểm tra API Key.")
+        if not ai_engine or not model_chon:
+            st.error("🔐 AI Engine chưa kết nối. Thầy vui lòng nhập API Key ở menu hoặc thiết lập SCHOOL_ADMIN_API_KEY trong phần Secrets của Streamlit nhé.")
             return
 
         with st.spinner(f"🤖 Trợ lý AI đang tư duy và biên soạn KHBD theo hình thức {hinh_thuc}..."):
             
             # Xử lý nội dung file tham khảo
+            # Xử lý nội dung file tham khảo (TỐI ƯU TỐC ĐỘ ĐỌC PDF)
             noi_dung_tham_khao = ""
             if bam_sat and file_tai_len is not None:
                 try:
                     if file_tai_len.name.endswith('.pdf'):
                         pdf_reader = PyPDF2.PdfReader(file_tai_len)
+                        # Dừng đọc ngay khi lấy đủ 3000 ký tự để tránh treo máy với file lớn
                         for page in pdf_reader.pages:
-                            noi_dung_tham_khao += page.extract_text() + "\n"
+                            text = page.extract_text()
+                            if text:
+                                noi_dung_tham_khao += text + "\n"
+                            if len(noi_dung_tham_khao) > 3000:
+                                break
                     elif file_tai_len.name.endswith('.txt'):
                         noi_dung_tham_khao = file_tai_len.getvalue().decode("utf-8")
                     
                     noi_dung_tham_khao = f"\n\n[TÀI LIỆU THAM KHẢO BẮT BUỘC BÁM SÁT]:\n{noi_dung_tham_khao[:3000]}"
-                except Exception:
-                    st.warning("Có lỗi khi đọc file, AI sẽ soạn theo dữ liệu mặc định.")
+                except Exception as e:
+                    st.warning(f"Có lỗi khi đọc file, AI sẽ soạn theo dữ liệu mặc định. Chi tiết: {e}")
             
             # Kịch bản JSON chuẩn (đã fix toàn bộ lỗi ngoặc)
             prompt = f"""
