@@ -6,10 +6,16 @@ from pypdf import PdfReader
 
 # Đảm bảo import được thư viện từ thư mục gốc
 sys.path.append(str(Path(__file__).resolve().parents[2]))
-from export.export_word import WordExportEngine
+from export.word_export_engine import WordExportEngine  # Đồng bộ tên file theo cấu trúc tối ưu
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
+
+    # Khởi tạo bộ nhớ tạm để tránh mất dữ liệu khi UI reload (st.rerun)
+    if 'khbd_content' not in st.session_state:
+        st.session_state['khbd_content'] = None
+    if 'khbd_meta' not in st.session_state:
+        st.session_state['khbd_meta'] = {}
 
     # 1. CẤU HÌNH GIAO DIỆN
     ds_mon = [
@@ -22,75 +28,105 @@ def render_xd_khbd(ai_engine):
     # Hàng 1: Thông tin cơ bản
     col1, col2, col3, col4 = st.columns(4)
     mon_hoc = col1.selectbox("Môn học", ds_mon)
-    lop = col2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"])
+    lop = col2.selectbox("Lớp", [f"Lớp {i}" for i in range(6, 13)])
     hinh_thuc = col3.selectbox("Chọn hình thức", ["KHBD thu gọn", "Chuẩn 5512", "KHBD Stem"])
     so_tiet = col4.number_input("Số tiết", min_value=1, max_value=20, value=2)
-    
+
     # Hàng 2: Tên bài và Tài liệu (QUAN TRỌNG)
-    ten_bai_hoc = st.text_input("Tên chủ đề / Tên bài học (AI sẽ tìm kiếm từ khóa này trong tài liệu)")
-    
+    ten_bai_hoc = st.text_input(
+        "Tên chủ đề / Tên bài học (AI sẽ tìm kiếm từ khóa này trong tài liệu)",
+        value=st.session_state['khbd_meta'].get('ten', '')
+    )
     bam_sat = st.checkbox("Bám sát nội dung file tải lên", value=True)
     yeu_cau = st.text_area("Yêu cầu bổ sung cho AI (Ví dụ: Lồng ghép Năng lực số, tích hợp AI...)")
     file_tai_len = st.file_uploader("Tài liệu tham khảo (PDF, TXT)", type=["pdf", "txt"])
-    
-    # 2. XỬ LÝ LOGIC
+
+    # 2. XỬ LÝ LOGIC TIẾN TRÌNH SOẠN BÀI
     c1, c2 = st.columns(2)
-    if c1.button("🚀 KHỞI TẠO TIẾN TRÌNH", type="primary"):
+    
+    if c1.button("🚀 KHỞI TẠO TIẾN TRÌNH", type="primary", use_container_width=True):
         if not ten_bai_hoc.strip():
             st.error("⚠️ Vui lòng nhập 'Tên chủ đề / Tên bài học' để AI thực hiện tìm kiếm!")
+        elif not ai_engine:
+            st.error("🔐 Hệ thống AI chưa được kết nối API Key!")
         else:
-            with st.spinner("⏳ AI đang quét tài liệu và thiết kế giáo án..."):
+            with st.spinner("⏳ AI đang quét tài liệu và thiết kế giáo án chuyên sâu..."):
                 file_context = ""
                 if file_tai_len and bam_sat:
                     try:
                         if file_tai_len.name.endswith('.pdf'):
                             reader = PdfReader(file_tai_len)
-                            # Trích xuất toàn bộ văn bản để AI tìm kiếm từ khóa
+                            # Trích xuất toàn bộ văn bản từ file PDF tham khảo
                             file_context = "\n".join([p.extract_text() for p in reader.pages if p.extract_text()])
                         elif file_tai_len.name.endswith('.txt'):
                             file_context = file_tai_len.read().decode("utf-8")
                     except Exception as e:
-                        st.warning(f"Không thể đọc tài liệu: {e}")
-                
-                # Prompt thiết kế chặt chẽ
+                        st.warning(f"Không thể đọc tài liệu tham khảo: {e}")
+
+                # Kỹ nghệ Prompt tối ưu chặt chẽ ép AI xuất Markdown chuẩn cấu trúc Export Engine
                 prompt = f"""
-                Bạn là một chuyên gia giáo dục. Hãy soạn KHBD cho bài học: '{ten_bai_hoc}'.
-                Thông tin: Môn {mon_hoc}, lớp {lop}, {so_tiet} tiết, hình thức {hinh_thuc}.
-                
-                YÊU CẦU PHÂN TÍCH:
-                1. Tìm kiếm và trích xuất nội dung liên quan trực tiếp đến bài '{ten_bai_hoc}' trong tài liệu tham khảo được cung cấp bên dưới.
-                2. Lồng ghép nội dung Năng lực số và giáo dục AI vào các hoạt động.
-                3. {yeu_cau}
-                
-                YÊU CẦU TRÌNH BÀY:
-                1. Bắt đầu ngay từ "I. MỤC TIÊU". Không có lời chào.
-                2. Sử dụng LaTeX ($...$) cho mọi công thức toán học/hóa học.
-                3. Không sử dụng dấu ">" đầu dòng.
-                
-                Dữ liệu tài liệu tham khảo: 
-                {file_context[:8000]} 
+                Bạn là Chuyên gia Giáo dục cấp THCS và THPT. Hãy soạn một Kế hoạch bài dạy (KHBD) chi tiết cho bài học: '{ten_bai_hoc}'.
+                Thông tin cấu trúc: Môn {mon_hoc}, {lop}, thời lượng {so_tiet} tiết, theo hình thức {hinh_thuc}.
+
+                YÊU CẦU PHÂN TÍCH NỘI DUNG:
+                1. Tìm kiếm và trích xuất nội dung liên quan trực tiếp đến bài '{ten_bai_hoc}' từ tài liệu tham khảo được cung cấp.
+                2. Chủ động lồng ghép nội dung Năng lực số và ứng dụng giáo dục AI vào các hoạt động học tập.
+                3. Yêu cầu bổ sung: {yeu_cau if yeu_cau.strip() else "Theo chuẩn khung đổi mới phương pháp dạy học."}
+
+                YÊU CẦU ĐỊNH DẠNG (BẮT BUỘC):
+                1. Bắt đầu ngay lập tức từ tiêu đề "I. MỤC TIÊU". Tuyệt đối không viết lời chào, lời dẫn thô hay giải thích bên ngoài.
+                2. Sử dụng cú pháp LaTeX kẹp giữa cặp dấu $...$ cho toàn bộ các biểu thức, phương trình, công thức Toán học / Hóa học.
+                3. Không sử dụng ký tự trích dẫn ">" ở đầu dòng.
+                4. Sử dụng cấu trúc bảng Markdown dạng | Tiêu đề 1 | Tiêu đề 2 | cho các bảng ma trận hoạt động (nếu có).
+
+                Dữ liệu tài liệu tham khảo đính kèm:
+                {file_context[:12000]}
                 """
-                
+
                 try:
+                    # Gọi hàm xử lý từ AI Engine
                     content = ai_engine.generate_text(prompt)
+                    
+                    # Lưu trữ trạng thái vào Session State để tránh mất khi tải lại trang
                     st.session_state['khbd_content'] = content
                     st.session_state['khbd_meta'] = {"ten": ten_bai_hoc, "mon": mon_hoc, "lop": lop}
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Lỗi hệ thống AI: {e}")
+                    st.error(f"Lỗi phản hồi từ hệ thống AI: {e}")
+                    logger.exception("Lỗi sinh KHBD")
 
-    if c2.button("🗑️ XÓA DỮ LIỆU"):
-        st.session_state.clear()
+    if c2.button("🗑️ XÓA DỮ LIỆU", use_container_width=True):
+        st.session_state['khbd_content'] = None
+        st.session_state['khbd_meta'] = {}
         st.rerun()
 
-    # 3. HIỂN THỊ KẾT QUẢ
-    if st.session_state.get('khbd_content'):
+    # 3. HIỂN THỊ KẾT QUẢ VÀ TẢI FILE WORD NATIVE (.DOCX)
+    if st.session_state['khbd_content']:
         st.markdown("---")
-        st.markdown(st.session_state['khbd_content'])
         
-        if st.button("📥 Xuất file Word"):
-            word_bytes = WordExportEngine.export_to_word({
-                "ai_generated_content": st.session_state['khbd_content'],
-                "is_khbd": True
-            })
-            st.download_button("Tải file về máy", word_bytes, f"KHBD_{ten_bai_hoc}.docx")
+        # Hàng chứa tiêu đề kết quả và nút tải file Word thiết kế tối ưu thị giác
+        col_title, col_download = st.columns([3, 1])
+        with col_title:
+            st.markdown("#### 🎯 Bản phác thảo Kế hoạch bài dạy từ AI:")
+        
+        with col_download:
+            try:
+                # Sửa lỗi lồng nút: Biên dịch trực tiếp chuỗi Markdown sang luồng Bytes Word Native
+                word_bytes = WordExportEngine.convert_markdown_to_docx_bytes(st.session_state['khbd_content'])
+                
+                # Nút tải file chuẩn OpenXML không bị vỡ giao diện
+                file_name_clean = st.session_state['khbd_meta'].get('ten', 'Giao_An').replace(' ', '_')
+                st.download_button(
+                    label="📥 Tải file Word (.docx)",
+                    data=word_bytes,
+                    file_name=f"KHBD_{file_name_clean}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    type="secondary",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Lỗi đóng gói file Word: {e}")
+                logger.exception("Lỗi xuất Word")
+
+        # Hiển thị trực quan nội dung Markdown ngay trên Web app để giáo viên xem trước
+        st.markdown(st.session_state['khbd_content'])
