@@ -64,11 +64,15 @@ with st.sidebar:
         </p>
     """, unsafe_allow_html=True)
     
-    phan_he = st.radio("", [
-        "Hỗ trợ Giáo viên",
-        "Hỗ trợ Giảng dạy",
-        "Quản lý Tổ chuyên môn"
-    ])
+    phan_he = st.radio(
+        "Label ẩn", # Tên ẩn không hiển thị
+        [
+            "Hỗ trợ Giáo viên",
+            "Hỗ trợ Giảng dạy",
+            "Quản lý Tổ chuyên môn"
+        ],
+        label_visibility="collapsed" # Lệnh giấu chữ đi
+    )
     
     st.markdown("---")
     
