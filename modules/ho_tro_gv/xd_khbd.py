@@ -2,7 +2,7 @@ import streamlit as st
 from loguru import logger
 from pypdf import PdfReader
 
-# CHUẨN KIẾN TRÚC VÀO DỰ ÁN: Gọi import tuyệt đối từ gốc dự án nhìn xuống
+# CHUẨN KIẾN TRÚC: Import tuyệt đối tự nhiên từ gốc dự án nhìn xuống sau khi đã xóa __init__.py gốc
 from export.export_word import WordExportEngine
 
 def render_xd_khbd(ai_engine):
@@ -59,7 +59,7 @@ def render_xd_khbd(ai_engine):
                     except Exception as e:
                         st.warning(f"Không thể đọc tài liệu: {e}")
 
-                # Prompt thiết kế giáo án chặt chẽ
+                # Prompt thiết kế giáo án định hình cấu trúc đầu ra chuẩn
                 prompt = f"""
                 Bạn là một chuyên gia giáo dục. Hãy soạn KHBD cho bài học: '{ten_bai_hoc}'.
                 Thông tin: Môn {mon_hoc}, lớp {lop}, {so_tiet} tiết, hình thức {hinh_thuc}.
@@ -91,16 +91,16 @@ def render_xd_khbd(ai_engine):
         st.session_state.clear()
         st.rerun()
 
-    # 3. HIỂN THỊ KẾT QUẢ VÀ LOGIC XUẤT FILE WORD GỐC
+    # 3. HIỂN THỊ KẾT QUẢ VÀ LOGIC GỐC 2 BƯỚC XUẤT FILE WORD
     if st.session_state.get('khbd_content'):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
-        # Logic 2 nút bấm gốc bảo toàn trải nghiệm của thầy
+        # Logic nút bấm xuất file chuẩn nguyên bản của thầy
         if st.button("📥 Xuất file Word", use_container_width=True):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
-                    # Gọi hàm chuyển đổi từ lõi kết xuất gốc dùng chung của dự án
+                    # Chạy hàm đóng gói chính thức từ Engine dùng chung của dự án
                     word_bytes = WordExportEngine.export_to_word({
                         "ai_generated_content": st.session_state['khbd_content'],
                         "is_khbd": True
