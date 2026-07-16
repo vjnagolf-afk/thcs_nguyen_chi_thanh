@@ -16,6 +16,7 @@ from modules.ho_tro_giang_day.rag_ask import render_rag
 
 # 3. Hỗ trợ Giáo viên (Thư mục: modules/ho_tro_gv/)
 # (Sẽ import các file tương ứng khi thầy xây dựng xong)
+from modules.ho_tro_gv.xd_khbd import render_xd_khbd
 
 # ==========================================
 # CẤU HÌNH TRANG & KHỞI TẠO AI
