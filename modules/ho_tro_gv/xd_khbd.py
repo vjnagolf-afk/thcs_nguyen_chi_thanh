@@ -1,8 +1,9 @@
 import streamlit as st
+import sys
+from pathlib import Path
 from pypdf import PdfReader
 
-# Đường dẫn gốc đã được app.py nạp vào hệ thống, chỉ cần import thẳng là được
-from export.export_word import WordExportEngine
+# BỎ IMPORT WordExportEngine Ở ĐÂY ĐỂ CHỐNG LỖI KEYERROR CỦA STREAMLIT
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
@@ -76,7 +77,6 @@ def render_xd_khbd(ai_engine):
                 except Exception as e:
                     st.error(f"Lỗi hệ thống AI: {e}")
 
-    # CHỈNH SỬA 1: Không dùng clear() để tránh bị văng khỏi hệ thống
     if c2.button("🗑️ XÓA DỮ LIỆU"):
         st.session_state.pop('khbd_content', None)
         st.session_state.pop('khbd_meta', None)
@@ -86,16 +86,24 @@ def render_xd_khbd(ai_engine):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
-        # CHỈNH SỬA 2: Đưa nút Tải file ra độc lập, chuẩn bị sẵn Word Bytes
         try:
+            # ==========================================
+            # ÁP DỤNG KỸ THUẬT LAZY IMPORT TẠI ĐÂY
+            # Chỉ import module export khi thực sự cần dùng
+            # ==========================================
+            root_path = str(Path(__file__).resolve().parents[2])
+            if root_path not in sys.path:
+                sys.path.insert(0, root_path)
+                
+            from export.export_word import WordExportEngine
+            # ==========================================
+
             data_export = st.session_state['khbd_meta'].copy()
             data_export["ai_generated_content"] = st.session_state['khbd_content']
             data_export["is_khbd"] = True
             
-            # Quá trình tạo file chạy ngầm ngay khi văn bản sinh xong
             word_bytes = WordExportEngine.export_to_word(data_export)
             
-            # Hiển thị nút Tải file mượt mà, không bao giờ bị treo
             st.download_button(
                 label="📥 TẢI FILE KẾ HOẠCH BÀI DẠY (WORD)", 
                 data=word_bytes, 
