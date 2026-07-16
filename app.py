@@ -13,7 +13,7 @@ from modules.ho_tro_gv.xd_khbd import render_xd_khbd
 st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide")
 
 # Khởi tạo trạng thái phiên làm việc
-if "user_api_key" not not in st.session_state:
+if "user_api_key" not in st.session_state:
     st.session_state.user_api_key = None
 if "is_admin_mode" not in st.session_state:
     st.session_state.is_admin_mode = False
