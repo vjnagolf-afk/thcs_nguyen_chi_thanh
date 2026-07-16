@@ -108,7 +108,9 @@ def render_xd_khbd(ai_engine):
                         st.error(f"Không tìm thấy file tại đường dẫn vật lý: {export_word_path}")
                         return
                     
-                    # Nạp thư mục export vào sys.path để các file vệ tinh (word_markdown, word_math) tìm thấy nhau
+                    # Đưa thư mục export lên vị trí số 1 trong danh sách quét hệ thống (sys.path)
+                    # Điều này cho phép tệp export_word.py sau khi nạp động sẽ gọi trực tiếp các tệp
+                    # word_markdown, word_math, word_styles phẳng mà không cần dùng dấu chấm tương đối.
                     export_dir = str(project_root / "export")
                     if export_dir not in sys.path:
                         sys.path.insert(0, export_dir)
@@ -118,14 +120,11 @@ def render_xd_khbd(ai_engine):
                     export_word = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(export_word)
                     
-                    # =========================================================================
-                    # ĐÃ SỬA: Đồng bộ gọi đúng tên hàm gốc 'export_to_word' và cấu trúc tham số dữ liệu đầu vào
-                    # =========================================================================
+                    # Thực hiện gọi hàm đóng gói và truyền tham số dạng dict của thầy
                     word_bytes = export_word.WordExportEngine.export_to_word({
                         "ai_generated_content": st.session_state['khbd_content'],
                         "is_khbd": True
                     })
-                    # =========================================================================
                     
                     # Lưu luồng bytes vào session state để hiển thị nút tải xuống ở lượt rerun tiếp theo
                     st.session_state['khbd_word_bytes'] = word_bytes
