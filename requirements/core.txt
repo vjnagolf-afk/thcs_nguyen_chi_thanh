@@ -1,4 +1,7 @@
 streamlit
-pandas
 supabase
-openpyxl
+pandas
+PyPDF2
+loguru
+google-generativeai
+docxtpl
