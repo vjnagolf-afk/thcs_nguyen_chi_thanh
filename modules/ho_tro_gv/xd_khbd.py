@@ -2,29 +2,96 @@ import streamlit as st
 from docxtpl import DocxTemplate
 import io
 import json
+import PyPDF2
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
-    # Form nhập liệu
-    with st.form("form_khbd"):
-        col1, col2 = st.columns(2)
-        with col1:
-            mon_hoc = st.text_input("Môn học", value="Khoa học Tự nhiên")
-        with col2:
-            lop = st.text_input("Lớp", value="9")
-            
-        ten_bai = st.text_input("Tên bài dạy / Chủ đề")
-        thoi_luong = st.number_input("Thời lượng (tiết)", min_value=1, value=1)
-        
-        yeu_cau_them = st.text_area(
-            "Yêu cầu bổ sung cho AI (Tùy chọn)", 
-            placeholder="Ví dụ: Tích hợp giáo dục AI, sử dụng vi điều khiển, thêm trò chơi khởi động..."
-        )
-        
-        submit = st.form_submit_button("🚀 Soạn Kế hoạch bài dạy", use_container_width=True)
+    # Khởi tạo bộ nhớ tạm để giữ file Word sau khi AI sinh xong (tránh bị mất khi bấm nút khác)
+    if "khbd_docx" not in st.session_state:
+        st.session_state.khbd_docx = None
+    if "khbd_filename" not in st.session_state:
+        st.session_state.khbd_filename = ""
 
-    if submit:
+    # ==========================================
+    # KHU VỰC GIAO DIỆN (UI)
+    # ==========================================
+    
+    # HÀNG 1: 4 Tùy chọn inline
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        danh_sach_mon = [
+            "Khoa học Tự nhiên", "Toán", "Ngữ văn", "Tiếng Anh", 
+            "Lịch sử và Địa lí", "Tin học", "Công nghệ", "Giáo dục công dân", 
+            "Âm nhạc", "Mĩ thuật", "Giáo dục thể chất", "Hoạt động trải nghiệm",
+            "Vật lí", "Hóa học", "Sinh học", "Lịch sử", "Địa lí"
+        ]
+        mon_hoc = st.selectbox("Môn học", danh_sach_mon)
+    with col2:
+        lop = st.selectbox("Lớp", [str(i) for i in range(6, 13)], index=3) # Mặc định để Lớp 9
+    with col3:
+        hinh_thuc = st.selectbox("Chọn hình thức", ["Chuẩn 5512", "KHBD thu gọn", "KHBD Stem"])
+    with col4:
+        thoi_luong = st.number_input("Số tiết", min_value=1, value=1)
+
+    # HÀNG 2: Tên bài
+    ten_bai = st.text_input("Tên bài dạy / Chủ đề")
+
+    # HÀNG 3: Tích chọn và Tải file
+    col_file, col_check = st.columns([3, 1])
+    with col_file:
+        file_tai_len = st.file_uploader("Tài liệu tham khảo (Tùy chọn - Hỗ trợ PDF, TXT)", type=["pdf", "txt"])
+    with col_check:
+        st.write("") # Tạo khoảng trống để căn giữa với ô upload
+        st.write("")
+        bam_sat = st.checkbox("Bám sát nội dung file tải lên", value=False)
+
+    # HÀNG 4: Yêu cầu bổ sung
+    yeu_cau_them = st.text_area(
+        "Yêu cầu bổ sung cho AI (Tùy chọn)", 
+        placeholder="Ví dụ: Tích hợp giáo dục AI, sử dụng vi điều khiển, thêm trò chơi khởi động..."
+    )
+
+    # ==========================================
+    # KHU VỰC NÚT BẤM (HÀNG 5)
+    # ==========================================
+    st.markdown("---")
+    btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+    
+    tao_btn = btn_col1.button("🚀 Soạn KHBD", use_container_width=True, type="primary")
+    luu_btn = btn_col2.button("💾 Lưu", use_container_width=True)
+    xoa_btn = btn_col4.button("🗑️ Xóa form", use_container_width=True)
+
+    # Nút Xóa: Khởi động lại giao diện và xóa bộ nhớ tạm
+    if xoa_btn:
+        st.session_state.khbd_docx = None
+        st.session_state.khbd_filename = ""
+        st.rerun()
+
+    # Nút Lưu (Hiển thị thông báo, sẽ kết nối Database sau)
+    if luu_btn:
+        if st.session_state.khbd_docx:
+            st.success("Đã lưu Kế hoạch bài dạy vào hệ thống (Giả lập)!")
+        else:
+            st.warning("Thầy cần tạo KHBD trước khi lưu nhé!")
+
+    # Nút Tải File (Chỉ hiển thị nút TẢI khi đã có file trong session_state)
+    if st.session_state.khbd_docx:
+        btn_col3.download_button(
+            label="📥 Tải file Word",
+            data=st.session_state.khbd_docx,
+            file_name=st.session_state.khbd_filename,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+    else:
+        # Nếu chưa có file thì hiển thị nút mờ (disabled)
+        btn_col3.button("📥 Tải file Word", disabled=True, use_container_width=True)
+
+    # ==========================================
+    # LOGIC XỬ LÝ AI
+    # ==========================================
+    if tao_btn:
         if not ten_bai:
             st.warning("Thầy vui lòng nhập Tên bài dạy nhé!")
             return
@@ -33,16 +100,34 @@ def render_xd_khbd(ai_engine):
             st.error("AI Engine chưa được kết nối. Vui lòng kiểm tra API Key.")
             return
 
-        with st.spinner("🤖 Trợ lý AI đang tư duy và biên soạn KHBD. Quá trình này có thể mất 15-30 giây..."):
-            # 1. Kịch bản (Prompt) ép AI trả về định dạng JSON - ĐÃ ĐƯỢC ĐẶT ĐÚNG VỊ TRÍ
+        with st.spinner(f"🤖 Trợ lý AI đang tư duy và biên soạn KHBD theo hình thức {hinh_thuc}..."):
+            
+            # Xử lý nội dung file nếu thầy có đính kèm và tích chọn "Bám sát"
+            noi_dung_tham_khao = ""
+            if bam_sat and file_tai_len is not None:
+                try:
+                    if file_tai_len.name.endswith('.pdf'):
+                        pdf_reader = PyPDF2.PdfReader(file_tai_len)
+                        for page in pdf_reader.pages:
+                            noi_dung_tham_khao += page.extract_text() + "\n"
+                    elif file_tai_len.name.endswith('.txt'):
+                        noi_dung_tham_khao = file_tai_len.getvalue().decode("utf-8")
+                    
+                    noi_dung_tham_khao = f"\n\n[TÀI LIỆU THAM KHẢO BẮT BUỘC BÁM SÁT]:\n{noi_dung_tham_khao[:3000]}" # Lấy 3000 ký tự đầu để tránh quá tải AI
+                except Exception as e:
+                    st.warning("Có lỗi khi đọc file, AI sẽ soạn theo dữ liệu mặc định.")
+            
+            # Kịch bản (Prompt) 
             prompt = f"""
             Đóng vai là một giáo viên {mon_hoc} cấp THCS xuất sắc.
             Hãy soạn Kế hoạch bài dạy cho bài: "{ten_bai}", Lớp {lop}, thời lượng {thoi_luong} tiết.
+            Hình thức soạn: {hinh_thuc} (Hãy điều chỉnh nội dung chi tiết cho phù hợp với hình thức này).
             Yêu cầu chuyên môn bổ sung: {yeu_cau_them}
+            {noi_dung_tham_khao}
 
             NHIỆM VỤ QUAN TRỌNG NHẤT:
-            Bạn BẮT BUỘC phải trả về kết quả dưới định dạng JSON nguyên chuẩn (không có markdown, không có chữ text nào ngoài JSON). 
-            Các Key trong JSON phải khớp chính xác 100% với cấu trúc dưới đây để tôi đổ vào file Word:
+            Dù soạn theo hình thức nào, bạn BẮT BUỘC phải trả về kết quả dưới định dạng JSON nguyên chuẩn (không có markdown). 
+            Các Key trong JSON phải khớp chính xác 100% với cấu trúc dưới đây để tôi đổ vào khuôn Word (Nếu mục nào trong hình thức {hinh_thuc} không cần, hãy để chuỗi rỗng ""):
             {{
                 "CHU_DE": "Tên chủ đề",
                 "TEN_BAI_HOC": "{ten_bai}",
@@ -106,32 +191,26 @@ def render_xd_khbd(ai_engine):
             """
 
             try:
-                # 2. Gọi AI và nhận kết quả
                 response_text = ai_engine.generate_text(prompt)
                 
-                # Làm sạch dữ liệu trả về để đảm bảo Python đọc được JSON
                 clean_json = response_text.replace("```json", "").replace("```", "").strip()
                 data_dict = json.loads(clean_json)
 
-                # 3. Mở file Word mẫu và đổ dữ liệu vào các thẻ {{ }}
                 doc = DocxTemplate("templates/KHBD_Mau.docx")
                 doc.render(data_dict)
 
-                # 4. Xuất file ra bộ nhớ đệm (BytesIO) để người dùng tải về
                 bio = io.BytesIO()
                 doc.save(bio)
                 
-                st.success("🎉 Trợ lý AI đã soạn xong Kế hoạch bài dạy!")
+                # Lưu file vào bộ nhớ tạm của hệ thống để hiển thị nút Tải xuống
+                st.session_state.khbd_docx = bio.getvalue()
+                st.session_state.khbd_filename = f"KHBD_{ten_bai.replace(' ', '_')}.docx"
                 
-                st.download_button(
-                    label="📥 TẢI KẾ HOẠCH BÀI DẠY (.DOCX)",
-                    data=bio.getvalue(),
-                    file_name=f"KHBD_{ten_bai.replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
+                st.success("🎉 Trợ lý AI đã soạn xong Kế hoạch bài dạy! Thầy hãy nhấn nút Tải file Word ở trên nhé.")
+                # Tải lại UI để nút "Tải file Word" được kích hoạt
+                st.rerun() 
                 
             except json.JSONDecodeError:
-                st.error("Lỗi: Trợ lý AI trả về sai định dạng dữ liệu. Thầy vui lòng nhấn tạo lại nhé.")
+                st.error("Lỗi: Trợ lý AI trả về sai định dạng. Thầy vui lòng nhấn Xóa và tạo lại nhé.")
             except Exception as e:
                 st.error(f"Có lỗi hệ thống xảy ra: {e}")
