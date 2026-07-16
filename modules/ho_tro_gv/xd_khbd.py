@@ -1,26 +1,11 @@
 import streamlit as st
 import sys
 import os
+import importlib.util
 from pathlib import Path
 from loguru import logger
 from pypdf import PdfReader
 
-# =========================================================================
-# ĐỊNH TUYẾN ĐƯỜNG DẪN ĐỘNG CHO STREAMLIT CLOUD (SỬA LỖI NO MODULE)
-# Ép Python phải tìm thấy file export_word.py nằm ở thư mục gốc của trường
-# =========================================================================
-CURRENT_FILE = Path(__file__).resolve()
-# Cấu trúc của thầy: xd_khbd.py nằm trong ho_tro_gv/ -> modules/ -> thư mục gốc (3 cấp ngược lên)
-PROJECT_ROOT = CURRENT_FILE.parents[2] 
-
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-    # Đồng bộ cả đường dẫn làm việc hiện tại của hệ thống (Current Working Directory)
-    os.chdir(str(PROJECT_ROOT))
-
-# =========================================================================
-# LÕI GIAO DIỆN PHÂN HỆ CỦA THẦY (BẢO TOÀN NGUYÊN BẢN 100% LOGIC GỐC)
-# =========================================================================
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
@@ -112,12 +97,27 @@ def render_xd_khbd(ai_engine):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
-        # Giữ nguyên cấu trúc logic nút bấm xuất file chuẩn của thầy
+        # Giữ nguyên cấu trúc logic 2 nút bấm gốc của thầy
         if st.button("📥 Xuất file Word", use_container_width=True):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
-                    # Lệnh gọi import an toàn nhờ có khối nạp sys.path động ở đầu file
-                    import export_word
+                    # =========================================================================
+                    # GIẢI PHÁP ĐỘT PHÁ: NẠP FILE TỪ ĐƯỜNG DẪN VẬT LÝ (CHỐNG LỖI MODULE PYTHON)
+                    # Cách này tìm trực tiếp file export_word.py ở gốc bất kể môi trường Linux nào
+                    # =========================================================================
+                    current_file = Path(__file__).resolve()
+                    project_root = current_file.parents[2] # Ngược 3 cấp: ho_tro_gv -> modules -> gốc
+                    export_word_path = project_root / "export_word.py"
+                    
+                    if not export_word_path.exists():
+                        st.error(f"Không tìm thấy file export_word.py tại đường dẫn: {export_word_path}")
+                        return
+                        
+                    # Sử dụng importlib để nạp động file vật lý thành module hệ thống
+                    spec = importlib.util.spec_from_file_location("export_word", str(export_word_path))
+                    export_word = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(export_word)
+                    # =========================================================================
                     
                     # Gọi hàm chuyển đổi từ lõi kết xuất cao cấp dạng phẳng của thầy
                     word_bytes = export_word.WordExportEngine.convert_markdown_to_docx_bytes(st.session_state['khbd_content'])
