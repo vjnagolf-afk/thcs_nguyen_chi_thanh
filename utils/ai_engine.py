@@ -112,7 +112,7 @@ class AIEngine:
                     # Gán sẵn timeout vào Client
                     self.claude_clients[key] = anthropic.Anthropic(api_key=key, timeout=60.0)
 
-        # Gán model mặc định an toàn cho Vision
+        # Gán model mặc định an toàn
         self.gemini_models = {"text": self.MODELS["flash"], "vision": self.MODELS["pro"]}
 
         logger.info(f"🚀 AI Engine Core Initialized. Active Endpoints: {len(self.active_endpoints)}")
@@ -169,7 +169,6 @@ class AIEngine:
                     last_error = e
                     
                     # Fast-Fail: Chuyển Key ngay nếu Hết Quota/Bị cấm
-                    # Riêng 404 đã được bắt ở tầng _call_provider cho Gemini
                     if "429" in error_msg or "quota" in error_msg or "403" in error_msg or "exhausted" in error_msg:
                         logger.warning(f"⏩ Bỏ qua Key/Model này do lỗi Quota/Quyền truy cập. Chuyển nhà cung cấp / Key tiếp theo...")
                         break 
@@ -188,23 +187,21 @@ class AIEngine:
             client = self.gemini_clients.get(api_key)
             if not client: raise ValueError("Lỗi Client Gemini")
             
-            # Khởi tạo model mặc định là gemini-2.5-flash
             model_name = kwargs.get("model_name") or kwargs.get("model") or "gemini-2.5-flash"
             logger.info(f"Provider: GEMINI | Model: {model_name} | Prompt length: {len(prompt)}")
             
             try:
-                # Sử dụng cú pháp của google-genai
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt
                 )
                 return response.text
             except Exception as e:
-                # Bẫy lỗi 404 Downgrade (Xuống đời 1.5)
-                if "404" in str(e):
-                    logger.warning("Gemini 2.5 lỗi (404 Not Found), tự động chuyển sang Gemini 1.5 Flash...")
+                error = str(e)
+                if "404" in error or "not found" in error.lower():
+                    logger.warning("Gemini model hiện tại không khả dụng, chuyển sang gemini-2.0-flash")
                     response = client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="gemini-2.0-flash",
                         contents=prompt
                     )
                     return response.text
@@ -260,8 +257,8 @@ class AIEngine:
             
         client = self.gemini_clients[gemini_key]
         
-        # 3. Gọi SDK Mới kèm Downgrade 404 cho model Vision
-        model_name = self.gemini_models["vision"] # Mặc định là gemini-2.5-pro
+        # 3. Gọi SDK Mới kèm Downgrade 404 cho model Vision (Chuyển xuống 2.0 flash)
+        model_name = self.gemini_models["vision"]
         for attempt in range(2):
             try:
                 logger.info(f"Provider: GEMINI VISION | Model: {model_name} | Prompt length: {len(prompt)}")
@@ -271,10 +268,11 @@ class AIEngine:
                 )
                 return response.text
             except Exception as e:
-                if "404" in str(e):
-                    logger.warning("Gemini 2.5 Pro Vision lỗi (404), lùi về Gemini 1.5 Pro...")
-                    model_name = "gemini-1.5-pro"
-                    continue # Thử lại ngay với tên model cũ
+                error = str(e)
+                if "404" in error or "not found" in error.lower():
+                    logger.warning("Gemini 2.5 Pro Vision lỗi (404), lùi về gemini-2.0-flash...")
+                    model_name = "gemini-2.0-flash"
+                    continue # Thử lại ngay với tên model mới
                 
                 logger.warning(f"Lỗi Vision Lần {attempt+1}: {e}")
                 if attempt == 1: raise e
