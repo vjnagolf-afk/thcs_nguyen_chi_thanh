@@ -3,3 +3,8 @@ supabase
 pandas
 loguru
 google-generativeai>=0.8.5
+cachetools
+tenacity
+fastapi
+uvicorn
+pydantic
