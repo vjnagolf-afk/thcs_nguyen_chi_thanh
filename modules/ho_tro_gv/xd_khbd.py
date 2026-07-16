@@ -3,18 +3,19 @@ from docxtpl import DocxTemplate
 import io
 import json
 import PyPDF2
+import os
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
-    # Khởi tạo bộ nhớ tạm để giữ file Word sau khi AI sinh xong (tránh bị mất khi bấm nút khác)
+    # Khởi tạo bộ nhớ tạm để giữ file Word sau khi AI sinh xong
     if "khbd_docx" not in st.session_state:
         st.session_state.khbd_docx = None
     if "khbd_filename" not in st.session_state:
         st.session_state.khbd_filename = ""
 
     # ==========================================
-    # KHU VỰC GIAO DIỆN (UI) - ĐÃ KHÔI PHỤC NGUYÊN BẢN
+    # KHU VỰC GIAO DIỆN (UI)
     # ==========================================
     
     # HÀNG 1: 4 Tùy chọn inline
@@ -28,7 +29,7 @@ def render_xd_khbd(ai_engine):
         ]
         mon_hoc = st.selectbox("Môn học", danh_sach_mon)
     with col2:
-        lop = st.selectbox("Lớp", [str(i) for i in range(6, 13)], index=3) # Mặc định để Lớp 9
+        lop = st.selectbox("Lớp", [str(i) for i in range(6, 13)], index=3) # Mặc định Lớp 9
     with col3:
         hinh_thuc = st.selectbox("Chọn hình thức", ["Chuẩn 5512", "KHBD thu gọn", "KHBD Stem"])
     with col4:
@@ -54,7 +55,7 @@ def render_xd_khbd(ai_engine):
     with col_file:
         file_tai_len = st.file_uploader("Tài liệu tham khảo (Tùy chọn - Hỗ trợ PDF, TXT)", type=["pdf", "txt"])
     with col_check:
-        st.write("") # Tạo khoảng trống để căn giữa với ô upload
+        st.write("") 
         st.write("")
         bam_sat = st.checkbox("Bám sát nội dung file tải lên", value=False)
 
@@ -65,7 +66,7 @@ def render_xd_khbd(ai_engine):
     )
 
     # ==========================================
-    # KHU VỰC NÚT BẤM (HÀNG 5)
+    # KHU VỰC NÚT BẤM
     # ==========================================
     st.markdown("---")
     btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
@@ -73,7 +74,7 @@ def render_xd_khbd(ai_engine):
     tao_btn = btn_col1.button("🚀 Soạn KHBD", use_container_width=True, type="primary")
     luu_btn = btn_col2.button("💾 Lưu", use_container_width=True)
     
-    # Nút Tải File (Chỉ hiển thị nút TẢI khi đã có file trong session_state)
+    # Nút Tải File (Chỉ hiển thị khi đã có file trong session_state)
     if st.session_state.khbd_docx:
         btn_col3.download_button(
             label="📥 Tải file Word",
@@ -83,7 +84,6 @@ def render_xd_khbd(ai_engine):
             use_container_width=True
         )
     else:
-        # Nếu chưa có file thì hiển thị nút mờ (disabled)
         btn_col3.button("📥 Tải file Word", disabled=True, use_container_width=True)
 
     xoa_btn = btn_col4.button("🗑️ Xóa form", use_container_width=True)
@@ -91,20 +91,17 @@ def render_xd_khbd(ai_engine):
     # ==========================================
     # LOGIC XỬ LÝ SỰ KIỆN
     # ==========================================
-    # Nút Xóa: Khởi động lại giao diện và xóa bộ nhớ tạm
     if xoa_btn:
         st.session_state.khbd_docx = None
         st.session_state.khbd_filename = ""
         st.rerun()
 
-    # Nút Lưu (Giả lập)
     if luu_btn:
         if st.session_state.khbd_docx:
             st.success("Đã lưu Kế hoạch bài dạy vào hệ thống (Giả lập)!")
         else:
             st.warning("Thầy cần tạo KHBD trước khi lưu nhé!")
 
-    # Nút Soạn KHBD
     if tao_btn:
         if not ten_bai:
             st.warning("Thầy vui lòng nhập Tên bài dạy nhé!")
@@ -116,7 +113,7 @@ def render_xd_khbd(ai_engine):
 
         with st.spinner(f"🤖 Trợ lý AI đang tư duy và biên soạn KHBD theo hình thức {hinh_thuc}..."):
             
-            # Xử lý nội dung file nếu thầy có đính kèm và tích chọn "Bám sát"
+            # Xử lý nội dung file tham khảo
             noi_dung_tham_khao = ""
             if bam_sat and file_tai_len is not None:
                 try:
@@ -127,22 +124,22 @@ def render_xd_khbd(ai_engine):
                     elif file_tai_len.name.endswith('.txt'):
                         noi_dung_tham_khao = file_tai_len.getvalue().decode("utf-8")
                     
-                    noi_dung_tham_khao = f"\n\n[TÀI LIỆU THAM KHẢO BẮT BUỘC BÁM SÁT]:\n{noi_dung_tham_khao[:3000]}" # Lấy 3000 ký tự đầu
-                except Exception as e:
+                    noi_dung_tham_khao = f"\n\n[TÀI LIỆU THAM KHẢO BẮT BUỘC BÁM SÁT]:\n{noi_dung_tham_khao[:3000]}"
+                except Exception:
                     st.warning("Có lỗi khi đọc file, AI sẽ soạn theo dữ liệu mặc định.")
             
-            # Kịch bản (Prompt) 
+            # Kịch bản JSON chuẩn (đã fix toàn bộ lỗi ngoặc)
             prompt = f"""
             Đóng vai là một giáo viên {mon_hoc} cấp THCS xuất sắc.
             Hãy soạn Kế hoạch bài dạy cho bài: "{ten_bai}", Lớp {lop}, thời lượng {thoi_luong} tiết.
-            Hình thức soạn: {hinh_thuc} (Hãy điều chỉnh nội dung chi tiết cho phù hợp với hình thức này).
+            Hình thức soạn: {hinh_thuc}
             Yêu cầu chuyên môn bổ sung: {yeu_cau_them}
             {noi_dung_tham_khao}
 
             NHIỆM VỤ QUAN TRỌNG NHẤT:
-            Dù soạn theo hình thức nào, bạn BẮT BUỘC phải trả về kết quả dưới định dạng JSON nguyên chuẩn (không có markdown). 
-            Chỉ trả về định dạng JSON, tuyệt đối không viết thêm lời dẫn nào ở đầu hoặc cuối.
-            Các Key trong JSON phải khớp chính xác 100% với cấu trúc dưới đây để tôi đổ vào khuôn Word (Nếu mục nào trong hình thức {hinh_thuc} không cần, hãy để chuỗi rỗng ""):
+            BẮT BUỘC trả về kết quả dưới định dạng JSON nguyên chuẩn. 
+            Không viết thêm bất kỳ lời dẫn nào ở đầu hoặc cuối.
+            Các Key trong JSON phải khớp chính xác 100% với cấu trúc dưới đây:
             {{
                 "CHU_DE": "Tên chủ đề",
                 "TEN_BAI_HOC": "{ten_bai}",
@@ -150,83 +147,85 @@ def render_xd_khbd(ai_engine):
                 "THOI_LUONG": "{thoi_luong}",
                 "MUC_TIEU_KIEN_THUC": "Nội dung chi tiết mục tiêu kiến thức",
                 "NANG_LUC_CHUNG": "Tự chủ tự học, giao tiếp, hợp tác...",
-                "NANG_LUC_DAK_THU": "Năng lực đặc thù của môn học",
-                "NANG_LUC_SO_VA_AI": "Ứng dụng công cụ số hoặc nhận thức cơ bản về AI trong bài học",
+                "NANG_LUC_DAC_THU": "Năng lực đặc thù",
+                "NANG_LUC_SO_VA_AI": "Ứng dụng công cụ số hoặc AI",
                 "PHAM_CHAT": "Trung thực, trách nhiệm...",
-                "GIAO_VIEN": "Máy chiếu, phiếu học tập, AI chatbot...",
-                "HOC_SINH": "Sách vở, dụng cụ...",
+                "GIAO_VIEN": "Thiết bị của GV",
+                "HOC_SINH": "Thiết bị của HS",
                 
-                "HOAT_DONG_MO_DAU": "Tên hoạt động khởi động",
-                "MUC_TIEU": "Mục tiêu HĐ 1",
-                "NOI_DUNG": "Nội dung trò chơi/tình huống HĐ 1",
-                "SAN_PHAM": "Câu trả lời dự kiến HĐ 1",
-                "CHUYEN_GIAO_NHIEM_VU_HOC_TAP": "Cách GV giao nhiệm vụ HĐ 1",
-                "THUC_HIEN_NHIEM_VU_HOC_TAP": "HS thực hiện HĐ 1",
-                "BAO_CAO_KET_QUA_VA_THAO_LUAN": "Báo cáo kết quả HĐ 1",
-                "DANH_GIA_KET_QUA": "GV đánh giá HĐ 1",
+                "MUC_TIEU": "Mục tiêu HĐ Mở đầu",
+                "NOI_DUNG": "Nội dung HĐ Mở đầu",
+                "SAN_PHAM": "Sản phẩm dự kiến HĐ Mở đầu",
+                "CHUYEN_GIAO_NHIEM_VU_HOC_TAP": "Cách giao nhiệm vụ HĐ Mở đầu",
+                "THUC_HIEN_NHIEM_VU_HOC_TAP": "Thực hiện HĐ Mở đầu",
+                "BAO_CAO_KET_QUA_VA_THAO_LUAN": "Báo cáo HĐ Mở đầu",
+                "DANH_GIA_KET_QUA": "Đánh giá HĐ Mở đầu",
 
-                "TEN_HOAT_DONG": "Tên hoạt động khám phá 2.1",
+                "TEN_HOAT_DONG": "Tên hoạt động khám phá",
                 "HD1_MUC_TIEU": "Mục tiêu HĐ 2.1",
                 "HD1_NOI_DUNG": "Nội dung HĐ 2.1",
                 "HD1_SAN_PHAM": "Sản phẩm HĐ 2.1",
-                "CHUYEN_GIAO_NHIEM_VU_HOC_TAP_1": "Cách giao nhiệm vụ HĐ 2.1",
-                "THUC_HIEN_NHIEM_VU_HOC_TAP_1": "HS thực hiện HĐ 2.1",
+                "CHUYEN_GIAO_NHIEM_VU_HOC_TAP_1": "Giao nhiệm vụ HĐ 2.1",
+                "THUC_HIEN_NHIEM_VU_HOC_TAP_1": "Thực hiện HĐ 2.1",
                 "BAO_CAO_KET_QUA_VA_THAO_LUAN_1": "Báo cáo HĐ 2.1",
-                "KET_LUAN_1": "Chốt kiến thức HĐ 2.1",
+                "KET_LUAN_1": "Kết luận HĐ 2.1",
 
                 "HD2_MUC_TIEU": "Mục tiêu HĐ 2.2",
                 "HD2_NOI_DUNG": "Nội dung HĐ 2.2",
                 "HD2_SAN_PHAM": "Sản phẩm HĐ 2.2",
-                "HD2_CHUYEN_GIAO_NHIEM_VU_HOC_TAP": "Cách giao nhiệm vụ HĐ 2.2",
-                "HD2_THUC_HIEN_NHIEM_VU_HOC_TAP": "HS thực hiện HĐ 2.2",
+                "HD2_CHUYEN_GIAO_NHIEM_VU_HOC_TAP": "Giao nhiệm vụ HĐ 2.2",
+                "HD2_THUC_HIEN_NHIEM_VU_HOC_TAP": "Thực hiện HĐ 2.2",
                 "HD2_BAO_CAO_KET_QUA_VA_THAO_LUAN": "Báo cáo HĐ 2.2",
-                "HD2_KET_LUAN": "Chốt kiến thức HĐ 2.2",
+                "HD2_KET_LUAN": "Kết luận HĐ 2.2",
 
                 "LT_MUC_TIEU": "Mục tiêu HĐ Luyện tập",
                 "LT_NOI_DUNG": "Nội dung HĐ Luyện tập",
                 "LT_SAN_PHAM": "Sản phẩm HĐ Luyện tập",
-                "CHUYEN_GIAO_NHIEM_VU_HOC_TAP_LT": "Cách giao nhiệm vụ HĐ Luyện tập",
-                "LT_THUC_HIEN_NHIEM_VU_HOC_TAP": "HS thực hiện HĐ Luyện tập",
+                "CHUYEN_GIAO_NHIEM_VU_HOC_TAP_LT": "Giao nhiệm vụ HĐ Luyện tập",
+                "LT_THUC_HIEN_NHIEM_VU_HOC_TAP": "Thực hiện HĐ Luyện tập",
                 "LT_BAO_CAO_KET_QUA_VA_THAO_LUAN": "Báo cáo HĐ Luyện tập",
-                "LT_KET_LUAN": "Chốt kỹ năng HĐ Luyện tập",
+                "LT_KET_LUAN": "Kết luận HĐ Luyện tập",
 
                 "VD_MUC_TIEU": "Mục tiêu HĐ Vận dụng",
-                "VD_NOI_DUNG": "Nhiệm vụ thực tế HĐ Vận dụng",
-                "VD_SAN_PHAM": "Sản phẩm thực hành HĐ Vận dụng",
-                "TO_CHUC_THUC_HIEN": "Cách tổ chức thực hiện HĐ Vận dụng",
-                "VD_CHUYEN_GIAO_NHIEM_VU_HOC_TAP": "Giao việc về nhà",
-                "VD_THUC_HIEN_NHIEM_VU_HOC_TAP": "HS thực hiện HĐ Vận dụng",
+                "VD_NOI_DUNG": "Nội dung HĐ Vận dụng",
+                "VD_SAN_PHAM": "Sản phẩm HĐ Vận dụng",
+                "TO_CHUC_THUC_HIEN": "Tổ chức thực hiện HĐ Vận dụng",
+                "VD_CHUYEN_GIAO_NHIEM_VU_HOC_TAP": "Giao nhiệm vụ HĐ Vận dụng",
+                "VD_THUC_HIEN_NHIEM_VU_HOC_TAP": "Thực hiện HĐ Vận dụng",
                 "VD_BAO_CAO_KET_QUA_VA_THAO_LUAN": "Báo cáo HĐ Vận dụng",
-                "VD_KET_LUAN": "Đánh giá chung HĐ Vận dụng",
+                "VD_KET_LUAN": "Kết luận HĐ Vận dụng",
 
-                "TIET_2": "Hướng dẫn hoặc nội dung chuyển tiếp sang Tiết 2",
-                "PHU_LUC": "Ghi chú phụ lục",
                 "PHIEU_HOC_TAP": "Nội dung chi tiết các câu hỏi trong Phiếu học tập"
             }}
             """
 
             try:
-                # 2. Gọi AI với Model mà Giáo viên đã chọn trên giao diện
+                # Gọi AI 
                 response_text = ai_engine.generate_text(prompt, model_name=model_chon)
                 
                 # Làm sạch dữ liệu rác quanh JSON
                 clean_json = response_text.replace("```json", "").replace("```", "").strip()
                 data_dict = json.loads(clean_json)
 
+                # ==========================================
+                # XỬ LÝ ĐƯỜNG DẪN TỰ ĐỘNG ĐỂ TRÁNH LỖI NOT FOUND
+                # ==========================================
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
+                template_path = os.path.join(project_root, "templates", "KHBD_Mau.docx")
+
                 # Render vào file mẫu Word
-                doc = DocxTemplate("templates/KHBD_Mau.docx")
+                doc = DocxTemplate(template_path)
                 doc.render(data_dict)
 
                 # Lưu vào bộ nhớ ảo
                 bio = io.BytesIO()
                 doc.save(bio)
                 
-                # Lưu file vào bộ nhớ tạm của hệ thống để hiển thị nút Tải xuống
                 st.session_state.khbd_docx = bio.getvalue()
                 st.session_state.khbd_filename = f"KHBD_{ten_bai.replace(' ', '_')}.docx"
                 
                 st.success("🎉 Trợ lý AI đã soạn xong Kế hoạch bài dạy! Thầy hãy nhấn nút Tải file Word ở trên nhé.")
-                # Tải lại UI để nút "Tải file Word" được kích hoạt
                 st.rerun() 
                 
             except json.JSONDecodeError:
