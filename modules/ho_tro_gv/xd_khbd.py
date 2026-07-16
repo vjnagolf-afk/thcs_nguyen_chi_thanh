@@ -55,10 +55,12 @@ def render_xd_khbd(ai_engine):
                 2. Lồng ghép nội dung Năng lực số và giáo dục AI vào các hoạt động.
                 3. {yeu_cau}
                 
-                YÊU CẦU TRÌNH BÀY:
-                1. Bắt đầu ngay từ "I. MỤC TIÊU". Không có lời chào.
-                2. Sử dụng LaTeX ($...$) cho mọi công thức toán học/hóa học. Không dùng ký tự lạ.
-                3. Tuyệt đối không sử dụng dấu ">" ở đầu các dòng.
+                YÊU CẦU TRÌNH BÀY (BẮT BUỘC TUÂN THỦ):
+                1. Bắt đầu ngay từ "I. MỤC TIÊU". Tuyệt đối không có lời chào hỏi hay câu dẫn.
+                2. Phải XUỐNG DÒNG và IN ĐẬM các tiêu đề lớn/nhỏ (Ví dụ: **1. Về kiến thức:**).
+                3. Sử dụng ký tự gạch đầu dòng (-) hoặc dấu hoa thị (*) cho các ý liệt kê. Tuyệt đối không viết dính liền thành 1 đoạn văn.
+                4. Sử dụng LaTeX ($...$) cho mọi công thức toán học/hóa học. 
+                5. Tuyệt đối không sử dụng dấu ">" ở đầu các dòng.
                 
                 Dữ liệu tài liệu tham khảo: 
                 {file_context[:8000]} 
