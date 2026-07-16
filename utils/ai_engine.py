@@ -3,7 +3,6 @@ import json
 import hashlib
 import streamlit as st
 
-st.write("MODEL ĐANG DÙNG:", self.model_name)
 from typing import List, Dict, Any, Optional
 from loguru import logger
 import google.generativeai as genai
@@ -59,6 +58,12 @@ class AIEngine:
         # Khởi tạo Gemini
         if self.keys.get("gemini"):
             genai.configure(api_key=self.keys["gemini"])
+            logger.info(
+                f"Gemini key: {self.keys['gemini'][:12]}..."
+            )
+            logger.info(
+                f"Gemini models: {self.gemini_models}"
+            )
             self.gemini_models = self._auto_detect_gemini_models()
             
             # Đồng bộ lại biến MODELS dựa trên model tự động quét được
