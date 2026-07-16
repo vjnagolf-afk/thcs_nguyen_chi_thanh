@@ -39,12 +39,11 @@ class WordExportEngine:
             doc = docx.Document()
 
             # Nhập khẩu trễ (Lazy Imports) để tránh Circular Import và cô lập lỗi
-            from .word_styles import StyleManager
             from .word_markdown import MarkdownTokenizer
-            from .word_tables import TableRenderer
-            from .word_images import ImageRenderer
             from .word_math import MathRenderer
-
+            from .word_styles import StyleManager
+            from .word_tables import TableRenderer
+            from .word_math import MathRenderer
             # 1. KHỞI TẠO ĐỊNH DẠNG CHUẨN (A4, Margins, Base Fonts)
             StyleManager.setup_base_styles(doc)
 
