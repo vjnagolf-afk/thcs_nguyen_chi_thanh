@@ -28,3 +28,5 @@ joblib>=1.4.0
 Pillow>=10.4.0
 requests>=2.32.0
 python-dotenv>=1.0.1
+openai>=1.0.0
+anthropic>=0.30.0
