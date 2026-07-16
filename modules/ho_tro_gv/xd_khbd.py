@@ -1,12 +1,20 @@
 import streamlit as st
 from docxtpl import DocxTemplate
 from jinja2 import Environment, Undefined
+from pypdf import PdfReader
 from pathlib import Path
 from loguru import logger
 import io
 import json
-import PyPDF2
-import os
+
+# Hàm tách JSON an toàn
+def extract_json(text):
+    text = text.replace("```json", "").replace("```", "").strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError("AI không trả về cấu trúc JSON hợp lệ")
+    return text[start:end + 1]
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
@@ -14,7 +22,7 @@ def render_xd_khbd(ai_engine):
     if "khbd_docx" not in st.session_state: st.session_state.khbd_docx = None
     if "khbd_filename" not in st.session_state: st.session_state.khbd_filename = ""
 
-    # Giao diện
+    # UI Inputs
     col1, col2, col3, col4 = st.columns(4)
     mon_hoc = col1.selectbox("Môn học", ["Toán", "Ngữ văn", "Khoa học Tự nhiên", "Tiếng Anh", "Tin học", "Công nghệ"])
     lop = col2.selectbox("Lớp", [str(i) for i in range(6, 13)], index=3)
@@ -38,38 +46,40 @@ def render_xd_khbd(ai_engine):
         else:
             with st.spinner("🤖 AI đang biên soạn..."):
                 try:
-                    # 1. Xử lý tài liệu
+                    # 1. Đọc tài liệu
                     noi_dung = ""
                     if bam_sat and file_tai_len:
                         if file_tai_len.name.endswith('.pdf'):
-                            reader = PyPDF2.PdfReader(file_tai_len)
+                            reader = PdfReader(file_tai_len)
                             for page in reader.pages:
                                 txt = page.extract_text()
                                 if txt: noi_dung += txt + "\n"
                                 if len(noi_dung) > 3000: break
+                        elif file_tai_len.name.endswith('.txt'):
+                            noi_dung = file_tai_len.getvalue().decode("utf-8")[:3000]
                         noi_dung = f"\n[TÀI LIỆU]: {noi_dung}"
 
                     # 2. Gọi AI
                     prompt = f"Soạn KHBD bài '{ten_bai}', lớp {lop}, {thoi_luong} tiết. {yeu_cau_them}. {noi_dung}. Trả về JSON chuẩn."
                     response = ai_engine.generate_text(prompt, model_name=model_chon)
-                    clean_json = response.replace("```json", "").replace("```", "").strip()
+                    
+                    # 3. Trích xuất và parse JSON an toàn
+                    clean_json = extract_json(response)
                     data = json.loads(clean_json)
 
-                    # 3. Xem trước
                     with st.expander("👁️ Xem trước dữ liệu"):
                         st.json(data)
 
-                    # 4. Định vị Template (Pathlib chuẩn)
+                    # 4. Định vị Template (Pathlib)
                     BASE_DIR = Path(__file__).resolve().parents[2]
                     template_path = BASE_DIR / "templates" / "KHBD_Mau.docx"
                     
                     if not template_path.exists():
                         st.error(f"❌ Không tìm thấy file mẫu:\n{template_path}")
-                        logger.error(f"Missing template: {template_path}")
                         return
 
                     # 5. Render Word
-                    doc = DocxTemplate(template_path)
+                    doc = DocxTemplate(str(template_path))
                     jinja_env = Environment(undefined=Undefined)
                     doc.render(data, jinja_env=jinja_env)
                     
@@ -80,4 +90,4 @@ def render_xd_khbd(ai_engine):
                     st.rerun()
                 except Exception as e:
                     st.error(f"Lỗi: {e}")
-                    logger.exception("Lỗi render Word")
+                    logger.exception("Lỗi hệ thống")
