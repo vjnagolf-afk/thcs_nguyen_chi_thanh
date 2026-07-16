@@ -4,9 +4,8 @@ from pathlib import Path
 from loguru import logger
 from pypdf import PdfReader
 
-# Đảm bảo import được thư viện từ thư mục gốc
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-from export.word_export_engine import WordExportEngine  # Đồng bộ tên file theo cấu trúc tối ưu
+# Xóa bỏ dòng import gây lỗi ở đầu file này:
+# from export.word_export_engine import WordExportEngine  <-- ĐÃ XÓA DÒNG NÀY ĐỂ TRÁNH LỖI CRASH 
 
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
@@ -56,14 +55,12 @@ def render_xd_khbd(ai_engine):
                     try:
                         if file_tai_len.name.endswith('.pdf'):
                             reader = PdfReader(file_tai_len)
-                            # Trích xuất toàn bộ văn bản từ file PDF tham khảo
                             file_context = "\n".join([p.extract_text() for p in reader.pages if p.extract_text()])
                         elif file_tai_len.name.endswith('.txt'):
                             file_context = file_tai_len.read().decode("utf-8")
                     except Exception as e:
                         st.warning(f"Không thể đọc tài liệu tham khảo: {e}")
 
-                # Kỹ nghệ Prompt tối ưu chặt chẽ ép AI xuất Markdown chuẩn cấu trúc Export Engine
                 prompt = f"""
                 Bạn là Chuyên gia Giáo dục cấp THCS và THPT. Hãy soạn một Kế hoạch bài dạy (KHBD) chi tiết cho bài học: '{ten_bai_hoc}'.
                 Thông tin cấu trúc: Môn {mon_hoc}, {lop}, thời lượng {so_tiet} tiết, theo hình thức {hinh_thuc}.
@@ -84,10 +81,7 @@ def render_xd_khbd(ai_engine):
                 """
 
                 try:
-                    # Gọi hàm xử lý từ AI Engine
                     content = ai_engine.generate_text(prompt)
-                    
-                    # Lưu trữ trạng thái vào Session State để tránh mất khi tải lại trang
                     st.session_state['khbd_content'] = content
                     st.session_state['khbd_meta'] = {"ten": ten_bai_hoc, "mon": mon_hoc, "lop": lop}
                     st.rerun()
@@ -104,29 +98,28 @@ def render_xd_khbd(ai_engine):
     if st.session_state['khbd_content']:
         st.markdown("---")
         
-        # Hàng chứa tiêu đề kết quả và nút tải file Word thiết kế tối ưu thị giác
-        col_title, col_download = st.columns([3, 1])
+        col_title, col_download = st.columns()
         with col_title:
             st.markdown("#### 🎯 Bản phác thảo Kế hoạch bài dạy từ AI:")
         
         with col_download:
             try:
-                # Sửa lỗi lồng nút: Biên dịch trực tiếp chuỗi Markdown sang luồng Bytes Word Native
+                # DI CHUYỂN IMPORT VÀO ĐÂY: Hàm sẽ tìm đúng thư mục export nhờ sys.path của app.py
+                from export.word_export_engine import WordExportEngine
+                
+                # Biên dịch trực tiếp chuỗi Markdown sang luồng Bytes Word Native
                 word_bytes = WordExportEngine.convert_markdown_to_docx_bytes(st.session_state['khbd_content'])
                 
-                # Nút tải file chuẩn OpenXML không bị vỡ giao diện
                 file_name_clean = st.session_state['khbd_meta'].get('ten', 'Giao_An').replace(' ', '_')
                 st.download_button(
                     label="📥 Tải file Word (.docx)",
                     data=word_bytes,
                     file_name=f"KHBD_{file_name_clean}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    type="secondary",
                     use_container_width=True
                 )
             except Exception as e:
                 st.error(f"Lỗi đóng gói file Word: {e}")
                 logger.exception("Lỗi xuất Word")
 
-        # Hiển thị trực quan nội dung Markdown ngay trên Web app để giáo viên xem trước
         st.markdown(st.session_state['khbd_content'])
