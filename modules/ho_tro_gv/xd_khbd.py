@@ -97,8 +97,7 @@ def render_xd_khbd(ai_engine):
     # 3. HIỂN THỊ KẾT QUẢ VÀ TẢI FILE WORD NATIVE (.DOCX)
     if st.session_state['khbd_content']:
         st.markdown("---")
-        
-        col_title, col_download = st.columns()
+        col_title, col_download = st.columns([3, 1]) # Chia giao diện làm 2 cột với tỷ lệ 3:1 (Cột tiêu đề rộng gấp 3 lần cột nút bấm)
         with col_title:
             st.markdown("#### 🎯 Bản phác thảo Kế hoạch bài dạy từ AI:")
         
