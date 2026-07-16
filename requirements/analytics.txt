@@ -1,5 +1,3 @@
-plotly
-scikit-learn
-scipy
-sympy
-joblib
+Data analysis
+Visualization
+AI statistics
