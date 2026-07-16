@@ -1,4 +1,16 @@
 import streamlit as st
+import sys
+from pathlib import Path
+
+# ==========================================
+# CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG (SỬA LỖI MODULE)
+# Đảm bảo Streamlit Cloud nhận diện đúng thư mục gốc và thư mục export
+# ==========================================
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+# Tiếp tục import các thư viện và phân hệ (Giữ nguyên 100% cấu trúc của bạn)
 from utils.db_connector import db
 from utils.ai_engine import AIEngine
 
@@ -35,17 +47,15 @@ with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: red;'>HỆ SINH THÁI SỐ<br>HỖ TRỢ GIÁO VIÊN</h2>", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("<h4 style='text-align: center; color: blue;'>CHỌN PHÂN HỆ</h4>", unsafe_allow_html=True)
-    
     phan_he = st.radio(
         "Chọn phân hệ:", 
-        ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn"],
+        ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn"], 
         label_visibility="collapsed" # Ẩn label mặc định để dùng dòng CHỌN PHÂN HỆ ở trên
     )
     
     # Nút Admin và Đăng xuất ở cuối Sidebar
     st.markdown("<br>" * 10, unsafe_allow_html=True) # Đẩy phần dưới xuống thấp
     st.session_state.is_admin_mode = st.checkbox("🛡️ Quản trị (Admin)", value=st.session_state.is_admin_mode)
-    
     if st.button("🚪 Đăng xuất/Đổi Key", use_container_width=True):
         st.session_state.user_api_key = None
         st.rerun()
@@ -54,7 +64,7 @@ with st.sidebar:
 # CỔNG BẢO MẬT (LOGIN)
 # ==========================================
 if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
-    st.warning("🔐 Vui lòng nhập API Key cá nhân để bắt đầu.")
+    st.warning("🔑 Vui lòng nhập API Key cá nhân để bắt đầu.")
     with st.form("login"):
         key = st.text_input("Nhập API Key:", type="password")
         if st.form_submit_button("Xác nhận"):
@@ -71,7 +81,6 @@ ai_engine = get_ai_engine()
 if phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Quản lý điểm", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
-    
     with tabs_gv[0]:
         render_xd_khbd(ai_engine)
     with tabs_gv[1]:
@@ -82,7 +91,6 @@ if phan_he == "Hỗ trợ Giáo viên":
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Hỗ trợ Giảng dạy")
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
-    
     with tabs_gd[0]:
         render_rag(ai_engine)
     with tabs_gd[1]:
@@ -93,12 +101,11 @@ elif phan_he == "Hỗ trợ Giảng dạy":
 elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
     tabs_to = st.tabs(["Danh sách thành viên", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
-    
-    with tabs_to[0]: 
+    with tabs_to[0]:
         render_danh_sach()
-    with tabs_to[1]: 
+    with tabs_to[1]:
         render_phan_cong(db)
-    with tabs_to[2]: 
+    with tabs_to[2]:
         render_bien_ban(db)
     with tabs_to[3]:
         st.info("Tính năng Kế hoạch đang được phát triển.")
