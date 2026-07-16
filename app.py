@@ -15,7 +15,6 @@ from modules.quan_ly_to.bien_ban import render_bien_ban
 from modules.ho_tro_giang_day.rag_ask import render_rag
 
 # 3. Hỗ trợ Giáo viên (Thư mục: modules/ho_tro_gv/)
-# (Sẽ import các file tương ứng khi thầy xây dựng xong)
 from modules.ho_tro_gv.xd_khbd import render_xd_khbd
 
 # ==========================================
@@ -111,7 +110,6 @@ if phan_he == "Quản lý Tổ chuyên môn":
     with tab3: render_bien_ban(db)
     with tab4: st.info("Sẽ gọi hàm từ: `modules/quan_ly_to/ke_hoach.py`")
     with tab5: st.info("Sẽ gọi hàm từ: `modules/quan_ly_to/thi_dua.py`")
-    # Khai báo nội dung cho tab Kiểm tra KHBD
     with tab6: st.info("Sẽ gọi hàm từ: `modules/quan_ly_to/kiem_tra_khbd.py`")
 
 # PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY
@@ -138,7 +136,8 @@ elif phan_he == "Hỗ trợ Giáo viên":
         "Chủ nhiệm", "Quản lý điểm", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"
     ])
     
-    with tabs[0]: st.info("Sẽ gọi hàm từ: `modules/ho_tro_gv/xd_khbd.py`")
+    # Đã cập nhật lệnh gọi hàm render_xd_khbd tại đây!
+    with tabs[0]: render_xd_khbd(ai_engine)
     with tabs[1]: st.info("Sẽ gọi hàm từ: `modules/ho_tro_gv/xd_de_kt.py`")
     with tabs[2]: st.info("Sẽ gọi hàm từ: `modules/ho_tro_gv/bai_day_stem.py`")
     with tabs[3]: st.info("Sẽ gọi hàm từ: `modules/ho_tro_gv/rubric.py`")
