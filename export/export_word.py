@@ -43,7 +43,7 @@ class WordExportEngine:
             from .word_math import MathRenderer
             from .word_styles import StyleManager
             from .word_tables import TableRenderer
-            from .word_math import MathRenderer
+
             # 1. KHỞI TẠO ĐỊNH DẠNG CHUẨN (A4, Margins, Base Fonts)
             StyleManager.setup_base_styles(doc)
 
