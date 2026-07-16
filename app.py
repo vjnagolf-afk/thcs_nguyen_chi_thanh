@@ -13,13 +13,22 @@ st.set_page_config(
 )
 
 # ========================================== #
-# 2. CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG #
+# 2. CẤU HÌNH ĐƯỜNG DẪN AN TOÀN CHỐNG LỖI #
 # ========================================== #
 ROOT_DIR = Path(__file__).resolve().parent
+# Dùng append thay vì insert(0) để không xung đột với thư viện lõi của Streamlit
 if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+    sys.path.append(str(ROOT_DIR))
 
-# Import các phân hệ
+# ========================================== #
+# 🚀 KỸ THUẬT ÉP BUỘC NHẬN DIỆN MODULE #
+# ========================================== #
+# Mẹo trị dứt điểm KeyError của Streamlit: 
+# Ép Python phải nạp thư mục cha vào sys.modules TRƯỚC KHI gọi thư mục con
+import utils
+import modules
+
+# Import các phân hệ con (Sau khi cha đã được nạp an toàn)
 try:
     from utils.db_connector import db
     from utils.ai_engine import AIEngine
@@ -33,7 +42,7 @@ except ImportError as e:
     st.stop()
 
 # ========================================== #
-# 3. KHỞI TẠO TRẠNG THÁI PHIÊN LÀM VIỆC #
+# 3. KHỞI TẠO TRẠNG THÁI PHIÊN LÀM VIỆC (Giữ nguyên code cũ của thầy bên dưới) #
 # ========================================== #
 if "user_api_key" not in st.session_state:
     st.session_state.user_api_key = None
