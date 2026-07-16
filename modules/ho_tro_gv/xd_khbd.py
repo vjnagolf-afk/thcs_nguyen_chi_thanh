@@ -204,7 +204,7 @@ def render_xd_khbd(ai_engine):
 
             try:
                 # 2. Gọi AI với Model mà Giáo viên đã chọn trên giao diện
-                response_text = ai_engine.generate_text(prompt, model_name=model_chon)
+                response_text = ai_engine.generate_text(prompt)
                 clean_json = response_text.replace("```json", "").replace("```", "").strip()
                 data_dict = json.loads(clean_json)
 
