@@ -35,20 +35,25 @@ if "is_admin_mode" not in st.session_state:
     st.session_state.is_admin_mode = False
 
 # ==========================================
-# 4. HÀM LẤY ENGINE TỐI ƯU (CÓ CACHE CHỐNG LAG)
+# 4. HÀM LẤY ENGINE TỐI ƯU (CACHE CHỐNG LAG & MULTI-KEY)
 # ==========================================
 @st.cache_resource
-def get_ai_engine(is_admin, user_key, admin_secret):
+def get_ai_engine(is_admin, user_key):
+    keys = {}
+    
     if is_admin:
-        return AIEngine(api_key=admin_secret) if admin_secret else None
+        # Chế độ Admin: Lấy toàn bộ bộ Key từ secrets.toml
+        keys["gemini"] = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("SCHOOL_ADMIN_API_KEY")
+        keys["openai"] = st.secrets.get("OPENAI_API_KEY")
+        keys["claude"] = st.secrets.get("CLAUDE_API_KEY")
     else:
-        return AIEngine(api_key=user_key) if user_key else None
-
-# Lấy Admin Key từ secrets một cách an toàn
-try:
-    admin_api_key = st.secrets.get("SCHOOL_ADMIN_API_KEY", None)
-except:
-    admin_api_key = None
+        # Chế độ User: Giáo viên tự nhập Key của mình
+        keys["gemini"] = user_key
+        
+    # Lọc bỏ các key bị None hoặc rỗng
+    keys = {k: v for k, v in keys.items() if v}
+    
+    return AIEngine(keys=keys) if keys else None
 
 # ==========================================
 # 5. GIAO DIỆN SIDEBAR
@@ -106,8 +111,7 @@ if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
 # ==========================================
 # 7. KHỞI TẠO ENGINE & KIỂM TRA TOÀN VẸN
 # ==========================================
-# Gọi hàm đã được cache để lấy engine (App sẽ tải cực nhanh từ lần click thứ 2 trở đi)
-ai_engine = get_ai_engine(st.session_state.is_admin_mode, st.session_state.user_api_key, admin_api_key)
+ai_engine = get_ai_engine(st.session_state.is_admin_mode, st.session_state.user_api_key)
 
 if not ai_engine:
     st.error("❌ Không thể khởi tạo Hệ thống AI. Vui lòng kiểm tra lại API Key hoặc cấu hình Secrets.")
