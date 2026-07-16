@@ -34,8 +34,20 @@ def render_xd_khbd(ai_engine):
     with col4:
         thoi_luong = st.number_input("Số tiết", min_value=1, value=1)
 
-    # HÀNG 2: Tên bài
-    ten_bai = st.text_input("Tên bài dạy / Chủ đề")
+    # HÀNG 2: Tên bài và Chọn phiên bản AI
+    col_ten, col_ai = st.columns([3, 1])
+    with col_ten:
+        ten_bai = st.text_input("Tên bài dạy / Chủ đề")
+    with col_ai:
+        loai_ai = st.selectbox(
+            "🤖 Phiên bản AI", 
+            ["Flash (Nhanh, Mặc định)", "Pro (Thông minh, Suy luận sâu)"]
+        )
+        # Chuyển đổi tên hiển thị sang mã model chuẩn của Google
+        if "Flash" in loai_ai:
+            model_chon = "gemini-1.5-flash-latest"
+        else:
+            model_chon = "gemini-1.5-pro-latest"
 
     # HÀNG 3: Tích chọn và Tải file
     col_file, col_check = st.columns([3, 1])
@@ -191,8 +203,8 @@ def render_xd_khbd(ai_engine):
             """
 
             try:
-                response_text = ai_engine.generate_text(prompt)
-                
+                # 2. Gọi AI với Model mà Giáo viên đã chọn trên giao diện
+                response_text = ai_engine.generate_text(prompt, model_name=model_chon)
                 clean_json = response_text.replace("```json", "").replace("```", "").strip()
                 data_dict = json.loads(clean_json)
 
