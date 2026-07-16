@@ -37,7 +37,7 @@ class AIEngine:
     Hỗ trợ Đa nền tảng, Tự động Fallback, Quản lý Quota, Caching và Đa phương thức.
     """
     
-    # Biến lớp mặc định để các module (như xd_khbd.py) truy cập
+    # Biến lớp mặc định
     MODELS = {
         "flash": "gemini-1.5-flash",
         "pro": "gemini-1.5-pro"
@@ -47,40 +47,45 @@ class AIEngine:
         """Khởi tạo hỗ trợ cả chuẩn cũ (app.py gọi api_key) và chuẩn mới đa nền tảng (keys)"""
         self.keys = keys if keys is not None else {}
         
-        # Tương thích ngược: Nếu app.py truyền api_key cũ vào, tự động gán cho gemini
         if api_key and "gemini" not in self.keys:
             self.keys["gemini"] = api_key
             
         self.token_usage = {"gemini": 0, "openai": 0, "claude": 0}
         self.cost_estimate = 0.0
+        # Thứ tự ưu tiên Fallback: Gemini -> OpenAI -> Claude
         self.provider_priority = ["gemini", "openai", "claude"]
         
-        # Khởi tạo Gemini
+        # 1. Khởi tạo Gemini
         if self.keys.get("gemini"):
             genai.configure(api_key=self.keys["gemini"])
-            logger.info(
-                f"Gemini key: {self.keys['gemini'][:12]}..."
-            )
+            logger.info(f"Gemini key: {self.keys['gemini'][:12]}...")
             
-            # FIX LỖI ATTRIBUTE ERROR: Khởi tạo/Tìm model TRƯỚC, sau đó mới in log ra màn hình
+            # Quét model trước khi in log để tránh lỗi AttributeError
             self.gemini_models = self._auto_detect_gemini_models()
+            logger.info(f"Gemini models: {self.gemini_models}")
             
-            logger.info(
-                f"Gemini models: {self.gemini_models}"
-            )
-            
-            # Đồng bộ lại biến MODELS dựa trên model tự động quét được
             self.MODELS["flash"] = self.gemini_models["text"]
             self.MODELS["pro"] = self.gemini_models["vision"]
         
-        # Khởi tạo OpenAI (nếu có)
+        # 2. Khởi tạo OpenAI (nếu có)
         self.openai_client = None
         if self.keys.get("openai"):
             try:
                 import openai
                 self.openai_client = openai.Client(api_key=self.keys["openai"])
+                logger.info("OpenAI API Initialized.")
             except ImportError:
                 logger.warning("Chưa cài thư viện openai. Chạy: pip install openai")
+
+        # 3. Khởi tạo Claude / Anthropic (nếu có)
+        self.claude_client = None
+        if self.keys.get("claude"):
+            try:
+                import anthropic
+                self.claude_client = anthropic.Anthropic(api_key=self.keys["claude"])
+                logger.info("Claude API Initialized.")
+            except ImportError:
+                logger.warning("Chưa cài thư viện anthropic. Chạy: pip install anthropic")
 
         logger.info("🚀 AI Engine Core Initialized successfully.")
 
@@ -93,13 +98,11 @@ class AIEngine:
         try:
             models = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
             
-            # Quét text model
             if any("1.5-flash" in m for m in models):
                 available["text"] = "models/gemini-1.5-flash"
             elif any("pro" in m for m in models):
                 available["text"] = "models/gemini-1.5-pro"
                 
-            # Quét vision/pro model
             if any("1.5-pro" in m for m in models):
                 available["vision"] = "models/gemini-1.5-pro"
                 
@@ -112,12 +115,10 @@ class AIEngine:
     # 2. CACHING & TOKEN TRACKING
     # ==========================================
     def _get_cache_key(self, prompt: str, kwargs: dict) -> str:
-        """Tạo mã băm cho prompt để làm khóa Cache"""
         raw = prompt + json.dumps(kwargs, sort_keys=True)
         return hashlib.md5(raw.encode()).hexdigest()
 
     def _update_stats(self, provider: str, tokens: int):
-        """✅ Thống kê Token và tính chi phí (Giả lập)"""
         self.token_usage[provider] = self.token_usage.get(provider, 0) + tokens
         self.cost_estimate += (tokens / 1000) * 0.0001 
 
@@ -140,7 +141,7 @@ class AIEngine:
         last_error = None
         has_valid_provider = False
 
-        # Vòng lặp Fallback
+        # Vòng lặp Fallback tự động
         for provider in self.provider_priority:
             if not self.keys.get(provider):
                 continue
@@ -164,7 +165,6 @@ class AIEngine:
                 logger.warning(f"⚠️ Lỗi {provider.upper()}: {str(e)}. Tự động chuyển nguồn...")
                 last_error = e
 
-        # Bắt lỗi toàn cục
         if not has_valid_provider:
             raise ValueError("❌ Không có API Key của nhà cung cấp AI nào được cấu hình.")
             
@@ -174,18 +174,28 @@ class AIEngine:
     def _call_provider(self, provider: str, prompt: str, **kwargs) -> str:
         """Thực thi gọi API cụ thể cho từng nhà cung cấp"""
         if provider == "gemini":
-            # Hỗ trợ truyền model_name từ module bên ngoài (ví dụ KHBD)
             model_name = kwargs.get("model_name") or kwargs.get("model") or self.gemini_models["text"]
             model = genai.GenerativeModel(model_name)
             return model.generate_content(prompt).text
             
         elif provider == "openai":
             if not self.openai_client: raise ValueError("Chưa cấu hình OpenAI")
+            model_name = kwargs.get("model_name") or kwargs.get("model") or "gpt-4o-mini"
             response = self.openai_client.chat.completions.create(
-                model=kwargs.get("model_name") or kwargs.get("model") or "gpt-4o-mini",
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}]
             )
             return response.choices[0].message.content
+            
+        elif provider == "claude":
+            if not self.claude_client: raise ValueError("Chưa cấu hình Claude")
+            model_name = kwargs.get("model_name") or kwargs.get("model") or "claude-3-5-sonnet-20240620"
+            response = self.claude_client.messages.create(
+                model=model_name,
+                max_tokens=kwargs.get("max_tokens", 8192),
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.content[0].text
             
         raise NotImplementedError(f"Nhà cung cấp {provider} đang được xây dựng.")
 
