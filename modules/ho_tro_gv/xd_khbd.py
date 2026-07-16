@@ -1,6 +1,5 @@
 import streamlit as st
 import sys
-import os
 import importlib.util
 from pathlib import Path
 from loguru import logger
@@ -60,7 +59,7 @@ def render_xd_khbd(ai_engine):
                     except Exception as e:
                         st.warning(f"Không thể đọc tài liệu: {e}")
 
-                # Prompt thiết kế chặt chẽ
+                # Prompt thiết kế giáo án chặt chẽ
                 prompt = f"""
                 Bạn là một chuyên gia giáo dục. Hãy soạn KHBD cho bài học: '{ten_bai_hoc}'.
                 Thông tin: Môn {mon_hoc}, lớp {lop}, {so_tiet} tiết, hình thức {hinh_thuc}.
@@ -102,24 +101,30 @@ def render_xd_khbd(ai_engine):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
                     # =========================================================================
-                    # GIẢI PHÁP ĐỘT PHÁ: NẠP FILE TỪ ĐƯỜNG DẪN VẬT LÝ (CHỐNG LỖI MODULE PYTHON)
-                    # Cách này tìm trực tiếp file export_word.py ở gốc bất kể môi trường Linux nào
+                    # ĐỊNH VỊ CHÍNH XÁC THEO CÂU TRÚC THƯ MỤC THỰC TẾ TRÊN GITHUB
+                    # Ngược 3 cấp ra gốc: xd_khbd.py -> ho_tro_gv -> modules -> gốc
+                    # Sau đó đi vào gói mới: -> /export/export_word.py
                     # =========================================================================
                     current_file = Path(__file__).resolve()
-                    project_root = current_file.parents[2] # Ngược 3 cấp: ho_tro_gv -> modules -> gốc
-                    export_word_path = project_root / "export_word.py"
+                    project_root = current_file.parent.parent.parent
+                    export_word_path = project_root / "export" / "export_word.py"
                     
                     if not export_word_path.exists():
-                        st.error(f"Không tìm thấy file export_word.py tại đường dẫn: {export_word_path}")
+                        st.error(f"Không tìm thấy file tại đường dẫn vật lý: {export_word_path}")
                         return
+                    
+                    # Thêm thư mục export vào hệ thống tìm kiếm của Python để các file con tìm thấy nhau
+                    export_dir = str(project_root / "export")
+                    if export_dir not in sys.path:
+                        sys.path.insert(0, export_dir)
                         
-                    # Sử dụng importlib để nạp động file vật lý thành module hệ thống
+                    # Sử dụng importlib nạp động trực tiếp file vật lý từ ổ đĩa cứng Linux
                     spec = importlib.util.spec_from_file_location("export_word", str(export_word_path))
                     export_word = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(export_word)
                     # =========================================================================
                     
-                    # Gọi hàm chuyển đổi từ lõi kết xuất cao cấp dạng phẳng của thầy
+                    # Gọi hàm chuyển đổi từ lõi kết xuất cao cấp của thầy
                     word_bytes = export_word.WordExportEngine.convert_markdown_to_docx_bytes(st.session_state['khbd_content'])
                     
                     # Lưu luồng bytes vào session state để hiển thị nút tải xuống ở lượt rerun tiếp theo
