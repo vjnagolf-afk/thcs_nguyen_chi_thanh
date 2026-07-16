@@ -2,7 +2,7 @@ import streamlit as st
 from loguru import logger
 from pypdf import PdfReader
 
-# ĐỒNG BỘ CÁCH SỬA ĐÚNG: Gọi trực tiếp từ Package cha hệ thống, không dùng spec thủ công
+# CHUẨN KIẾN TRÚC VÀO DỰ ÁN: Gọi import tuyệt đối từ gốc dự án nhìn xuống
 from export.export_word import WordExportEngine
 
 def render_xd_khbd(ai_engine):
@@ -96,11 +96,11 @@ def render_xd_khbd(ai_engine):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
-        # Bảo toàn nguyên bản cấu trúc logic 2 nút bấm gốc của thầy
+        # Logic 2 nút bấm gốc bảo toàn trải nghiệm của thầy
         if st.button("📥 Xuất file Word", use_container_width=True):
             with st.spinner("⏳ Hệ thống đang đóng gói văn bản OpenXML..."):
                 try:
-                    # Chạy hàm đóng gói chính thức từ Engine dùng chung của dự án
+                    # Gọi hàm chuyển đổi từ lõi kết xuất gốc dùng chung của dự án
                     word_bytes = WordExportEngine.export_to_word({
                         "ai_generated_content": st.session_state['khbd_content'],
                         "is_khbd": True
@@ -112,7 +112,7 @@ def render_xd_khbd(ai_engine):
                     st.error(f"Lỗi kết xuất văn bản Word: {e}")
                     logger.exception("Lỗi xuất Word")
         
-        # Nếu đã có dữ liệu đóng gói trong phiên làm việc -> Hiển thị nút tải file về máy của thầy
+        # Nếu đã có dữ liệu đóng gói trong phiên -> Hiển thị nút tải file về máy
         if st.session_state.get('khbd_word_bytes'):
             file_name_clean = st.session_state['khbd_meta'].get('ten', 'Giao_An').replace(' ', '_')
             st.download_button(
