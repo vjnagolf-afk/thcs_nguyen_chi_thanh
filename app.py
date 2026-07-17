@@ -196,12 +196,11 @@ if not ai_engine:
 # ========================================== #
 if phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-    
     # Khai báo đúng số lượng và tên các tab
     tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Đánh giá kĩ năng viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành","Live"])
     
     # Gắn liên kết từng hàm vào đúng tab
-    with tabs_gv[0]:
+    if menu == "XD KHBD":
         render_xd_khbd(ai_engine)
     with tabs_gv[1]:
         render_xd_de_kt(ai_engine)
