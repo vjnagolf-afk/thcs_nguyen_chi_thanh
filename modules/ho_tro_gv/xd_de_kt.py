@@ -81,30 +81,28 @@ def render_xd_de_kt(ai_engine):
 
     # 3. NÚT XỬ LÝ
     if st.button("🚀 TỰ ĐỘNG KHỞI TẠO MA TRẬN VÀ ĐỀ THI", type="primary", use_container_width=True):
-        with st.spinner("⏳ AI đang tự do sáng tạo Ma trận và Đề thi (khoảng 1-2 phút)..."):
-            file_context = ""
-            if bam_sat:
-                if file_de_cuong: file_context += f"\nĐỀ CƯƠNG: {extract_text_from_file(file_de_cuong)}"
-                if file_ma_tran: file_context += f"\nMA TRẬN MẪU: {extract_text_from_file(file_ma_tran)}"
-            if not file_context:
-                file_context = "Không có tài liệu đính kèm. Bạn hãy tự chọn các chủ đề trọng tâm để ra đề."
-
-            # ĐỌC PROMPT TỪ FILE VÀ ĐIỀN DỮ LIỆU
-            raw_prompt = load_prompt_template("prompt_de_kt.txt")
-            if raw_prompt:
-                prompt = raw_prompt.format(
-                    mon_hoc=mon_hoc, lop=lop, ten_de=ten_de,
-                    tong_cau_tn=n_nlc + n_ds + n_dk + n_ngan, total_diem_tn=f"{total_diem_tn:.2f}",
-                    n_nlc=n_nlc, n_ds=n_ds, n_dk=n_dk, n_ngan=n_ngan,
-                    num_tl=num_tl, total_diem_tl=f"{total_diem_tl:.2f}",
-                    nb=nb, th=th, vd=vd, vdc=vdc, file_context=file_context
-                )
-                
-                try:
-                    content = ai_engine.generate_text(prompt)
-                    st.session_state['de_kt_content'] = content
-                    st.rerun()
-                except Exception as e: st.error(f"Lỗi khi gọi AI: {str(e)}")
+        with st.spinner("⏳ AI đang làm việc..."):
+            # 1. Đọc System Role
+            system_role = load_prompt_template("system_role.txt")
+            
+            # 2. Đọc Task Template
+            task_template = load_prompt_template("task_config.txt")
+            task_prompt = Template(task_template).substitute(
+                mon_hoc=mon_hoc, lop=lop, ten_de=ten_de,
+                tong_cau_tn=n_nlc + n_ds + n_dk + n_ngan, total_diem_tn=f"{total_diem_tn:.2f}",
+                n_nlc=n_nlc, n_ds=n_ds, n_dk=n_dk, n_ngan=n_ngan,
+                num_tl=num_tl, total_diem_tl=f"{total_diem_tl:.2f}",
+                nb=nb, th=th, vd=vd, vdc=vdc, file_context=file_context
+            )
+            
+            # 3. Kết hợp và gửi cho AI
+            full_prompt = f"{system_role}\n\nNHIỆM VỤ CỤ THỂ:\n{task_prompt}"
+            
+            try:
+                content = ai_engine.generate_text(full_prompt)
+                st.session_state['de_kt_content'] = content
+                st.rerun()
+            except Exception as e: st.error(f"Lỗi hệ thống: {e}")
 
     # 4. HIỂN THỊ
     if 'de_kt_content' in st.session_state:
