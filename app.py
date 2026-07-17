@@ -191,26 +191,29 @@ if not ai_engine:
 # ========================================== #
 if phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
+    
+    # Khai báo đúng số lượng và tên các tab
     tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Quản lý điểm", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
     
+    # Gắn liên kết từng hàm vào đúng tab
     with tabs_gv[0]:
         render_xd_khbd(ai_engine)
     with tabs_gv[1]:
-        st.info("💡 Tính năng Xây dựng Đề kiểm tra đang được phát triển.")
+        render_xd_de_kt(ai_engine)
     with tabs_gv[2]:
-        st.info("💡 Tính năng Thiết kế bài dạy STEM đang được phát triển.")
+        render_xd_stem(ai_engine)
     with tabs_gv[3]:
-        st.info("💡 Tính năng Rubric đang được phát triển.")
+        render_xd_rubric(ai_engine)
     with tabs_gv[4]:
-        st.info("💡 Tính năng Chủ nhiệm đang được phát triển.")
+        render_xd_chu_nhiem(ai_engine)
     with tabs_gv[5]:
-        st.info("💡 Tính năng Quản lý điểm đang được phát triển.")
+        render_xd_cham_viet(ai_engine) # Gắn chức năng chấm bài viết vào tab Quản lý điểm
     with tabs_gv[6]:
-        st.info("💡 Tính năng Tạo prompt đang được phát triển.")
+        render_xd_tao_prompt(ai_engine)
     with tabs_gv[7]:
-        st.info("💡 Tính năng Quizizz đang được phát triển.")
+        render_xd_quizizz(ai_engine)
     with tabs_gv[8]:
-        st.info("💡 Tính năng Mô phỏng thực hành đang được phát triển.")
+        render_xd_mo_phong(ai_engine)
 
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
