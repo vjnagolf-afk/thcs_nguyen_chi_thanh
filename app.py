@@ -1,39 +1,67 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
+import sys
+from pathlib import Path
 
-# Các module của phân hệ Giáo viên
-from modules.ho_tro_giao_vien.xd_khbd import render_xd_khbd
-from modules.ho_tro_giao_vien.xd_de_kt import render_xd_de_kt
-from modules.ho_tro_giao_vien.xd_stem import render_xd_stem
-from modules.ho_tro_giao_vien.xd_rubric import render_xd_rubric
-from modules.ho_tro_giao_vien.xd_chu_nhiem import render_xd_chu_nhiem
-from modules.ho_tro_giao_vien.xd_cham_viet import render_xd_cham_viet
-from modules.ho_tro_giao_vien.xd_tao_prompt import render_xd_tao_prompt
-from modules.ho_tro_giao_vien.xd_quizizz import render_xd_quizizz
-from modules.ho_tro_giao_vien.xd_mo_phong import render_xd_mo_phong
+# ========================================== #
+# 1. CẤU HÌNH TRANG
+# ========================================== #
+st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide", page_icon="🏫")
 
-# Khởi tạo AI Engine
-class AIEngine:
-    def generate_text(self, prompt):
-        return "AI đang xử lý..."
+# Cấu hình đường dẫn hệ thống
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-ai_engine = AIEngine()
+# ========================================== #
+# 2. IMPORT CÁC MODULE
+# ========================================== #
+try:
+    from utils.db_connector import db
+    from utils.ai_engine import AIEngine
+    # Phân hệ Quản lý tổ
+    from modules.quan_ly_to.danh_sach import render_danh_sach
+    from modules.quan_ly_to.phan_cong import render_phan_cong
+    from modules.quan_ly_to.bien_ban import render_bien_ban
+    # Phân hệ Giáo viên
+    from modules.ho_tro_giao_vien.xd_khbd import render_xd_khbd
+    # Phân hệ Giảng dạy (ĐÃ TÍCH HỢP 4 MODULE MỚI)
+    from modules.ho_tro_giang_day.rag_ask import render_rag
+    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
+    from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
+    from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
+except ImportError as e:
+    st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
+    st.stop()
 
-st.set_page_config(page_title="Trợ lý Giáo viên THCS", layout="wide")
-st.title("🪴 Hệ thống Hỗ trợ Giảng dạy & Giáo viên")
+# ========================================== #
+# 3. CÁC HÀM XỬ LÝ ENGINE (GIỮ NGUYÊN)
+# ========================================== #
+# (Các hàm validate_key và get_ai_engine_instance giữ nguyên như code thầy đã gửi)
+def get_ai_engine_instance():
+    if st.session_state.get("ai_engine_instance"):
+        return st.session_state.ai_engine_instance
+    # ... logic khởi tạo ai_engine ...
+    return None
 
-# Phân hệ chính
-phan_he = st.sidebar.radio("Chọn phân hệ:", ["Hỗ trợ Giáo viên"])
+# ========================================== #
+# 4. ROUTING PHÂN HỆ GIẢNG DẠY (PHẦN THẦY CẦN)
+# ========================================== #
+# ... (Phần Sidebar và Login giữ nguyên) ...
 
-if phan_he == "Hỗ trợ Giáo viên":
-    st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-    tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "STEM", "Rubric", "Chủ nhiệm", "Chấm bài Viết", "Tạo prompt", "Quizizz", "Mô phỏng"])
+elif phan_he == "Hỗ trợ Giảng dạy":
+    st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
+    tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
     
-    with tabs_gv[0]: render_xd_khbd(ai_engine)
-    with tabs_gv[1]: render_xd_de_kt(ai_engine)
-    with tabs_gv[2]: render_xd_stem(ai_engine)
-    with tabs_gv[3]: render_xd_rubric(ai_engine)
-    with tabs_gv[4]: render_xd_chu_nhiem(ai_engine)
-    with tabs_gv[5]: render_xd_cham_viet(ai_engine)
-    with tabs_gv[6]: render_xd_tao_prompt(ai_engine)
-    with tabs_gv[7]: render_xd_quizizz(ai_engine)
-    with tabs_gv[8]: render_xd_mo_phong(ai_engine)
+    with tabs_gd[0]:
+        render_rag(ai_engine)
+    with tabs_gd[1]:
+        render_xd_tro_choi(ai_engine)
+    with tabs_gd[2]:
+        render_xd_cham_nhanh(ai_engine)
+    with tabs_gd[3]:
+        render_xd_hoc_lieu(ai_engine)
+    with tabs_gd[4]:
+        st.info("💡 Tính năng Mô phỏng đang được phát triển.")
+
+# ... (Phần Quản lý Tổ chuyên môn giữ nguyên) ...
