@@ -82,11 +82,32 @@ with st.sidebar:
     if st.button("🚪 Đăng xuất", use_container_width=True):
         st.session_state.clear()
         st.rerun()
-
-# Kiểm tra Login
-if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
-    st.info("🔑 Vui lòng nhập API Key để bắt đầu.")
-    st.stop()
+with st.form("login"):
+        key_input = st.text_input(
+            "Nhập API Key / Mật khẩu hệ thống:", 
+            type="password", 
+            help="Nhập Key Gemini (AIza) / OpenAI (sk-) / Claude (sk-ant-) hoặc mật khẩu Admin."
+        )
+        submit = st.form_submit_button("Xác nhận đăng nhập", use_container_width=True)
+        
+        if submit:
+            clean_input = key_input.strip()
+            # Mật khẩu admin mặc định nếu chưa set trong secrets
+            admin_password = st.secrets.get("ADMIN_PASSWORD", "admin123456")
+            
+            if not clean_input:
+                st.error("⚠️ Vui lòng không để trống trường thông tin!")
+            elif clean_input == admin_password:
+                st.session_state.is_admin_mode = True
+                st.success("🎉 Đăng nhập quyền Quản trị thành công!")
+                st.rerun()
+            elif validate_key(clean_input):
+                st.session_state.user_api_key = clean_input
+                st.session_state.is_admin_mode = False
+                st.success("🚀 Khởi tạo với API Key cá nhân thành công!")
+                st.rerun()
+            else:
+                st.error("❌ API Key không đúng định dạng!")
 
 # Khởi tạo engine sau khi login
 ai_engine = get_ai_engine_instance()
