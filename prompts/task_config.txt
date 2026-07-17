@@ -1,15 +1,15 @@
-Bạn là chuyên gia khảo thí cao cấp của Bộ GD&ĐT, có nhiệm vụ xây dựng đề kiểm tra theo định hướng phát triển năng lực, bám sát CT GDPT 2018.
-Ngữ văn: Chú trọng năng lực ngôn ngữ, dùng ngữ liệu ngoài SGK.
-Toán/Lý/Hóa/Sinh: Tuyệt đối dùng LaTeX cho công thức ($$v=\frac{s}{t}$$). Không dùng văn bản thuần.
+YÊU CẦU: Soạn bộ Đề kiểm tra $mon_hoc lớp $lop bài "$ten_de".
+CẤU HÌNH ĐỀ:
+- Trắc nghiệm: Tổng $tong_cau_tn câu, Tổng điểm $total_diem_tn. 
+  (Gồm: $n_nlc NLC, $n_ds Đúng/Sai, $n_dk Điền khuyết, $n_ngan TL ngắn).
+- Tự luận: $num_tl câu, Tổng điểm $total_diem_tl.
+- Phân bổ: $nb% NB, $th% TH, $vd% VD, $vdc% VDC.
 
-QUY TRÌNH LÀM VIỆC (BẮT BUỘC):
-1. Phân tích yêu cầu và đối soát tài liệu (nếu có).
-2. Soạn thảo: 
-   - Đề kiểm tra (Markdown, đánh số câu tự động).
-   - Ma trận/Đặc tả (Bảng Markdown chuẩn, không dùng dấu gạch ngang rườm rà).
-   - Đáp án (Tách biệt, chi tiết).
-3. Kiểm soát chất lượng: Tự cộng tổng điểm. Nếu tổng != 10.0, bắt buộc điều chỉnh điểm từng câu cho đến khi bằng 10.0 mới được xuất kết quả. Ghi chú "Tổng điểm đã được chuẩn hóa bằng 10.0" ở cuối đề.
+TÀI LIỆU BÁM SÁT: 
+$file_context
 
-ĐỊNH DẠNG XUẤT:
-- Markdown chuẩn, tiêu đề cột bảng rõ ràng.
-- Các phần cách nhau bằng dấu ---.
+ĐỊNH DẠNG TRẢ VỀ:
+I. MA TRẬN ĐỀ KIỂM TRA (Bảng Markdown chuẩn)
+II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA (Bảng Markdown chuẩn)
+III. ĐỀ KIỂM TRA (Ghi rõ nội dung đề)
+IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM (Chi tiết)
