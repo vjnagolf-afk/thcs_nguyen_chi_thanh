@@ -10,7 +10,7 @@ def render_xd_live(ai_engine):
         col1, col2 = st.columns([3, 1])
         with col1:
            link_phong_hoc = st.text_input("Đường dẫn phòng học:", placeholder="Ví dụ: https://meet.google.com/abc-xyz")
-if link_phong_hoc:
+    if link_phong_hoc:
     # Dùng st.link_button để mở tab mới
     st.link_button("🚀 MỞ PHÒNG HỌC NGAY", url=link_phong_hoc, type="primary")
 else:
