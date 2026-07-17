@@ -1,241 +1,54 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
-import sys
-from pathlib import Path
+import requests
+from bs4 import BeautifulSoup
+from PIL import Image
+# Lưu ý: Cần cài thêm 'pytesseract' và 'pdf2image' nếu muốn OCR ảnh/PDF chuyên sâu
+# Hiện tại em dùng thư viện xử lý cơ bản để thầy test trước
 
-# ========================================== #
-# 1. CẤU HÌNH TRANG (Bắt buộc ở dòng đầu tiên) #
-# ========================================== #
-st.set_page_config(
-    page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh",
-    layout="wide",
-    page_icon="🏫"
-)
+def extract_text_from_url(url):
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        return " ".join([p.text for p in soup.find_all('p')])
+    except Exception as e:
+        return f"Lỗi đọc link: {e}"
 
-# ========================================== #
-# 2. CẤU HÌNH ĐƯỜNG DẪN AN TOÀN CHỐNG LỖI #
-# ========================================== #
-ROOT_DIR = Path(__file__).resolve().parent
-# Dùng append thay vì insert(0) để không xung đột với thư viện lõi của Streamlit
-if str(ROOT_DIR) not in sys.path:
-    sys.path.append(str(ROOT_DIR))
-
-# ========================================== #
-# 🚀 KỸ THUẬT ÉP BUỘC NHẬN DIỆN MODULE #
-# ========================================== #
-# Mẹo trị dứt điểm KeyError của Streamlit: 
-# Ép Python phải nạp thư mục cha vào sys.modules TRƯỚC KHI gọi thư mục con
-import utils
-import modules
-# Import các phân hệ con (Sau khi cha đã được nạp an toàn)
-try:
-    from utils.db_connector import db
-    from utils.ai_engine import AIEngine
-    from modules.quan_ly_to.danh_sach import render_danh_sach
-    from modules.quan_ly_to.phan_cong import render_phan_cong
-    from modules.quan_ly_to.bien_ban import render_bien_ban
-    from modules.ho_tro_giang_day.rag_ask import render_rag
-    from modules.ho_tro_gv.xd_khbd import render_xd_khbd
-    from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
-    from modules.ho_tro_gv.xd_stem import render_xd_stem
-    from modules.ho_tro_gv.xd_rubric import render_xd_rubric
-    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
-    from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
-    from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
-    from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-    from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
-    from modules.ho_tro_giang_day.rag_ask import render_rag
-    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
-    from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
-    from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
+def render_xd_hoc_lieu(ai_engine):
+    st.markdown("### 📚 Trợ lý Quản lý & Khai thác Học liệu (Nâng cấp)")
     
-except ImportError as e:
-    st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
-    st.stop()
-
-# ========================================== #
-# 3. KHỞI TẠO TRẠNG THÁI PHIÊN LÀM VIỆC (Giữ nguyên code cũ của thầy bên dưới) #
-# ========================================== #
-if "user_api_key" not in st.session_state:
-    st.session_state.user_api_key = None
-if "is_admin_mode" not in st.session_state:
-    st.session_state.is_admin_mode = False
-
-# ========================================== #
-# 4. HÀM KIỂM TRA ĐỊNH DẠNG API KEY #
-# ========================================== #
-def validate_key(key: str) -> bool:
-    """Kiểm tra xem chuỗi nhập vào có đúng định dạng API Key phổ biến không"""
-    k = key.strip()
-    return (
-        k.startswith("AIza")
-        or k.startswith("sk-ant-")
-        or (k.startswith("sk-") and not k.startswith("sk-ant-"))
-    )
-
-# ========================================== #
-# 5. HÀM LẤY ENGINE TỐI ƯU (BẢO VỆ CHỐNG RERUN) #
-# ========================================== #
-def get_ai_engine_instance():
-    if st.session_state.get("ai_engine_instance"):
-        return st.session_state.ai_engine_instance
-
-    keys = {}
-    if st.session_state.is_admin_mode:
-        keys["gemini"] = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("SCHOOL_ADMIN_API_KEY")
-        keys["openai"] = st.secrets.get("OPENAI_API_KEY")
-        keys["claude"] = st.secrets.get("CLAUDE_API_KEY")
+    # 1. Chọn nguồn dữ liệu
+    nguon = st.radio("Nguồn tài liệu:", ["Tải file (PDF/Word/TXT/Ảnh)", "Nhập đường link (URL)"])
+    
+    content = ""
+    if nguon == "Tải file (PDF/Word/TXT/Ảnh)":
+        files = st.file_uploader("Tải lên:", accept_multiple_files=True, type=["pdf", "docx", "txt", "png", "jpg", "jpeg"])
+        if files:
+            for file in files:
+                # Thầy tích hợp hàm extract_text_from_file đã có vào đây
+                content += f"\n[Nội dung từ {file.name}]: ..." 
     else:
-        k = st.session_state.user_api_key
-        if k:
-            if k.startswith("AIza"): keys["gemini"] = k
-            elif k.startswith("sk-ant-"): keys["claude"] = k
-            elif k.startswith("sk-"): keys["openai"] = k
-            else: keys["gemini"] = k
-
-    keys = {k: v for k, v in keys.items() if v}
+        url = st.text_input("Dán đường link tài liệu:")
+        if url:
+            with st.spinner("⏳ Đang lấy nội dung từ link..."):
+                content = extract_text_from_url(url)
     
-    if keys:
-        st.session_state.ai_engine_instance = AIEngine(keys=keys)
-    else:
-        st.session_state.ai_engine_instance = None
-        
-    return st.session_state.ai_engine_instance
-
-# ========================================== #
-# 6. GIAO DIỆN SIDEBAR #
-# ========================================== #
-with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #E63946;'>HỆ SINH THÁI SỐ<br>HỖ TRỢ GIÁO VIÊN</h2>", unsafe_allow_html=True)
-    st.markdown("---")
-    st.markdown("<h4 style='text-align: center; color: #1D3557;'>CHỌN PHÂN HỆ</h4>", unsafe_allow_html=True)
+    # 2. Thao tác
+    hanh_dong = st.selectbox("Chọn thao tác:", [
+        "Tóm tắt nội dung chính",
+        "Trích xuất từ khóa & Định nghĩa",
+        "Chuyển đổi thành nội dung bài giảng ngắn",
+        "Tạo các câu hỏi thảo luận"
+    ])
     
-    phan_he = st.radio(
-        "Chọn phân hệ:",
-        ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn"],
-        label_visibility="collapsed"
-    )
-    
-    st.write("")
-    st.write("")
-    st.write("")
-    st.write("")
-    
-    st.markdown(
-        """
-        <div style='color: #007AFF; font-style: italic; line-height: 1.4; border-left: 3px solid #007AFF; padding-left: 10px;'>
-            <p style='margin: 0;'><b>Tác giả:</b> Lê Hồng Dưỡng</p>
-            <p style='margin: 0;'><b>Đơn vị:</b> Trường THCS Nguyễn Chí Thanh</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown("---")
-    
-    # Nút đăng xuất xóa sạch Engine cũ
-    if st.session_state.user_api_key or st.session_state.is_admin_mode:
-        if st.button("🚪 Đăng xuất / Đổi Key", use_container_width=True, type="secondary"):
-            st.session_state.user_api_key = None
-            st.session_state.is_admin_mode = False
-            if "ai_engine_instance" in st.session_state:
-                del st.session_state.ai_engine_instance
-            st.rerun()
-
-# ========================================== #
-# 7. CỔNG BẢO MẬT (LOGIN FORM) #
-# ========================================== #
-if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
-    st.info("🔑 Vui lòng nhập API Key cá nhân hoặc Mật khẩu Quản trị để bắt đầu.")
-    
-    with st.form("login"):
-        key_input = st.text_input(
-            "Nhập API Key / Mật khẩu hệ thống:", 
-            type="password", 
-            help="Nhập Key Gemini (AIza) / OpenAI (sk-) / Claude (sk-ant-) hoặc mật khẩu Admin."
-        )
-        submit = st.form_submit_button("Xác nhận đăng nhập", use_container_width=True)
-        
-        if submit:
-            clean_input = key_input.strip()
-            admin_password = st.secrets.get("ADMIN_PASSWORD", "admin123456")
-            
-            if not clean_input:
-                st.error("⚠️ Vui lòng không để trống trường thông tin!")
-            elif clean_input == admin_password:
-                st.session_state.is_admin_mode = True
-                st.session_state.pop("ai_engine_instance", None)
-                st.success("🎉 Đăng nhập quyền Quản trị hệ thống thành công!")
-                st.rerun()
-            elif validate_key(clean_input):
-                st.session_state.user_api_key = clean_input
-                st.session_state.is_admin_mode = False
-                st.session_state.pop("ai_engine_instance", None)
-                st.success("🚀 Khởi tạo với API Key cá nhân thành công!")
-                st.rerun()
-            else:
-                st.error("❌ API Key không đúng định dạng chuẩn (Phải bắt đầu bằng 'AIza', 'sk-ant-' hoặc 'sk-'). Vui lòng kiểm tra lại!")
-    st.stop()
-
-# ========================================== #
-# 8. KHỞI TẠO ENGINE & KIỂM TRA TOÀN VẸN #
-# ========================================== #
-ai_engine = get_ai_engine_instance()
-
-if not ai_engine:
-    st.error("❌ Không thể cấu hình Động cơ AI. Vui lòng liên hệ Quản trị viên để kiểm tra cấu hình secrets.")
-    if st.button("Quay lại màn hình đăng nhập"):
-        st.session_state.user_api_key = None
-        st.session_state.is_admin_mode = False
-        st.rerun()
-    st.stop()
-
-# ========================================== #
-# 9. CHUYỂN HƯỚNG PHÂN HỆ (ROUTING) #
-# ========================================== #
-elif phan_he == "Hỗ trợ Giáo viên":
-    st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-    tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Đánh giá kĩ năng Viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
-    
-    with tabs_gv[0]:
-        render_xd_khbd(ai_engine)
-    with tabs_gv[1]:
-        render_xd_de_kt(ai_engine)
-    with tabs_gv[2]:
-        render_xd_stem(ai_engine)
-    with tabs_gv[3]:
-        render_xd_rubric(ai_engine)
-    with tabs_gv[4]:
-        render_xd_chu_nhiem(ai_engine)
-    with tabs_gv[5]:
-        render_xd_cham_viet(ai_engine)
-    with tabs_gv[6]:
-        render_xd_tao_prompt(ai_engine)
-    with tabs_gv[7]:
-        render_xd_quizizz(ai_engine)
-    with tabs_gv[8]:
-        render_xd_mo_phong(ai_engine)
-elif phan_he == "Hỗ trợ Giảng dạy":
-    st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-    # Danh sách tab của phân hệ Hỗ trợ Giảng dạy
-    tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
-    
-    with tabs_gd[0]:
-        render_rag(ai_engine)
-    with tabs_gd[1]:
-        render_xd_tro_choi(ai_engine) # <--- Gọi module trò chơi
-    with tabs_gd[2]: # <--- Đây là vị trí Tab Chấm bài (index 2)
-        render_xd_cham_nhanh(ai_engine)
-    with tabs_gd[3]: # Index 3 là Tab thứ 4
-        render_xd_hoc_lieu(ai_engine)
-elif phan_he == "Quản lý Tổ chuyên môn":
-    st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
-    tabs_to = st.tabs(["Danh sách thành viên", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
-    
-    with tabs_to[0]:
-        render_danh_sach()
-    with tabs_to[1]:
-        render_phan_cong(db)
-    with tabs_to[2]:
-        render_bien_ban(db)
-    with tabs_to[3]:
-        st.info("💡 Tính năng Kế hoạch tổ chuyên môn đang được phát triển.")
+    if st.button("🚀 XỬ LÝ HỌC LIỆU", type="primary"):
+        if not content:
+            st.error("⚠️ Vui lòng cung cấp tài liệu hoặc link!")
+        else:
+            with st.spinner("⏳ AI đang xử lý..."):
+                prompt = f"Thực hiện '{hanh_dong}' cho nội dung sau:\n{content[:10000]}"
+                try:
+                    res = ai_engine.generate_text(prompt)
+                    st.markdown("---")
+                    st.markdown(res)
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
