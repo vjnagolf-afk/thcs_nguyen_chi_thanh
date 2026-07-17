@@ -212,220 +212,211 @@ def render_header():
         """,
         unsafe_allow_html=True
     )
-# ==========================================================
-# MODULE: Trợ lý dạy học trực tuyến
-# File: modules/ho_tro_gv/xd_live.py
-# Version: 2.0
-# ==========================================================
-
-import streamlit as st
-from datetime import datetime
-
 
 # ==========================================================
-# CSS
+# DASHBOARD
 # ==========================================================
 
-def load_css():
-    st.markdown("""
-    <style>
+def render_dashboard():
 
-    .live-card{
-        background:#ffffff;
-        padding:16px;
-        border-radius:12px;
-        border:1px solid #E5E7EB;
-        box-shadow:0 2px 8px rgba(0,0,0,0.05);
-        margin-bottom:15px;
-    }
+    st.markdown("<div class='section-title'>📊 Dashboard</div>", unsafe_allow_html=True)
 
-    .live-title{
-        font-size:28px;
-        font-weight:bold;
-        color:#D32F2F;
-    }
+    c1, c2, c3, c4 = st.columns(4)
 
-    .live-sub{
-        color:#555;
-        font-size:15px;
-    }
+    with c1:
+        st.metric(
+            "Trạng thái",
+            "🟢 Đang dạy" if st.session_state.live_running else "⚪ Chưa bắt đầu"
+        )
 
-    .dashboard{
-        background:#F8FAFC;
-        border-radius:12px;
-        padding:15px;
-        border:1px solid #E2E8F0;
-    }
+    with c2:
+        st.metric(
+            "Thời lượng",
+            get_duration()
+        )
 
-    .section-title{
-        font-size:20px;
-        font-weight:700;
-        color:#1565C0;
-        margin-top:10px;
-        margin-bottom:10px;
-    }
+    with c3:
+        st.metric(
+            "AI hỗ trợ",
+            st.session_state.live_ai_count
+        )
 
-    div.stButton > button{
-        border-radius:10px;
-        font-weight:600;
-        height:44px;
-    }
-
-    textarea{
-        border-radius:10px !important;
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
+    with c4:
+        st.metric(
+            "Poll / Quiz",
+            f"{st.session_state.live_poll_count} / {st.session_state.live_quiz_count}"
+        )
 
 
 # ==========================================================
-# KHỞI TẠO SESSION
+# THÔNG TIN LỚP HỌC
 # ==========================================================
 
-def init_session():
+def render_class_info():
 
-    defaults = {
+    st.markdown("<div class='section-title'>🏫 Thông tin lớp học</div>", unsafe_allow_html=True)
 
-        "live_running": False,
+    col1, col2, col3 = st.columns(3)
 
-        "live_question": "",
+    with col1:
+        st.session_state.live_class_name = st.text_input(
+            "Lớp",
+            value=st.session_state.live_class_name,
+            placeholder="Ví dụ: 7A"
+        )
 
-        "live_answer": "",
+    with col2:
+        st.session_state.live_subject = st.text_input(
+            "Môn học",
+            value=st.session_state.live_subject,
+            placeholder="Ví dụ: KHTN"
+        )
 
-        "live_poll": "",
-
-        "live_quiz": "",
-
-        "live_example": "",
-
-        "live_notes": "",
-
-        "live_history": [],
-
-        "live_ai_count": 0,
-
-        "live_poll_count": 0,
-
-        "live_quiz_count": 0,
-
-        "live_start_time": None,
-
-        "live_class_name": "",
-
-        "live_subject": "",
-
-        "live_lesson": "",
-
-        "meet_link": "",
-
-        "quizizz_link": "",
-
-        "kahoot_link": "",
-
-        "teams_link": "",
-
-        "zoom_link": ""
-
-    }
-
-    for key, value in defaults.items():
-
-        if key not in st.session_state:
-
-            st.session_state[key] = value
+    with col3:
+        st.session_state.live_lesson = st.text_input(
+            "Bài học",
+            value=st.session_state.live_lesson,
+            placeholder="Ví dụ: Định luật Newton"
+        )
 
 
 # ==========================================================
-# GHI NHẬT KÝ
+# LINK DẠY HỌC
 # ==========================================================
 
-def add_history(action):
+def render_links():
 
-    now = datetime.now().strftime("%H:%M:%S")
+    st.markdown("<div class='section-title'>🔗 Liên kết dạy học</div>", unsafe_allow_html=True)
 
-    st.session_state.live_history.append(
+    c1, c2 = st.columns(2)
 
-        f"[{now}] {action}"
+    with c1:
 
-    )
+        st.session_state.meet_link = st.text_input(
+            "Google Meet",
+            value=st.session_state.meet_link,
+            placeholder="https://meet.google.com/..."
+        )
 
+        st.session_state.zoom_link = st.text_input(
+            "Zoom",
+            value=st.session_state.zoom_link,
+            placeholder="https://zoom.us/..."
+        )
 
-# ==========================================================
-# ĐỊNH DẠNG THỜI GIAN
-# ==========================================================
+        st.session_state.teams_link = st.text_input(
+            "Microsoft Teams",
+            value=st.session_state.teams_link,
+            placeholder="https://teams.microsoft.com/..."
+        )
 
-def get_duration():
+    with c2:
 
-    if st.session_state.live_start_time is None:
+        st.session_state.quizizz_link = st.text_input(
+            "Quizizz",
+            value=st.session_state.quizizz_link,
+            placeholder="https://quizizz.com/..."
+        )
 
-        return "00:00"
-
-    delta = datetime.now() - st.session_state.live_start_time
-
-    total = int(delta.total_seconds())
-
-    minute = total // 60
-
-    second = total % 60
-
-    return f"{minute:02d}:{second:02d}"
-
-
-# ==========================================================
-# RESET PHIÊN LIVE
-# ==========================================================
-
-def reset_live():
-
-    st.session_state.live_running = False
-
-    st.session_state.live_question = ""
-
-    st.session_state.live_answer = ""
-
-    st.session_state.live_poll = ""
-
-    st.session_state.live_quiz = ""
-
-    st.session_state.live_example = ""
-
-    st.session_state.live_notes = ""
-
-    st.session_state.live_ai_count = 0
-
-    st.session_state.live_poll_count = 0
-
-    st.session_state.live_quiz_count = 0
-
-    st.session_state.live_history = []
-
-    st.session_state.live_start_time = None
+        st.session_state.kahoot_link = st.text_input(
+            "Kahoot",
+            value=st.session_state.kahoot_link,
+            placeholder="https://kahoot.it/..."
+        )
 
 
 # ==========================================================
-# HEADER
+# NÚT MỞ LINK
 # ==========================================================
 
-def render_header():
+def render_link_buttons():
 
-    st.markdown(
-        """
-        <div class='live-card'>
+    st.markdown("#### 🚀 Mở nhanh")
 
-        <div class='live-title'>
-        🔴 TRỢ LÝ DẠY HỌC TRỰC TUYẾN
-        </div>
+    cols = st.columns(5)
 
-        <div class='live-sub'>
-        AI hỗ trợ giáo viên trong suốt quá trình giảng dạy trực tuyến.
-        Trả lời nhanh • Sinh Poll • Sinh Quiz • Gợi ý ví dụ • Nhật ký tiết học.
-        </div>
+    with cols[0]:
+        if st.session_state.meet_link:
+            st.link_button(
+                "Meet",
+                st.session_state.meet_link,
+                use_container_width=True
+            )
 
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    with cols[1]:
+        if st.session_state.zoom_link:
+            st.link_button(
+                "Zoom",
+                st.session_state.zoom_link,
+                use_container_width=True
+            )
+
+    with cols[2]:
+        if st.session_state.teams_link:
+            st.link_button(
+                "Teams",
+                st.session_state.teams_link,
+                use_container_width=True
+            )
+
+    with cols[3]:
+        if st.session_state.quizizz_link:
+            st.link_button(
+                "Quizizz",
+                st.session_state.quizizz_link,
+                use_container_width=True
+            )
+
+    with cols[4]:
+        if st.session_state.kahoot_link:
+            st.link_button(
+                "Kahoot",
+                st.session_state.kahoot_link,
+                use_container_width=True
+            )
+
+
+# ==========================================================
+# ĐIỀU KHIỂN PHIÊN LIVE
+# ==========================================================
+
+def render_live_control():
+
+    st.markdown("<div class='section-title'>🎥 Điều khiển phiên học</div>", unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+
+        if not st.session_state.live_running:
+
+            if st.button(
+                "▶️ BẮT ĐẦU PHIÊN",
+                type="primary",
+                use_container_width=True
+            ):
+
+                st.session_state.live_running = True
+                st.session_state.live_start_time = datetime.now()
+
+                add_history("Bắt đầu phiên học")
+
+                st.rerun()
+
+    with c2:
+
+        if st.session_state.live_running:
+
+            if st.button(
+                "⏹️ KẾT THÚC PHIÊN",
+                use_container_width=True
+            ):
+
+                add_history("Kết thúc phiên học")
+
+                reset_live()
+
+                st.rerun()
 # ==========================================================
 # AI PHẢN XẠ NHANH
 # ==========================================================
@@ -520,6 +511,7 @@ Hãy trả lời:
     if st.session_state.live_answer:
 
         st.success(st.session_state.live_answer)
+
 # ==========================================================
 # AI GIẢI THÍCH - VÍ DỤ THỰC TẾ
 # ==========================================================
@@ -845,5 +837,3 @@ def render_xd_live(ai_engine):
     st.caption(
         "🔴 Trợ lý dạy học trực tuyến - AI Teacher Assistant"
     )
-    
-
