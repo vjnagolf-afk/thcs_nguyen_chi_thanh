@@ -93,7 +93,7 @@ if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
                 st.error("❌ Key không hợp lệ!")
     st.stop()
 
-# 6. RENDER NỘI DUNG (Có bọc lỗi)
+# 6. RENDER NỘI DUNG
 try:
     ai_engine = get_ai_engine_instance()
     if phan_he == "Hỗ trợ Giáo viên":
