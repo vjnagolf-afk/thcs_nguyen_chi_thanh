@@ -13,7 +13,10 @@ supabase = get_supabase_client()
 def load_danh_sach_data():
     """Hàm lấy dữ liệu từ bảng quan_ly_tcm trên Supabase"""
     try:
-        response = supabase.table("quan_ly_tcm").select("*").order("id").execute()
+        response = supabase.table("quan_ly_tcm").select("*").execute()
+        # Thêm dòng này để thầy biết chính xác Supabase đang trả về cái gì
+        st.write("Debug - Dữ liệu nhận được:", response.data) 
+        
         if not response.data:
             return pd.DataFrame()
         return pd.DataFrame(response.data)
