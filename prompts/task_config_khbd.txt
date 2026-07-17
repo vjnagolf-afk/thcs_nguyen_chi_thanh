@@ -8,7 +8,7 @@ DỮ LIỆU ĐẦU VÀO (Dùng để lấy nội dung kiến thức):
 $file_context
 
 CẤU TRÚC MẪU 5512 BẮT BUỘC (SỐNG CÒN):
-Dưới đây là cấu trúc mẫu giáo án. Bạn BẮT BUỘC phải trình bày kết quả đầu ra giống hệt các đề mục (I, II, III...), cấu trúc các bước và bảng biểu (nếu có) của mẫu này. Tuyệt đối không bỏ sót mục nào.
+Bạn BẮT BUỘC phải trình bày kết quả đầu ra giống hệt các đề mục (I, II, III...), cấu trúc các bước và bảng biểu của mẫu sau đây. Tuyệt đối không bỏ sót mục nào:
 $mau_cau_truc
 
 YÊU CẦU BẮT BUỘC KHÁC:
