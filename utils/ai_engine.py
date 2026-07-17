@@ -1,13 +1,19 @@
+# ============================================================
 # ai_engine.py
-"""
-AI Engine Core
-Hệ sinh thái số giáo dục THCS Nguyễn Chí Thanh
+# AI ENGINE CORE v1.1
+# Hệ sinh thái số THCS Nguyễn Chí Thanh
+#
+# Chỉ nâng cấp phương thức kết nối AI:
+# - Gemini google-genai SDK mới
+# - System Instruction
+# - Token tracking
+# - Cost tracking theo model
+# - Claude SDK parsing
+# - Memory chống duplicate fallback
+#
+# Không thay đổi interface hệ thống
+# ============================================================
 
-Nguyên tắc:
-- Không thay đổi kiến trúc hệ thống
-- Không thay đổi interface các module đang sử dụng
-- Chỉ chuẩn hóa kết nối AI SDK
-"""
 
 import os
 import json
@@ -15,15 +21,22 @@ import hashlib
 import time
 import io
 
-from typing import List, Dict, Any, Optional
+from typing import (
+    List,
+    Dict,
+    Any,
+    Optional
+)
+
 from loguru import logger
 
 
-# ==============================
+# ============================================================
 # CACHE
-# ==============================
+# ============================================================
 
 try:
+
     from cachetools import TTLCache
 
     api_cache = TTLCache(
@@ -32,57 +45,131 @@ try:
     )
 
 except ImportError:
+
     api_cache = {}
 
 
 
-# ==============================
+# ============================================================
 # IMAGE
-# ==============================
+# ============================================================
 
 try:
+
     from PIL import Image
 
 except ImportError:
+
     Image = None
 
 
 
-# ==============================
-# AI SDK
-# ==============================
+# ============================================================
+# TOKENIZER
+# ============================================================
 
 try:
+
+    import tiktoken
+
+except ImportError:
+
+    tiktoken = None
+
+
+
+# ============================================================
+# GOOGLE GEMINI SDK
+# ============================================================
+
+try:
+
     from google import genai
     from google.genai import types
 
+
 except ImportError:
+
     genai = None
     types = None
 
 
 
+# ============================================================
+# OPENAI
+# ============================================================
+
 try:
+
     import openai
 
+
 except ImportError:
+
     openai = None
 
 
 
+# ============================================================
+# CLAUDE
+# ============================================================
+
 try:
+
     import anthropic
 
+
 except ImportError:
+
     anthropic = None
 
 
 
-# ======================================================
-# MEMORY
-# ======================================================
+# ============================================================
+# MODEL PRICE TABLE
+# USD / 1M tokens
+# ============================================================
+
+MODEL_PRICES = {
+
+
+    "gemini-2.5-flash":
+    {
+        "input": 0.30,
+        "output": 2.50
+    },
+
+
+    "gemini-2.5-pro":
+    {
+        "input": 1.25,
+        "output": 10.00
+    },
+
+
+    "gpt-4o-mini":
+    {
+        "input": 0.15,
+        "output": 0.60
+    },
+
+
+    "claude-3-5-sonnet-20240620":
+    {
+        "input": 3.00,
+        "output": 15.00
+    }
+
+}
+
+
+
+# ============================================================
+# CHAT MEMORY
+# ============================================================
 
 class ChatMemory:
+
     """
     Quản lý lịch sử hội thoại
     """
@@ -93,6 +180,7 @@ class ChatMemory:
     ):
 
         self.history = []
+
         self.max_history = max_history
 
 
@@ -103,62 +191,90 @@ class ChatMemory:
         content: str
     ):
 
+
         self.history.append(
+
             {
                 "role": role,
                 "content": content
             }
+
         )
 
 
         if len(self.history) > self.max_history * 2:
 
-            self.history = self.history[
-                -self.max_history * 2:
-            ]
+
+            self.history = (
+                self.history[
+                    -self.max_history*2:
+                ]
+            )
 
 
 
-    def get_context_string(self):
+    def get_context_string(
+        self
+    ):
 
         return "\n".join(
+
             [
-                f"{x['role']}: {x['content']}"
-                for x in self.history
+
+                f"{m['role']}: {m['content']}"
+
+                for m in self.history
+
             ]
+
         )
 
 
 
-# ======================================================
+# ============================================================
 # AI ENGINE
-# ======================================================
+# ============================================================
 
 class AIEngine:
 
+
     MODELS = {
 
+
         "flash":
-            "gemini-2.5-flash",
+        "gemini-2.5-flash",
+
 
         "pro":
-            "gemini-2.5-pro"
+        "gemini-2.5-pro"
+
     }
 
 
 
     def __init__(
+
         self,
+
         api_key: str = None,
-        keys: Dict[str,str] = None
+
+        keys: Dict[str,str] = None,
+
+        system_prompt: str = None
+
     ):
 
 
         self.keys = (
+
             keys
+
             if keys is not None
+
             else {}
+
         )
+
 
 
         if api_key:
@@ -167,31 +283,84 @@ class AIEngine:
 
 
 
+        # =========================
+        # SYSTEM INSTRUCTION
+        # =========================
+
+        self.system_prompt = (
+
+            system_prompt
+
+            or
+
+            """
+Bạn là AI Teacher Assistant.
+
+Nhiệm vụ:
+- Hỗ trợ giáo viên THCS.
+- Bám sát CT GDPT 2018.
+- Trả lời có cấu trúc.
+- Ưu tiên tính chính xác và khả năng áp dụng.
+"""
+
+        )
+
+
+
+        # =========================
+        # TOKEN / COST
+        # =========================
+
+
         self.token_usage = {
 
-            "gemini":0,
-            "openai":0,
-            "claude":0
+
+            "gemini-2.5-flash":0,
+
+            "gemini-2.5-pro":0,
+
+            "gpt-4o-mini":0,
+
+            "claude-3-5-sonnet-20240620":0
+
         }
 
 
-        self.cost_estimate = 0.0
 
+        self.cost_estimate = {
+
+
+            "gemini-2.5-flash":0,
+
+            "gemini-2.5-pro":0,
+
+            "gpt-4o-mini":0,
+
+            "claude-3-5-sonnet-20240620":0
+
+        }
+
+
+
+        # =========================
+        # CLIENT POOL
+        # =========================
 
 
         self.active_endpoints = []
 
-
-
         self.gemini_clients = {}
+
         self.openai_clients = {}
+
         self.claude_clients = {}
 
 
 
-        # ==========================
-        # GEMINI KEYS
-        # ==========================
+        # =========================
+        # LOAD GEMINI KEY
+        # =========================
+
 
         if self.keys.get("gemini"):
 
@@ -201,11 +370,17 @@ class AIEngine:
                 str
             ):
 
+
                 gemini_keys = [
-                    x.strip()
-                    for x in
-                    self.keys["gemini"].split(",")
+
+                    k.strip()
+
+                    for k
+
+                    in self.keys["gemini"].split(",")
+
                 ]
+
 
             else:
 
@@ -215,53 +390,60 @@ class AIEngine:
 
             for key in gemini_keys:
 
+
                 if key:
 
                     self.active_endpoints.append(
+
                         (
                             "gemini",
                             key
                         )
+
                     )
 
 
-
-        # ==========================
-        # OPENAI
-        # ==========================
+# ---------------- HẾT PHẦN 1/3 ----------------
+        # =========================
+        # LOAD OPENAI KEY
+        # =========================
 
         if self.keys.get("openai"):
 
             self.active_endpoints.append(
+
                 (
                     "openai",
                     self.keys["openai"]
                 )
+
             )
 
 
 
-        # ==========================
-        # CLAUDE
-        # ==========================
+        # =========================
+        # LOAD CLAUDE KEY
+        # =========================
 
         if self.keys.get("claude"):
 
             self.active_endpoints.append(
+
                 (
                     "claude",
                     self.keys["claude"]
                 )
+
             )
 
 
 
-        # ==========================
-        # CLIENT POOL
-        # ==========================
+        # =========================
+        # INIT CLIENT POOL
+        # =========================
 
+        for provider, key in self.active_endpoints:
 
-        for provider,key in self.active_endpoints:
 
 
             if provider == "gemini":
@@ -270,15 +452,20 @@ class AIEngine:
                 if genai is None:
 
                     logger.error(
-                        "Thiếu google-genai"
+                        "Thiếu thư viện google-genai"
                     )
 
                 else:
 
+
                     self.gemini_clients[key] = (
+
                         genai.Client(
+
                             api_key=key
+
                         )
+
                     )
 
 
@@ -288,11 +475,17 @@ class AIEngine:
 
                 if openai:
 
+
                     self.openai_clients[key] = (
+
                         openai.Client(
+
                             api_key=key,
+
                             timeout=60
+
                         )
+
                     )
 
 
@@ -302,109 +495,300 @@ class AIEngine:
 
                 if anthropic:
 
+
                     self.claude_clients[key] = (
+
                         anthropic.Anthropic(
+
                             api_key=key,
+
                             timeout=60
+
                         )
+
                     )
 
 
 
         self.gemini_models = {
 
+
             "text":
-                self.MODELS["flash"],
+            self.MODELS["flash"],
+
 
             "vision":
-                self.MODELS["pro"]
+            self.MODELS["pro"]
 
         }
 
 
 
         logger.info(
-            f"AI Engine initialized: {len(self.active_endpoints)} endpoints"
+
+            f"AI Engine v1.1 initialized - "
+            f"{len(self.active_endpoints)} endpoints"
+
         )
 
 
 
-    # ==================================================
-    # CACHE
-    # ==================================================
+    # =====================================================
+    # CACHE KEY
+    # =====================================================
 
     def _get_cache_key(
+
         self,
+
         prompt,
+
         kwargs
+
     ):
 
+
         raw = (
-            prompt +
+
+            prompt
+
+            +
+
             json.dumps(
+
                 kwargs,
+
                 sort_keys=True
+
             )
+
         )
 
+
         return hashlib.sha256(
+
             raw.encode()
+
         ).hexdigest()
 
 
 
-    def _update_stats(
+    # =====================================================
+    # TOKEN ESTIMATION
+    # =====================================================
+
+    def _estimate_tokens(
+
         self,
-        provider,
-        tokens
+
+        text,
+
+        provider="gemini"
+
     ):
 
-        self.token_usage[provider] += tokens
 
-        self.cost_estimate += (
-            tokens / 1000
-        ) * 0.0001
+        if tiktoken:
 
 
+            try:
 
-    # ==================================================
+
+                encoding = tiktoken.get_encoding(
+
+                    "cl100k_base"
+
+                )
+
+
+                return len(
+
+                    encoding.encode(text)
+
+                )
+
+
+            except Exception:
+
+                pass
+
+
+
+        return int(
+
+            len(text.split())
+
+            *
+
+            1.3
+
+        )
+
+
+
+    # =====================================================
+    # COST UPDATE
+    # =====================================================
+
+    def _update_stats(
+
+        self,
+
+        model,
+
+        input_tokens,
+
+        output_tokens
+
+    ):
+
+
+        total_tokens = (
+
+            input_tokens
+
+            +
+
+            output_tokens
+
+        )
+
+
+        if model in self.token_usage:
+
+
+            self.token_usage[model] += total_tokens
+
+
+
+        else:
+
+
+            self.token_usage[model] = total_tokens
+
+
+
+        if model in MODEL_PRICES:
+
+
+            price = MODEL_PRICES[model]
+
+
+            cost = (
+
+                input_tokens
+
+                *
+
+                price["input"]
+
+                /
+
+                1_000_000
+
+            )
+
+
+            cost += (
+
+                output_tokens
+
+                *
+
+                price["output"]
+
+                /
+
+                1_000_000
+
+            )
+
+
+            self.cost_estimate[model] = (
+
+                self.cost_estimate.get(
+                    model,
+                    0
+                )
+
+                +
+
+                cost
+
+            )
+
+
+
+    # =====================================================
     # GENERATE TEXT
-    # ==================================================
+    # =====================================================
 
     def generate_text(
+
         self,
+
         prompt: str,
-        memory: Optional[ChatMemory]=None,
+
+        memory: Optional[ChatMemory] = None,
+
         use_cache=True,
+
         **kwargs
+
     ):
 
 
         full_prompt = prompt
 
 
+
         if memory:
 
-            full_prompt = (
-                "Ngữ cảnh:\n"
-                +
-                memory.get_context_string()
-                +
-                "\n\nCâu hỏi mới:\n"
-                +
-                prompt
-            )
+
+            context = memory.get_context_string()
+
+
+
+            if context:
+
+
+                full_prompt = (
+
+                    "Ngữ cảnh hội thoại:\n"
+
+                    +
+
+                    context
+
+                    +
+
+                    "\n\nCâu hỏi mới:\n"
+
+                    +
+
+                    prompt
+
+                )
 
 
 
         cache_key = self._get_cache_key(
+
             full_prompt,
+
             kwargs
+
         )
 
 
 
         if use_cache and cache_key in api_cache:
+
+
+            logger.info(
+                "Lấy dữ liệu từ Cache"
+            )
+
 
             return api_cache[cache_key]
 
@@ -414,43 +798,104 @@ class AIEngine:
 
 
 
-        for provider,key in self.active_endpoints:
+        for provider, api_key in self.active_endpoints:
+
 
 
             try:
 
-                result = self._call_provider(
+
+                result, model_name = self._call_provider(
+
                     provider,
-                    key,
+
+                    api_key,
+
                     full_prompt,
+
                     **kwargs
+
                 )
 
 
+
                 if use_cache:
+
 
                     api_cache[cache_key] = result
 
 
 
+                # tránh duplicate memory khi fallback
+
+
                 if memory:
 
-                    memory.add_message(
-                        "User",
+
+                    if (
+
+                        not memory.history
+
+                        or
+
+                        memory.history[-1]["content"]
+
+                        !=
+
                         prompt
-                    )
+
+                    ):
+
+
+                        memory.add_message(
+
+                            "User",
+
+                            prompt
+
+                        )
+
+
 
                     memory.add_message(
+
                         "AI",
+
                         result
+
                     )
+
+
+
+                input_tokens = self._estimate_tokens(
+
+                    full_prompt,
+
+                    provider
+
+                )
+
+
+                output_tokens = self._estimate_tokens(
+
+                    result,
+
+                    provider
+
+                )
 
 
 
                 self._update_stats(
-                    provider,
-                    int(len(result.split())*1.3)
+
+                    model_name,
+
+                    input_tokens,
+
+                    output_tokens
+
                 )
+
 
 
                 return result
@@ -459,35 +904,51 @@ class AIEngine:
 
             except Exception as e:
 
+
                 last_error = e
 
+
                 logger.warning(
-                    f"{provider} lỗi: {e}"
+
+                    f"{provider.upper()} lỗi: {e}"
+
                 )
+
 
                 time.sleep(2)
 
 
 
         raise Exception(
-            f"Tất cả AI provider lỗi: {last_error}"
+
+            f"Tất cả AI Provider lỗi: {last_error}"
+
         )
 
 
 
-    # ==================================================
+    # =====================================================
     # PROVIDER ROUTER
-    # ==================================================
+    # =====================================================
 
     def _call_provider(
+
         self,
+
         provider,
+
         api_key,
+
         prompt,
+
         **kwargs
+
     ):
 
 
+        # =========================
+        # GEMINI
+        # =========================
 
         if provider == "gemini":
 
@@ -495,34 +956,353 @@ class AIEngine:
             client = self.gemini_clients[api_key]
 
 
-            model = (
+
+            model_name = (
+
                 kwargs.get("model")
+
                 or
+
                 kwargs.get("model_name")
+
                 or
+
                 self.MODELS["flash"]
+
             )
+
 
 
             response = client.models.generate_content(
 
-                model=model,
+
+                model=model_name,
+
 
                 contents=prompt,
 
+
                 config=types.GenerateContentConfig(
 
+
                     temperature=
+
                     kwargs.get(
+
                         "temperature",
+
                         0.7
+
                     ),
 
+
                     max_output_tokens=
+
                     kwargs.get(
+
                         "max_tokens",
+
                         4096
+
+                    ),
+
+
+                    system_instruction=
+
+                    kwargs.get(
+
+                        "system_prompt",
+
+                        self.system_prompt
+
                     )
+
+                )
+
+            )
+
+
+
+            return (
+
+                response.text,
+
+                model_name
+
+            )
+
+
+
+        # =========================
+        # OPENAI
+        # =========================
+
+        elif provider == "openai":
+
+
+            client = self.openai_clients[api_key]
+
+
+
+            model_name = kwargs.get(
+
+                "model",
+
+                "gpt-4o-mini"
+
+            )
+
+
+
+            response = client.chat.completions.create(
+
+
+                model=model_name,
+
+
+                messages=[
+
+                    {
+
+                        "role":"system",
+
+                        "content":
+                        self.system_prompt
+
+                    },
+
+                    {
+
+                        "role":"user",
+
+                        "content":
+                        prompt
+
+                    }
+
+                ]
+
+            )
+
+
+
+            return (
+
+                response.choices[0].message.content,
+
+                model_name
+
+            )
+
+
+
+        # =========================
+        # CLAUDE
+        # =========================
+
+        elif provider == "claude":
+
+
+            client = self.claude_clients[api_key]
+
+
+
+            model_name = kwargs.get(
+
+                "model",
+
+                "claude-3-5-sonnet-20240620"
+
+            )
+
+
+
+            response = client.messages.create(
+
+
+                model=model_name,
+
+
+                max_tokens=
+
+                kwargs.get(
+
+                    "max_tokens",
+
+                    8192
+
+                ),
+
+
+                system=self.system_prompt,
+
+
+                messages=[
+
+                    {
+
+                        "role":"user",
+
+                        "content":prompt
+
+                    }
+
+                ]
+
+            )
+
+
+
+            text_parts = []
+
+
+
+            for block in response.content:
+
+
+                if hasattr(
+
+                    block,
+
+                    "text"
+
+                ):
+
+
+                    text_parts.append(
+
+                        block.text
+
+                    )
+
+
+
+            return (
+
+                "\n".join(text_parts),
+
+                model_name
+
+            )
+
+
+
+        raise Exception(
+
+            "Provider không hỗ trợ"
+
+        )
+            # =====================================================
+    # VISION
+    # =====================================================
+
+    def generate_vision(
+
+        self,
+
+        prompt: str,
+
+        image_bytes: Any
+
+    ):
+
+
+        if Image is None:
+
+            raise Exception(
+                "Thiếu Pillow. Cài đặt: pip install Pillow"
+            )
+
+
+
+        # Chuyển bytes -> PIL Image
+
+        if isinstance(
+
+            image_bytes,
+
+            bytes
+
+        ):
+
+
+            image = Image.open(
+
+                io.BytesIO(
+
+                    image_bytes
+
+                )
+
+            )
+
+
+        else:
+
+            image = image_bytes
+
+
+
+        gemini_key = next(
+
+            (
+
+                key
+
+                for provider, key
+
+                in self.active_endpoints
+
+                if provider == "gemini"
+
+            ),
+
+            None
+
+        )
+
+
+
+        if not gemini_key:
+
+            raise Exception(
+
+                "Vision yêu cầu Gemini API Key"
+
+            )
+
+
+
+        client = self.gemini_clients[gemini_key]
+
+
+
+        model_name = self.gemini_models["vision"]
+
+
+
+        try:
+
+
+            response = client.models.generate_content(
+
+                model=model_name,
+
+
+                contents=[
+
+                    prompt,
+
+                    image
+
+                ],
+
+
+                config=types.GenerateContentConfig(
+
+                    system_instruction=self.system_prompt,
+
+                    temperature=0.5
 
                 )
 
@@ -533,211 +1313,274 @@ class AIEngine:
 
 
 
-        elif provider == "openai":
+        except Exception as e:
 
 
-            client = self.openai_clients[api_key]
-
-
-            response = client.chat.completions.create(
-
-                model=
-                kwargs.get(
-                    "model",
-                    "gpt-4o-mini"
-                ),
-
-                messages=[
-                    {
-                        "role":"user",
-                        "content":prompt
-                    }
-                ]
-
-            )
-
-
-            return (
-                response
-                .choices[0]
-                .message
-                .content
-            )
+            error = str(e).lower()
 
 
 
-        elif provider == "claude":
+            # fallback model
+
+            if (
+
+                "404" in error
+
+                or
+
+                "not found" in error
+
+            ):
 
 
-            client = self.claude_clients[api_key]
+                logger.warning(
 
+                    "Vision model lỗi, chuyển Gemini Flash"
 
-            response = client.messages.create(
-
-                model=
-                kwargs.get(
-                    "model",
-                    "claude-3-5-sonnet-20240620"
-                ),
-
-                max_tokens=8192,
-
-                messages=[
-                    {
-                        "role":"user",
-                        "content":prompt
-                    }
-                ]
-
-            )
-
-
-            return response.content[0].text
-
-
-
-        raise Exception(
-            "Provider không hỗ trợ"
-        )
-
-
-
-    # ==================================================
-    # VISION
-    # ==================================================
-
-    def generate_vision(
-        self,
-        prompt,
-        image_bytes
-    ):
-
-
-        if Image is None:
-
-            raise Exception(
-                "Thiếu Pillow"
-            )
-
-
-        if isinstance(
-            image_bytes,
-            bytes
-        ):
-
-            img = Image.open(
-                io.BytesIO(
-                    image_bytes
                 )
-            )
-
-        else:
-
-            img = image_bytes
 
 
 
-        key = next(
+                response = client.models.generate_content(
 
-            (
-                k
-                for p,k
-                in self.active_endpoints
-                if p=="gemini"
-            ),
-
-            None
-        )
+                    model="gemini-2.5-flash",
 
 
+                    contents=[
 
-        if not key:
+                        prompt,
 
-            raise Exception(
-                "Cần Gemini Key"
-            )
+                        image
+
+                    ]
+
+                )
+
+
+                return response.text
 
 
 
-        response = self.gemini_clients[key].models.generate_content(
-
-            model=self.gemini_models["vision"],
-
-            contents=[
-                prompt,
-                img
-            ]
-
-        )
-
-
-        return response.text
+            raise e
 
 
 
-    # ==================================================
-    # RAG
-    # ==================================================
+
+
+    # =====================================================
+    # RAG QUERY
+    # =====================================================
 
     def rag_query(
+
         self,
-        query,
-        documents:List[str]
+
+        query: str,
+
+        documents: List[str]
+
     ):
 
 
-        context="\n".join(
+        context = "\n\n".join(
+
             documents
+
         )
 
 
-        prompt=f"""
 
-Dựa vào tài liệu sau:
+        prompt = f"""
 
+Bạn là trợ lý AI giáo viên.
+
+Hãy trả lời dựa trên tài liệu cung cấp.
+
+=====================
+TÀI LIỆU:
 {context}
 
+=====================
 
-Câu hỏi:
-
+CÂU HỎI:
 {query}
 
 """
 
 
         return self.generate_text(
+
             prompt,
+
             use_cache=False
+
         )
 
 
 
-    # ==================================================
-    # IMAGE
-    # ==================================================
+
+
+    # =====================================================
+    # IMAGE GENERATION
+    # =====================================================
 
     def generate_image(
+
         self,
-        prompt
+
+        prompt: str
+
     ):
 
-        raise Exception(
-            "Chức năng sinh ảnh giữ nguyên mở rộng sau"
+
+        openai_key = next(
+
+            (
+
+                key
+
+                for provider, key
+
+                in self.active_endpoints
+
+                if provider == "openai"
+
+            ),
+
+            None
+
         )
 
 
 
-    # ==================================================
-    # STATS
-    # ==================================================
+        if not openai_key:
 
-    def get_stats(self):
+
+            raise Exception(
+
+                "Cần OpenAI API Key để sinh ảnh"
+
+            )
+
+
+
+        client = self.openai_clients[openai_key]
+
+
+
+        response = client.images.generate(
+
+            model="dall-e-3",
+
+            prompt=prompt,
+
+            n=1,
+
+            size="1024x1024"
+
+        )
+
+
+
+        return response.data[0].url
+
+
+
+
+
+    # =====================================================
+    # TEST CONNECTION
+    # =====================================================
+
+    def test_connection(
+
+        self
+
+    ):
+
+
+        try:
+
+
+            result = self.generate_text(
+
+                "Kiểm tra kết nối AI. Trả lời OK."
+
+            )
+
+
+            return {
+
+
+                "status": True,
+
+                "message": result
+
+            }
+
+
+
+        except Exception as e:
+
+
+            return {
+
+
+                "status": False,
+
+                "message": str(e)
+
+            }
+
+
+
+
+
+    # =====================================================
+    # STATISTICS
+    # =====================================================
+
+    def get_stats(
+
+        self
+
+    ):
+
 
         return {
 
-            "tokens":
-                self.token_usage,
 
-            "estimated_cost_usd":
-                self.cost_estimate
+            "token_usage":
+
+            self.token_usage,
+
+
+            "cost_usd":
+
+            self.cost_estimate,
+
+
+            "total_cost":
+
+            round(
+
+                sum(
+
+                    self.cost_estimate.values()
+
+                ),
+
+                6
+
+            ),
+
+
+            "active_endpoints":
+
+            len(
+
+                self.active_endpoints
+
+            )
+
         }
