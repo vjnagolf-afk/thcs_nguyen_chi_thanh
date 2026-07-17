@@ -4,12 +4,11 @@ import os
 from pathlib import Path
 from string import Template
 
-# Khai báo đường dẫn gốc để import thư mục models và prompts
+# Khai báo đường dẫn gốc
 root_path = Path(__file__).resolve().parents[1]
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
 
-# Import Data Model thầy vừa tạo
 from models.exam import Exam
 
 def extract_text_from_file(uploaded_file):
@@ -28,14 +27,35 @@ def extract_text_from_file(uploaded_file):
 def load_prompt(filename):
     file_path = root_path / "prompts" / filename
     if not file_path.exists():
-        return f"Lỗi: Không tìm thấy file {filename} tại {file_path}"
+        return f"Lỗi: Không tìm thấy {filename}"
     with open(file_path, 'r', encoding='utf-8') as f:
         return f.read()
+
+def read_template_structure(filename="dkt_mau.docx"):
+    """Đọc file mẫu từ thư mục templates và chuyển các bảng thành định dạng Markdown cho AI học theo"""
+    template_path = root_path / "templates" / filename
+    if not template_path.exists():
+        return "Không có cấu trúc mẫu đính kèm."
+    try:
+        import docx
+        doc = docx.Document(template_path)
+        result = []
+        for table in doc.tables:
+            for i, row in enumerate(table.rows):
+                row_text = [cell.text.replace("\n", " ").strip() for cell in row.cells]
+                result.append("| " + " | ".join(row_text) + " |")
+                # Ép tự động tạo dòng phân cách Markdown chuẩn ở hàng thứ 2
+                if i == 0:
+                    result.append("|" + "|".join(["---"] * len(row.cells)) + "|")
+            result.append("\n")
+        return "\n".join(result)
+    except Exception as e:
+        return f"Lỗi xử lý file mẫu: {str(e)}"
 
 def render_xd_de_kt(ai_engine):
     st.markdown("### 📝 Soạn thảo Ma trận, Đặc tả & Đề KT (Chuẩn 5512)")
     
-    # 1. BẢNG ĐIỀU KHIỂN (VIEW)
+    # 1. GIAO DIỆN BẢNG ĐIỀU KHIỂN
     c1, c2, c3, c4, c5, c6 = st.columns([1, 0.8, 1.2, 1, 2, 0.8])
     mon_hoc = c1.selectbox("Môn", ["Toán", "Ngữ văn", "Ngoại ngữ", "KHTN", "Lịch sử & Địa lý", "Tin học", "Khác"])
     lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10"], index=2)
@@ -48,7 +68,7 @@ def render_xd_de_kt(ai_engine):
     
     file_de = st.file_uploader("Tải đề cương (Tài liệu bám sát)", type=["pdf", "docx", "txt"])
 
-    # 2. CẤU HÌNH CHI TIẾT (VIEW)
+    # 2. CẤU HÌNH TỶ LỆ & SỐ CÂU
     with st.expander("Cấu hình Tỷ lệ & Số câu", expanded=True):
         r1, r2, r3, r4 = st.columns(4)
         nb = r1.number_input("Nhận biết (%)", 0, 100, 40)
@@ -81,10 +101,11 @@ def render_xd_de_kt(ai_engine):
         tl_cols[2].metric("Tổng điểm TN", f"{total_diem_tn:.2f}")
         tl_cols[3].metric("Tổng điểm TL", f"{total_diem_tl:.2f}")
 
-    # 3. NÚT XỬ LÝ (CONTROLLER LOGIC)
+    # 3. CONTROLLER TẠO ĐỀ
     if st.button("🚀 TẠO MA TRẬN & ĐỀ THI", type="primary", use_container_width=True):
-        with st.spinner("⏳ AI đang làm việc..."):
-            file_ctx = extract_text_from_file(file_de) if (bam_sat and file_de) else "Không có tài liệu đính kèm."
+        with st.spinner("⏳ AI đang học cấu trúc file dkt_mau.docx và tạo đề..."):
+            file_ctx = extract_text_from_file(file_de) if (bam_sat and file_de) else "Không có."
+            mau_cau_truc = read_template_structure("dkt_mau.docx") # Lấy khuôn mẫu từ file Word
             
             system_role = load_prompt("system_role.txt")
             task_template = load_prompt("task_config.txt")
@@ -94,46 +115,35 @@ def render_xd_de_kt(ai_engine):
                 tong_cau_tn=total_cau_tn, total_diem_tn=f"{total_diem_tn:.2f}",
                 n_nlc=n_nlc, n_ds=n_ds, n_dk=n_dk, n_ngan=n_ngan,
                 num_tl=num_tl, total_diem_tl=f"{total_diem_tl:.2f}",
-                nb=nb, th=th, vd=vd, vdc=vdc, file_context=file_ctx
+                nb=nb, th=th, vd=vd, vdc=vdc, file_context=file_ctx,
+                mau_cau_truc=mau_cau_truc # Ép biến này vào prompt
             )
             
             try:
-                # 1. Gọi AI tạo đề
                 content = ai_engine.generate_text(prompt)
-                
-                # 2. KHỞI TẠO ĐỐI TƯỢNG EXAM TỪ MODEL
                 current_exam = Exam(
-                    exam_type=hinh_thuc,
-                    custom_req=file_ctx[:50], # Lưu một phần context hoặc trống
-                    tn_total=total_cau_tn,
-                    c1=n_nlc, c2=n_ds, c3=n_dk, c4=n_ngan,
-                    tl_scores=tl_points,
+                    exam_type=hinh_thuc, custom_req=file_ctx[:50], tn_total=total_cau_tn,
+                    c1=n_nlc, c2=n_ds, c3=n_dk, c4=n_ngan, tl_scores=tl_points,
                     ai_generated_content=content
                 )
-                
-                # 3. ĐẨY VÀO BỘ NHỚ ĐỆM (DICTIONARY)
                 st.session_state['exam_data'] = current_exam.to_dict()
                 st.rerun()
             except Exception as e: st.error(f"Lỗi AI: {e}")
 
-    # 4. HIỂN THỊ DỮ LIỆU TỪ MODEL VÀ XUẤT WORD
+    # 4. HIỂN THỊ DỮ LIỆU
     if 'exam_data' in st.session_state:
-        # KHÔI PHỤC ĐỐI TƯỢNG TỪ SESSION STATE
         exam_obj = Exam.from_dict(st.session_state['exam_data'])
-        
-        if st.button("🗑️ XÓA ĐỀ"): 
+        if st.button("🗑️ XÓA ĐỀ NÀY"): 
             del st.session_state['exam_data']
             st.rerun()
             
-        # Hiển thị text từ object exam
         st.markdown(exam_obj.ai_generated_content)
         
         try:
             from export.export_word import WordExportEngine
             word_bytes = WordExportEngine.export_to_word({
                 "ai_generated_content": exam_obj.ai_generated_content, 
-                "is_de_kt": True, 
-                "title": ten_de
+                "is_de_kt": True, "title": ten_de
             })
-            st.download_button("📥 TẢI FILE WORD", data=word_bytes, file_name="De_Thi.docx", use_container_width=True)
+            st.download_button("📥 TẢI FILE WORD CHUẨN", data=word_bytes, file_name="De_Thi.docx", use_container_width=True)
         except Exception as e: st.warning(f"Lỗi xuất Word: {e}")
