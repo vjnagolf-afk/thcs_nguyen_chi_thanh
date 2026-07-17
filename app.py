@@ -28,6 +28,10 @@ try:
     from modules.quan_ly_to.bien_ban import render_bien_ban
     from modules.ho_tro_giang_day.rag_ask import render_rag
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
+    from modules.ho_tro_giang_day.rag_ask import render_rag
+    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
+    from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
+    from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -182,12 +186,18 @@ if phan_he == "Hỗ trợ Giáo viên":
 
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
+    # Danh sách tab của phân hệ Hỗ trợ Giảng dạy
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
     
     with tabs_gd[0]:
         render_rag(ai_engine)
     with tabs_gd[1]:
-        st.info("💡 Tính năng Trò chơi tương tác đang được phát triển.")
+        render_xd_tro_choi(ai_engine)
+    with tabs_gd[2]:
+        render_xd_cham_nhanh(ai_engine)
+    with tabs_gd[3]: # Index 3 là Tab thứ 4
+        render_xd_hoc_lieu(ai_engine)
+    # ... các tab khác ...
 
 elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
