@@ -54,7 +54,7 @@ try:
     from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
     from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
     from modules.ho_tro_giang_day.xd_tuong_tac import render_xd_tuong_tac
-    
+    from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -241,8 +241,8 @@ elif phan_he == "Hỗ trợ Giảng dạy":
         render_xd_sinh_video(ai_engine)
     with tabs_gd[8]: 
         render_xd_tuong_tac(ai_engine)
-    with tabs_gd[9]:
-        st.info("💡 Tính năng Cá nhân hóa đang được phát triển.")
+    with tabs_gd[9]: 
+        render_xd_ca_nhan_hoa(ai_engine)
 
 elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
