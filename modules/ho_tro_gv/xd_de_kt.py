@@ -18,22 +18,21 @@ def extract_text_from_file(uploaded_file):
 def render_xd_de_kt(ai_engine):
     st.markdown("### 📝 Soạn thảo Ma trận, Đặc tả & Đề KT (Chuẩn 5512)")
     
-    # 1. BẢNG ĐIỀU KHIỂN
-    c1, c2, c3, c4 = st.columns(4)
+    # 1. BẢNG ĐIỀU KHIỂN (ÉP 6 NỘI DUNG LÊN 1 HÀNG)
+    c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.2, 1, 1.5, 1])
     mon_hoc = c1.selectbox("Chọn Môn", ["Toán", "Ngữ văn", "Ngoại ngữ", "KHTN", "Lịch sử & Địa lý", "Tin học", "Khác"])
     lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10"], index=2)
     hinh_thuc = c3.selectbox("Hình thức", ["Trắc nghiệm & Tự luận", "100% Trắc nghiệm", "100% Tự luận"])
     thoi_gian = c4.selectbox("Thời gian", ["15 phút", "45 phút", "90 phút"])
+    ten_de = c5.text_input("Tên bài kiểm tra")
+    with c6:
+        st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+        bam_sat = st.checkbox("Bám sát tài liệu", value=True)
     
-    ten_de = st.text_input("Tên bài kiểm tra")
-    
-    # FILE UPLOAD
-    c_f1, c_f2, c_chk = st.columns([1, 1, 1])
+    # Khu vực tải file độc lập để không bị bóp méo giao diện
+    c_f1, c_f2 = st.columns(2)
     file_de_cuong = c_f1.file_uploader("Tải đề cương", type=["pdf", "docx", "txt"])
     file_ma_tran = c_f2.file_uploader("Tải ma trận mẫu", type=["pdf", "docx", "txt"])
-    bam_sat = c_chk.checkbox("Bám sát tài liệu tải lên", value=True)
-    
-    yeu_cau_chi_tiet = st.text_area("Yêu cầu thêm")
 
     # 2. CẤU HÌNH CHI TIẾT
     with st.expander("Cấu hình Tỷ lệ & Số câu", expanded=True):
@@ -46,7 +45,6 @@ def render_xd_de_kt(ai_engine):
         
         st.markdown("**2. Thông số Trắc nghiệm**")
         cols = st.columns(8)
-        # Điều chỉnh min_value=0.25 và step=0.25 cho các ô điểm
         n_nlc = cols[0].number_input("NLC", value=10)
         d_nlc = cols[1].number_input("Đ.NLC", min_value=0.25, value=0.25, step=0.25)
         n_ds = cols[2].number_input("Đ/S", value=2)
@@ -63,7 +61,6 @@ def render_xd_de_kt(ai_engine):
         
         tl_points = []
         for i in range(num_tl):
-            # Điều chỉnh min_value=0.25 và step=0.25 cho điểm tự luận
             p = tl_cols[1].number_input(f"Câu {i+1} (đ)", min_value=0.25, value=1.0, step=0.25, key=f"tl_p_{i}")
             tl_points.append(p)
         
@@ -83,13 +80,20 @@ def render_xd_de_kt(ai_engine):
             Bạn là chuyên gia soạn đề kiểm tra chuẩn 5512.
             YÊU CẦU: Soạn đề {mon_hoc} lớp {lop} bài {ten_de}.
             CẤU HÌNH:
-            - Phần Trắc nghiệm: Tổng {n_nlc + n_ds + n_dk + n_ngan} câu, Tổng điểm {total_diem_tn:.2f}.
-            - Phần Tự luận: {num_tl} câu, Tổng điểm {total_diem_tl:.2f}.
+            - Trắc nghiệm: Tổng {n_nlc + n_ds + n_dk + n_ngan} câu, Tổng điểm {total_diem_tn:.2f}.
+            - Tự luận: {num_tl} câu, Tổng điểm {total_diem_tl:.2f}.
             - Phân bổ: {nb}% NB, {th}% TH, {vd}% VD, {vdc}% VDC.
             
-            ĐỊNH DẠNG TRẢ VỀ:
-            1. I. MA TRẬN ĐỀ KIỂM TRA (Kẻ bảng Markdown)
-            2. II. BẢN ĐẶC TẢ (Kẻ bảng Markdown)
+            ĐỊNH DẠNG TRẢ VỀ (QUAN TRỌNG: MỌI BẢNG PHẢI CÓ DÒNG PHÂN CÁCH `|---|---|`):
+            1. I. MA TRẬN ĐỀ KIỂM TRA
+            (Bắt buộc dùng Markdown chuẩn như sau:
+            | Chủ đề | Nội dung | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
+            |---|---|---|---|---|---|---|
+            | ... | ... | ... | ... | ... | ... | ... |)
+            
+            2. II. BẢN ĐẶC TẢ 
+            (Kẻ bảng Markdown chuẩn có dòng `|---|---|...` tương tự)
+            
             3. III. ĐỀ KIỂM TRA (Ghi rõ nội dung đề)
             4. IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM (Chi tiết)
             
