@@ -43,7 +43,10 @@ try:
     from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
     from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
     from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-    from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong # <--- Thêm dòng này
+    from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
+    from modules.ho_tro_giang_day.rag_ask import render_rag
+    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi 
+# <--- Thêm dòng này
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -191,10 +194,10 @@ elif phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Đánh giá kĩ năng Viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
     
-    with tabs_gv[0]:
-        render_xd_khbd(ai_engine)
-    with tabs_gv[1]:
-        render_xd_de_kt(ai_engine)
+    with tabs_gd[0]:
+        render_rag(ai_engine)
+    with tabs_gd[1]:
+        render_xd_tro_choi(ai_engine) # <--- Gọi module trò chơi
     with tabs_gv[2]:
         render_xd_stem(ai_engine)
     with tabs_gv[3]:
