@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import time
 
@@ -11,7 +12,12 @@ def render_xd_live(ai_engine):
         with col1:
             link_phong = st.text_input("Đường dẫn phòng học:", placeholder="Ví dụ: https://meet.google.com/abc-xyz")
         with col2:
-            st.button("Mở phòng học 🚀", type="primary", use_container_width=True, on_click=lambda: st.markdown(f'<meta http-equiv="refresh" content="0;url={link_phong}">', unsafe_allow_html=True) if link_phong else st.warning("Vui lòng nhập link!"))
+            # Sửa đổi: Dùng st.link_button để mở ở tab mới an toàn, kết hợp thêm logic hiển thị nút mờ khi chưa có link
+            st.write("") # Tạo khoảng trống nhỏ để nút bấm căn giữa đẹp hơn với text_input
+            if link_phong:
+                st.link_button("Mở phòng học 🚀", url=link_phong, type="primary", use_container_width=True)
+            else:
+                st.button("Mở phòng học 🚀", type="primary", disabled=True, use_container_width=True, help="Vui lòng nhập link phòng học vào ô bên cạnh")
 
     st.markdown("---")
 
