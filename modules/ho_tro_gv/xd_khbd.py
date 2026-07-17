@@ -3,8 +3,6 @@ import sys
 from pathlib import Path
 from pypdf import PdfReader
 
-# BỎ IMPORT WordExportEngine Ở ĐÂY ĐỂ CHỐNG LỖI KEYERROR CỦA STREAMLIT
-
 def render_xd_khbd(ai_engine):
     st.markdown("### 📝 Xây dựng Kế hoạch bài dạy (AI Hỗ trợ)")
 
@@ -18,21 +16,21 @@ def render_xd_khbd(ai_engine):
     col1, col2, col3, col4 = st.columns(4)
     mon_hoc = col1.selectbox("Môn học", ds_mon)
     lop = col2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"])
-    hinh_thuc = col3.selectbox("Chọn hình thức", ["Chuẩn KHBD 5512", "KHBD tích hợp GD Stem"])
+    hinh_thuc = col3.selectbox("Chọn hình thức", ["KHBD chi tiết (Chuẩn 5512)", "KHBD thu gọn"])
     so_tiet = col4.number_input("Số tiết", min_value=1, max_value=20, value=2)
     
-    ten_bai_hoc = st.text_input("Tên chủ đề / Tên bài học (AI sẽ tìm kiếm từ khóa này trong tài liệu)")
+    ten_bai_hoc = st.text_input("Tên chủ đề / Tên bài học")
     
     bam_sat = st.checkbox("Bám sát nội dung file tải lên", value=True)
-    yeu_cau = st.text_area("Yêu cầu bổ sung cho AI (Ví dụ: Lồng ghép Năng lực số, tích hợp AI...)")
+    yeu_cau = st.text_area("Yêu cầu bổ sung (Ví dụ: Lồng ghép Năng lực số, tích hợp AI...)")
     file_tai_len = st.file_uploader("Tài liệu tham khảo (PDF, TXT)", type=["pdf", "txt"])
     
     c1, c2 = st.columns(2)
     if c1.button("🚀 KHỞI TẠO TIẾN TRÌNH", type="primary"):
         if not ten_bai_hoc.strip():
-            st.error("⚠️ Vui lòng nhập 'Tên chủ đề / Tên bài học' để AI thực hiện tìm kiếm!")
+            st.error("⚠️ Vui lòng nhập 'Tên chủ đề / Tên bài học'!")
         else:
-            with st.spinner("⏳ AI đang quét tài liệu và thiết kế giáo án..."):
+            with st.spinner("⏳ AI đang quét tài liệu và thiết kế giáo án chuyên sâu..."):
                 file_context = ""
                 if file_tai_len and bam_sat:
                     try:
@@ -44,24 +42,33 @@ def render_xd_khbd(ai_engine):
                     except Exception as e:
                         st.warning(f"Không thể đọc tài liệu: {e}")
                 
+                # Logic phân biệt thu gọn và chi tiết
+                huong_dan_do_dai = (
+                    "viết ngắn gọn, súc tích, chỉ tập trung vào các ý chính, hoạt động cốt lõi, không cần trình bày quá chi tiết các bước thực hiện." 
+                    if hinh_thuc == "KHBD thu gọn" 
+                    else "viết chi tiết từng bước, mỗi hoạt động bắt buộc phải có đầy đủ: [Mục tiêu] - [Nội dung thực hiện] - [Phương pháp] - [Sản phẩm dự kiến]. Đừng tóm tắt, hãy viết chi tiết."
+                )
+
                 prompt = f"""
-                Bạn là một chuyên gia giáo dục. Hãy soạn KHBD cho bài học: '{ten_bai_hoc}'.
-                Thông tin: Môn {mon_hoc}, lớp {lop}, {so_tiet} tiết, hình thức {hinh_thuc}.
+                Bạn là chuyên gia thiết kế giáo dục. Hãy soạn KHBD cho bài học: '{ten_bai_hoc}'.
+                Thông tin: Môn {mon_hoc}, lớp {lop}, {so_tiet} tiết.
                 
-                YÊU CẦU PHÂN TÍCH:
-                1. Tìm kiếm và trích xuất nội dung liên quan trực tiếp đến bài '{ten_bai_hoc}' trong tài liệu tham khảo được cung cấp.
-                2. Lồng ghép nội dung Năng lực số và giáo dục AI vào các hoạt động.
-                3. {yeu_cau}
+                YÊU CẦU CỐT LÕI:
+                1. DỰA TRÊN TÀI LIỆU: Phải bám sát nội dung, cấu trúc và kiến thức trong file đính kèm dưới đây:
+                   {file_context[:8000]}
                 
-                YÊU CẦU TRÌNH BÀY (BẮT BUỘC TUÂN THỦ):
-                1. Bắt đầu ngay từ "I. MỤC TIÊU". Tuyệt đối không có lời chào hỏi hay câu dẫn.
-                2. Phải XUỐNG DÒNG và IN ĐẬM các tiêu đề lớn/nhỏ (Ví dụ: **1. Về kiến thức:**).
-                3. Sử dụng ký tự gạch đầu dòng (-) hoặc dấu hoa thị (*) cho các ý liệt kê. Tuyệt đối không viết dính liền thành 1 đoạn văn.
-                4. Sử dụng LaTeX ($...$) cho mọi công thức toán học/hóa học. 
-                5. Tuyệt đối không sử dụng dấu ">" ở đầu các dòng.
+                2. ĐỊNH DẠNG & CẤU TRÚC:
+                   - Tuân thủ tuyệt đối cấu trúc của tài liệu gốc (Các mục I, II, III...). Nếu mục nào tài liệu không có, hãy để tiêu đề đó và ghi "Nội dung đang cập nhật".
+                   - {huong_dan_do_dai}
+                   - CÔNG THỨC TOÁN HỌC: Mọi công thức phải viết dạng LaTeX ($...$) để hiển thị đẹp (Ví dụ: $x^2 + y^2 = z^2$).
                 
-                Dữ liệu tài liệu tham khảo: 
-                {file_context[:8000]} 
+                3. NỘI DUNG TÍCH HỢP:
+                   - {yeu_cau}
+                
+                4. TRÌNH BÀY:
+                   - Bắt đầu ngay từ "I. MỤC TIÊU". Tuyệt đối không chào hỏi.
+                   - Dùng In đậm cho các tiêu đề mục.
+                   - Dùng gạch đầu dòng (-) cho các ý. Không được dùng ký tự ">".
                 """
                 
                 try:
@@ -82,21 +89,17 @@ def render_xd_khbd(ai_engine):
         st.session_state.pop('khbd_meta', None)
         st.rerun()
 
+    # HIỂN THỊ KẾT QUẢ VÀ XUẤT FILE
     if st.session_state.get('khbd_content'):
         st.markdown("---")
         st.markdown(st.session_state['khbd_content'])
         
         try:
-            # ==========================================
-            # ÁP DỤNG KỸ THUẬT LAZY IMPORT TẠI ĐÂY
-            # Chỉ import module export khi thực sự cần dùng
-            # ==========================================
+            # Lazy Import
             root_path = str(Path(__file__).resolve().parents[2])
             if root_path not in sys.path:
                 sys.path.insert(0, root_path)
-                
             from export.export_word import WordExportEngine
-            # ==========================================
 
             data_export = st.session_state['khbd_meta'].copy()
             data_export["ai_generated_content"] = st.session_state['khbd_content']
@@ -112,4 +115,4 @@ def render_xd_khbd(ai_engine):
                 type="primary"
             )
         except Exception as e:
-            st.error(f"❌ Có lỗi trong quá trình đóng gói file Word: {e}")
+            st.error(f"❌ Lỗi xuất file Word: {e}")
