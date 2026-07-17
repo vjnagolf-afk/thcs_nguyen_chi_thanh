@@ -18,7 +18,7 @@ def render_xd_khbd(ai_engine):
     col1, col2, col3, col4 = st.columns(4)
     mon_hoc = col1.selectbox("Môn học", ds_mon)
     lop = col2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"])
-    hinh_thuc = col3.selectbox("Chọn hình thức", ["KHBD thu gọn", "Chuẩn 5512", "KHBD Stem"])
+    hinh_thuc = col3.selectbox("Chọn hình thức", ["Chuẩn KHBD 5512", "KHBD tích hợp GD Stem"])
     so_tiet = col4.number_input("Số tiết", min_value=1, max_value=20, value=2)
     
     ten_bai_hoc = st.text_input("Tên chủ đề / Tên bài học (AI sẽ tìm kiếm từ khóa này trong tài liệu)")
