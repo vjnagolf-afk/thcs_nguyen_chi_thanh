@@ -1,73 +1,88 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
-import time
 
-def render_xd_live(ai_engine):
-    st.markdown("### 🔴 Trạm điều khiển Lớp học Live")
-    st.info("💡 Trợ lý đắc lực giúp giáo viên quản lý lớp học trực tuyến, phản xạ nhanh với câu hỏi của học sinh và tạo tương tác tức thì.")
+def render_live_quiz_module():
+    # 0. Tinh chỉnh CSS đồng bộ giao diện
+    st.markdown("""
+        <style>
+        .stButton>button {
+            font-weight: bold;
+            border-radius: 6px;
+        }
+        .stMetric {
+            background-color: #f0f2f6;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # 1. Bảng thông tin phòng học
-    with st.expander("🔗 Thông tin Phòng học (Meet / Zoom / Teams)", expanded=True):
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            link_phong = st.text_input("Đường dẫn phòng học:", placeholder="Ví dụ: https://meet.google.com/abc-xyz")
-        with col2:
-            # Sửa đổi: Dùng st.link_button để mở ở tab mới an toàn, kết hợp thêm logic hiển thị nút mờ khi chưa có link
-            st.write("") # Tạo khoảng trống nhỏ để nút bấm căn giữa đẹp hơn với text_input
-            if link_phong:
-                st.link_button("Mở phòng học 🚀", url=link_phong, type="primary", use_container_width=True)
-            else:
-                st.button("Mở phòng học 🚀", type="primary", disabled=True, use_container_width=True, help="Vui lòng nhập link phòng học vào ô bên cạnh")
+    # 1. KHU VỰC CẤU HÌNH LINK ĐẦU VÀO
+    col_input1, col_input2 = st.columns(2)
+    with col_input1:
+        # Giải mã ký tự hiển thị lỗi thành icon 🖼️ chuẩn
+        image_url = st.text_input("🖼️ Dán link ảnh bìa:", placeholder="https://...", key="quiz_image_url")
+    with col_input2:
+        live_link = st.text_input("🔗 Dán link Quiz Live (Kahoot/Quizizz):", placeholder="https://...", key="quiz_live_link")
 
-    st.markdown("---")
+    # Hiển thị ảnh bìa linh hoạt theo link giáo viên dán vào
+    if image_url.strip():
+        try:
+            st.image(image_url.strip(), use_container_width=True, caption="Ảnh bìa phiên Quiz")
+        except Exception:
+            st.error("Không thể tải ảnh từ đường link này. Thầy/Cô vui lòng kiểm tra lại định dạng link nhé!")
 
-    col3, col4 = st.columns(2)
+    # 2. KHỞI TẠO VÀ QUẢN LÝ SESSION STATE
+    if 'quiz_started' not in st.session_state:
+        st.session_state['quiz_started'] = False
 
-    # 2. Trợ lý phản xạ nhanh (Hỏi đáp Live)
-    with col3:
-        st.markdown("#### ⚡ Trợ lý Phản xạ nhanh")
-        st.caption("Nhập câu hỏi hóc búa của học sinh trong khung chat để AI gợi ý câu trả lời sư phạm.")
+    st.write("---")
+
+    # Chia bố cục vùng điều khiển và vùng hiển thị Live Dashboard
+    col1, col2 = st.columns([1, 2])
+
+    # ==========================================
+    # KHỐI 1: BẢNG ĐIỀU KHIỂN CẤU HÌNH QUIZ
+    # ==========================================
+    with col1:
+        st.markdown("### 🛠️ Cấu hình Quiz")
+        ten_quiz = st.text_input("Tên phiên trắc nghiệm", "Kiểm tra 15' KHTN", key="quiz_title_input")
         
-        if "live_qna_result" not in st.session_state:
-            st.session_state.live_qna_result = ""
+        # Nút mở link ngoài (Kahoot/Quizizz) luôn an toàn ở tab mới, chống chặn iframe
+        if live_link.strip():
+            st.link_button("🚀 MỞ LINK QUIZ ĐÃ DÁN", url=live_link.strip(), use_container_width=True)
+        else:
+            st.button("🚀 MỞ LINK QUIZ ĐÃ DÁN", disabled=True, use_container_width=True, help="Vui lòng dán link Quiz ở phía trên trước")
+
+        # Cơ chế chuyển đổi trạng thái Bắt đầu / Kết thúc
+        if not st.session_state['quiz_started']:
+            # Giải mã ký tự lỗi hiển thị icon ▶️
+            if st.button("▶️ BẮT ĐẦU PHÁT SÓNG TRONG APP", type="primary", use_container_width=True):
+                st.session_state['quiz_started'] = True
+                st.rerun()
+        else:
+            # Giải mã ký tự lỗi hiển thị icon ⏹️
+            if st.button("⏹️ KẾT THÚC PHIÊN", type="secondary", use_container_width=True):
+                st.session_state['quiz_started'] = False
+                st.rerun()
+
+    # ==========================================
+    # KHỐI 2: MÀN HÌNH THEO DÕI LIVE FEED
+    # ==========================================
+    with col2:
+        if st.session_state['quiz_started']:
+            st.success(f"✅ Phiên '{ten_quiz}' đang hoạt động trực tuyến!")
             
-        cau_hoi_hs = st.text_area("Câu hỏi của học sinh:", height=100, placeholder="Ví dụ: Thầy ơi tại sao hố đen lại hút được ánh sáng ạ?")
-        
-        if st.button("Trợ giúp trả lời nhanh", type="secondary"):
-            if cau_hoi_hs.strip():
-                with st.spinner("Đang tìm câu trả lời..."):
-                    prompt = f"Tôi đang dạy học trực tuyến cấp THCS. Học sinh vừa hỏi câu này: '{cau_hoi_hs}'. Hãy gợi ý cho tôi một câu trả lời NGẮN GỌN, DỄ HIỂU, CÓ TÍNH TƯƠNG TÁC (khoảng 3-4 câu) để tôi có thể đọc hoặc nhắn lại cho học sinh ngay lập tức."
-                    try:
-                        st.session_state.live_qna_result = ai_engine.generate_text(prompt)
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-            else:
-                st.warning("Vui lòng nhập câu hỏi!")
-                
-        if st.session_state.live_qna_result:
-            st.success(st.session_state.live_qna_result)
-
-    # 3. Tạo tương tác nhanh (Poll/Quiz)
-    with col4:
-        st.markdown("#### 🎯 Tạo Mini-game / Khảo sát")
-        st.caption("Sinh nhanh 1 câu hỏi trắc nghiệm hoặc tình huống để thả vào khung chat giúp lấy lại sự tập trung.")
-        
-        if "live_poll_result" not in st.session_state:
-            st.session_state.live_poll_result = ""
+            # Đã loại bỏ vòng lặp for gấy đơ app. 
+            # Hiển thị thanh tiến trình tĩnh hoặc sẵn sàng nhận dữ liệu động
+            st.progress(100, text="Hệ thống kết nối trực tuyến sẵn sàng")
             
-        chu_de_tuong_tac = st.text_input("Chủ đề bài đang dạy:", placeholder="Ví dụ: Định luật Newton, Khí hậu Châu Á...")
-        loai_tuong_tac = st.selectbox("Loại tương tác:", ["Câu hỏi Trắc nghiệm (Đố vui)", "Câu hỏi Đúng/Sai", "Tình huống thảo luận ngắn"])
-        
-        if st.button("Tạo câu hỏi tương tác", type="secondary"):
-            if chu_de_tuong_tac.strip():
-                with st.spinner("Đang tạo..."):
-                    prompt = f"Tôi đang dạy live bài '{chu_de_tuong_tac}' cho học sinh THCS và lớp đang hơi trầm. Hãy tạo NHANH 1 {loai_tuong_tac} thật thú vị, hài hước hoặc gắn với thực tế để tôi copy thả vào khung chat. Bắt buộc có kèm đáp án."
-                    try:
-                        st.session_state.live_poll_result = ai_engine.generate_text(prompt)
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-            else:
-                st.warning("Vui lòng nhập chủ đề!")
-                
-        if st.session_state.live_poll_result:
-            st.info(st.session_state.live_poll_result)
+            col_a, col_b = st.columns(2)
+            col_a.metric("Số HS tham gia", "24", delta="+4 học sinh mới") # Giả lập số liệu mẫu trực quan
+            col_b.metric("Câu hỏi hiện tại", "1/5", delta="Đang chạy câu 1")
+            
+            st.markdown("### 📊 Kết quả trực tiếp (Live Feed)")
+            st.info("🔄 Đang đợi học sinh nhấn nộp bài... Biểu đồ xếp hạng sẽ tự động cập nhật tại đây.")
+        else:
+            st.info("Hệ thống đang ở chế độ chờ. Hãy cấu hình thông tin và nhấn nút Bắt đầu phiên Quiz.")
+            st.caption("💡 Lưu ý: Các link nền tảng ngoài (Kahoot, Quizizz) bắt buộc phải mở ở tab mới để tránh bị hệ thống bảo mật của họ chặn.")
