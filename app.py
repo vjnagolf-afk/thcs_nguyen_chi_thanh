@@ -33,7 +33,16 @@ try:
     
     # --- Hỗ trợ giáo viên ---
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
-    # (Nếu thầy đã có các file xd_de_kt, xd_stem... thì khai báo thêm ở đây)
+    # Import các module của phân hệ Giáo viên
+    from modules.ho_tro_gv.xd_khbd import render_xd_khbd
+    from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
+    from modules.ho_tro_gv.xd_stem import render_xd_stem
+    from modules.ho_tro_gv.xd_rubric import render_xd_rubric
+    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
+    from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
+    from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
+    from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
+    from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
     
     # --- Hỗ trợ giảng dạy ---
     from modules.ho_tro_giang_day.rag_ask import render_rag
