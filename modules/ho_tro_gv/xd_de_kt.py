@@ -18,7 +18,7 @@ def extract_text_from_file(uploaded_file):
 def render_xd_de_kt(ai_engine):
     st.markdown("### 📝 Soạn thảo Ma trận, Đặc tả & Đề KT (Chuẩn 5512)")
     
-    # 1. BẢNG ĐIỀU KHIỂN (ÉP 6 NỘI DUNG LÊN 1 HÀNG)
+    # 1. BẢNG ĐIỀU KHIỂN
     c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1.2, 1, 1.5, 1])
     mon_hoc = c1.selectbox("Chọn Môn", ["Toán", "Ngữ văn", "Ngoại ngữ", "KHTN", "Lịch sử & Địa lý", "Tin học", "Khác"])
     lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10"], index=2)
@@ -29,10 +29,10 @@ def render_xd_de_kt(ai_engine):
         st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
         bam_sat = st.checkbox("Bám sát tài liệu", value=True)
     
-    # Khu vực tải file độc lập
+    # Khu vực tải file
     c_f1, c_f2 = st.columns(2)
     file_de_cuong = c_f1.file_uploader("Tải đề cương", type=["pdf", "docx", "txt"])
-    file_ma_tran = c_f2.file_uploader("Tải ma trận mẫu", type=["pdf", "docx", "txt"])
+    file_ma_tran = c_f2.file_uploader("Tải ma trận mẫu (không bắt buộc)", type=["pdf", "docx", "txt"])
 
     # 2. CẤU HÌNH CHI TIẾT
     with st.expander("Cấu hình Tỷ lệ & Số câu", expanded=True):
@@ -70,7 +70,7 @@ def render_xd_de_kt(ai_engine):
 
     # 3. NÚT XỬ LÝ
     if st.button("🚀 TỰ ĐỘNG KHỞI TẠO MA TRẬN VÀ ĐỀ THI", type="primary", use_container_width=True):
-        with st.spinner("⏳ AI đang làm việc, xin vui lòng đợi (có thể mất 1-2 phút)..."):
+        with st.spinner("⏳ AI đang tự do sáng tạo Ma trận và Đề thi (khoảng 1-2 phút)..."):
             file_context = ""
             if bam_sat:
                 if file_de_cuong: file_context += f"\nĐỀ CƯƠNG: {extract_text_from_file(file_de_cuong)}"
@@ -78,33 +78,30 @@ def render_xd_de_kt(ai_engine):
             
             prompt = f"""
             Bạn là chuyên gia khảo thí xuất sắc.
-            YÊU CẦU: Soạn một bộ Đề kiểm tra {mon_hoc} lớp {lop} bài "{ten_de}".
+            YÊU CẦU: Soạn một bộ Đề kiểm tra {mon_hoc} lớp {lop} bài "{ten_de}" theo chuẩn 5512.
             
             CẤU HÌNH ĐIỂM SỐ VÀ CÂU HỎI (BẮT BUỘC TUÂN THỦ):
             - Trắc nghiệm: Tổng {n_nlc + n_ds + n_dk + n_ngan} câu, Tổng điểm {total_diem_tn:.2f}.
-              (Gồm: {n_nlc} NLC, {n_ds} Đúng/Sai, {n_dk} Điền khuyết, {n_ngan} Trả lời ngắn).
+              (Gồm: {n_nlc} câu Nhiều lựa chọn, {n_ds} câu Đúng/Sai, {n_dk} câu Điền khuyết, {n_ngan} câu Trả lời ngắn).
             - Tự luận: {num_tl} câu, Tổng điểm {total_diem_tl:.2f}.
             - Phân bổ nhận thức: {nb}% NB, {th}% TH, {vd}% VD, {vdc}% VDC.
             
             TÀI LIỆU THAM KHẢO: 
-            {file_context[:10000] if file_context else "Không có tài liệu đính kèm. Bạn hãy tự chọn các chủ đề trọng tâm của học kỳ để ra đề."}
+            {file_context[:10000] if file_context else "Không có tài liệu đính kèm. Bạn hãy tự chọn các chủ đề trọng tâm để ra đề."}
             
-            ĐỊNH DẠNG BẮT BUỘC TRẢ VỀ (Gồm 4 phần, tuyệt đối không được bỏ sót phần nào, không dừng giữa chừng):
+            NHIỆM VỤ CỦA BẠN: Trình bày ĐẦY ĐỦ 4 phần sau bằng định dạng Markdown (tuyệt đối không được dừng giữa chừng):
             
             I. MA TRẬN ĐỀ KIỂM TRA
-            - Phải kẻ bảng Markdown chuẩn (bắt buộc có dòng phân cách `|---|---|...`). 
-            - Cột: Chủ đề, Nội dung, Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao, Tổng.
+            - Tự do kẻ bảng Markdown thể hiện ma trận phân bố câu hỏi.
 
             II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
-            - Phải kẻ bảng Markdown chuẩn.
-            - Cột: STT, Nội dung, Yêu cầu cần đạt, Số câu hỏi.
+            - Tự do kẻ bảng Markdown mô tả yêu cầu cần đạt.
 
             III. ĐỀ KIỂM TRA
-            - Ghi rõ nội dung câu hỏi phần Trắc nghiệm và phần Tự luận.
-            - Trắc nghiệm 4 đáp án A, B, C, D phải xuống dòng rõ ràng.
+            - Trình bày rõ ràng phần Trắc nghiệm và Tự luận. Đảm bảo các đáp án A, B, C, D xuống dòng rõ ràng.
 
             IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
-            - Đáp án chi tiết cho từng câu, có thang điểm.
+            - Cung cấp đáp án chi tiết và biểu điểm chấm.
             """
             try:
                 content = ai_engine.generate_text(prompt)
@@ -114,7 +111,7 @@ def render_xd_de_kt(ai_engine):
 
     # 4. HIỂN THỊ
     if 'de_kt_content' in st.session_state:
-        if st.button("🗑️ XÓA ĐỀ"): del st.session_state['de_kt_content']; st.rerun()
+        if st.button("🗑️ XÓA ĐỀ NÀY"): del st.session_state['de_kt_content']; st.rerun()
         st.markdown(st.session_state['de_kt_content'])
         
         try:
