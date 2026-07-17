@@ -2,7 +2,8 @@ import streamlit as st
 
 def render_xd_ca_nhan_hoa(ai_engine):
     st.markdown("### 🎯 Trợ lý Cá nhân hóa Lộ trình Học tập")
-    st.info("💡 Hỗ trợ giáo viên xây dựng lộ trình học tập, tài liệu và phương pháp giảng dạy được "may đo" riêng cho từng học sinh hoặc từng nhóm học sinh cụ thể.")
+    # Đã sửa lại lỗi dấu ngoặc kép ở dòng này bằng cách dùng nháy đơn bao bọc bên ngoài
+    st.info('💡 Hỗ trợ giáo viên xây dựng lộ trình học tập, tài liệu và phương pháp giảng dạy được "may đo" riêng cho từng học sinh hoặc từng nhóm học sinh cụ thể.')
 
     if "ca_nhan_hoa_result" not in st.session_state:
         st.session_state.ca_nhan_hoa_result = ""
