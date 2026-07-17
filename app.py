@@ -43,6 +43,7 @@ try:
     from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
     from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
     from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
+    from modules.ho_tro_gv.xd_live import render_xd_live
     
     # --- Hỗ trợ giảng dạy ---
     from modules.ho_tro_giang_day.rag_ask import render_rag
@@ -218,7 +219,8 @@ if phan_he == "Hỗ trợ Giáo viên":
         render_xd_quizizz(ai_engine)
     with tabs_gv[8]:
         render_xd_mo_phong(ai_engine)
-
+    with tabs_gv[9]: 
+        render_xd_live(ai_engine)
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
