@@ -172,13 +172,21 @@ class WordExportEngine:
         rFonts.set(qn('w:cs'), font_name)
 
     @staticmethod
+    @staticmethod
     def _set_shading(p_or_cell, color_hex):
-        element = p_or_cell._element.get_or_add_pPr() if hasattr(p_or_cell, 'paragraphs') else p_or_cell._element.get_or_add_tcPr()
+        from docx.oxml.shared import OxmlElement, qn
+        
+        # Đã fix lỗi phân biệt Đoạn văn (Paragraph) và Ô trong bảng (Cell)
+        if hasattr(p_or_cell, 'paragraphs'):
+            element = p_or_cell._element.get_or_add_tcPr()
+        else:
+            element = p_or_cell._element.get_or_add_pPr()
+            
         shd = element.find(qn("w:shd"))
-        if shd is None: 
+        if shd is None:
             shd = OxmlElement("w:shd")
             element.append(shd)
-        shd.set(qn("w:val"), "clear")
+            
         shd.set(qn("w:fill"), color_hex)
 
     @classmethod
