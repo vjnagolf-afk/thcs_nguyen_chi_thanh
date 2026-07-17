@@ -1,30 +1,117 @@
-YÊU CẦU: Soạn Đề kiểm tra $mon_hoc lớp $lop bài "$ten_de".
-CẤU HÌNH ĐỀ:
-- Trắc nghiệm: $tong_cau_tn câu, $total_diem_tn điểm.
-- Tự luận: $num_tl câu, $total_diem_tl điểm.
+THÔNG TIN ĐỀ KIỂM TRA
 
-TÀI LIỆU BÁM SÁT: 
+Môn học: $mon_hoc
+
+Lớp: $lop
+
+Tên bài: $ten_de
+
+========================
+
+CẤU HÌNH
+
+Trắc nghiệm
+
+- NLC: $n_nlc câu
+
+- Đúng Sai: $n_ds câu
+
+- Điền khuyết: $n_dk câu
+
+- TL ngắn: $n_ngan câu
+
+Tổng số câu TN:
+
+$tong_cau_tn
+
+Tổng điểm TN:
+
+$total_diem_tn
+
+------------------------
+
+Tự luận
+
+Số câu:
+
+$num_tl
+
+Tổng điểm:
+
+$total_diem_tl
+
+------------------------
+
+MỨC ĐỘ
+
+Nhận biết:
+
+$nb %
+
+Thông hiểu:
+
+$th %
+
+Vận dụng:
+
+$vd %
+
+Vận dụng cao:
+
+$vdc %
+
+========================
+
+TÀI LIỆU
+
 $file_context
 
-KỶ LUẬT KẺ BẢNG MARKDOWN (LỖI SỐNG CÒN):
-1. TUYỆT ĐỐI KHÔNG được gộp cột, KHÔNG tạo tiêu đề bảng 2 dòng (CẤM gộp cột "Mức độ nhận thức").
-2. Bảng Markdown phải là dạng phẳng (Flat Table), có duy nhất 1 dòng tiêu đề.
-3. BẮT BUỘC copy chính xác 100% khung bảng mẫu dưới đây để điền nội dung, không tự ý thêm cột. Viết nội dung thật NGẮN GỌN để tránh quá tải hệ thống.
+========================
 
-BẮT BUỘC TRẢ VỀ ĐÚNG 4 PHẦN SAU:
+HÃY TRẢ VỀ ĐÚNG CẤU TRÚC SAU
 
-I. MA TRẬN ĐỀ KIỂM TRA
-| Chủ đề | Nội dung | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
-|---|---|---|---|---|---|---|
-(Điền nội dung ma trận vào đây, các ý cực kỳ vắn tắt)
+# I. MA TRẬN ĐỀ KIỂM TRA
 
-II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
-| STT | Nội dung | Yêu cầu cần đạt | Số câu |
-|---|---|---|---|
-(Điền nội dung đặc tả vào đây, ngắn gọn)
+(Bảng Markdown)
 
-III. ĐỀ KIỂM TRA
-(Ghi chi tiết đề bài tại đây)
+# II. BẢN ĐẶC TẢ
 
-IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
-(Ghi chi tiết đáp án tại đây)
+(Bảng Markdown)
+
+# III. ĐỀ KIỂM TRA
+
+Đầy đủ câu hỏi.
+
+Nếu là trắc nghiệm:
+
+A.
+
+B.
+
+C.
+
+D.
+
+Nếu có công thức phải dùng LaTeX.
+
+# IV. ĐÁP ÁN
+
+Đáp án đầy đủ.
+
+# V. HƯỚNG DẪN CHẤM
+
+Chi tiết từng ý.
+
+========================
+
+KIỂM TRA TRƯỚC KHI XUẤT
+
+- đủ các phần
+
+- tổng điểm = 10
+
+- đúng số câu
+
+- đúng cấu hình
+
+- đúng Markdown
