@@ -52,6 +52,7 @@ try:
     from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
     from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
     from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
+    from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
     
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
@@ -235,8 +236,8 @@ elif phan_he == "Hỗ trợ Giảng dạy":
         render_xd_phan_tich(ai_engine)
     with tabs_gd[6]: 
         render_xd_ngan_hang_de(ai_engine)
-    with tabs_gd[7]:
-        st.info("💡 Tính năng Sinh Video đang được phát triển.")
+    with tabs_gd[7]: 
+        render_xd_sinh_video(ai_engine)
     with tabs_gd[8]:
         st.info("💡 Tính năng Tương tác đang được phát triển.")
     with tabs_gd[9]:
