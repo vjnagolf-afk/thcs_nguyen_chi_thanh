@@ -3,7 +3,6 @@ import streamlit as st
 import sys
 import os 
 from pathlib import Path
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 # ========================================== #
 # 1. CẤU HÌNH TRANG
 # ========================================== #
@@ -19,47 +18,6 @@ st.set_page_config(
 ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
-
-# ========================================== #
-# 3. IMPORT CÁC PHÂN HỆ
-# ========================================== #
-try:
-    from utils.db_connector import db
-    from utils.ai_engine import AIEngine
-    
-    # --- Quản lý tổ ---
-    from modules.quan_ly_to.danh_sach import render_danh_sach
-    from modules.quan_ly_to.phan_cong import render_phan_cong
-    from modules.quan_ly_to.bien_ban import render_bien_ban
-    
-    # --- Hỗ trợ giáo viên (Dùng Views) ---
-    from views.xd_khbd_view import render_xd_khbd
-    from views.xd_de_kt_view import render_xd_de_kt
-    
-    # --- Hỗ trợ giáo viên (Modules còn lại) ---
-    from modules.ho_tro_gv.xd_stem import render_xd_stem
-    from modules.ho_tro_gv.xd_rubric import render_xd_rubric
-    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
-    from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
-    from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
-    from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-    from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
-    from modules.ho_tro_gv.xd_live import render_xd_live
-    
-    # --- Hỗ trợ giảng dạy ---
-    from modules.ho_tro_giang_day.rag_ask import render_rag
-    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
-    from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
-    from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
-    from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
-    from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
-    from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
-    from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
-    from modules.ho_tro_giang_day.xd_tuong_tac import render_xd_tuong_tac
-    from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
-except ImportError as e:
-    st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
-    st.stop()
 
 # ========================================== #
 # 4. KHỞI TẠO TRẠNG THÁI & ENGINE
