@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 import sys
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+import os 
 from pathlib import Path
 # ========================================== #
 # 1. CẤU HÌNH TRANG
