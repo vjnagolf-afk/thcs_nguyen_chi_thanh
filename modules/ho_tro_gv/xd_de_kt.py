@@ -45,14 +45,14 @@ def render_xd_de_kt(ai_engine):
         
         st.markdown("**2. Thông số Trắc nghiệm**")
         cols = st.columns(8)
-        n_nlc = cols[0].number_input("NLC", value=10)
-        d_nlc = cols[1].number_input("Đ.NLC", min_value=0.25, value=0.25, step=0.25)
-        n_ds = cols[2].number_input("Đ/S", value=2)
-        d_ds = cols[3].number_input("Đ.Đ/S", min_value=0.25, value=0.25, step=0.25)
-        n_dk = cols[4].number_input("Điền K", value=2)
-        d_dk = cols[5].number_input("Đ.DK", min_value=0.25, value=0.25, step=0.25)
-        n_ngan = cols[6].number_input("TL Ngắn", value=2)
-        d_ngan = cols[7].number_input("Đ.TLN", min_value=0.25, value=0.50, step=0.25)
+        n_nlc = cols[0].number_input("NLC", min_value=0, value=10)
+        d_nlc = cols[1].number_input("Đ.NLC", min_value=0.0, value=0.25, step=0.25)
+        n_ds = cols[2].number_input("Đ/S", min_value=0, value=2)
+        d_ds = cols[3].number_input("Đ.Đ/S", min_value=0.0, value=0.25, step=0.25)
+        n_dk = cols[4].number_input("Điền K", min_value=0, value=2)
+        d_dk = cols[5].number_input("Đ.DK", min_value=0.0, value=0.25, step=0.25)
+        n_ngan = cols[6].number_input("TL Ngắn", min_value=0, value=2)
+        d_ngan = cols[7].number_input("Đ.TLN", min_value=0.0, value=0.50, step=0.25)
 
         st.markdown("**3. Thông số Tự luận**")
         total_diem_tn = (n_nlc * d_nlc) + (n_ds * d_ds) + (n_dk * d_dk) + (n_ngan * d_ngan)
@@ -61,7 +61,7 @@ def render_xd_de_kt(ai_engine):
         
         tl_points = []
         for i in range(num_tl):
-            p = tl_cols[1].number_input(f"Câu {i+1} (đ)", min_value=0.25, value=1.0, step=0.25, key=f"tl_p_{i}")
+            p = tl_cols[1].number_input(f"Câu {i+1} (đ)", min_value=0.0, value=1.0, step=0.25, key=f"tl_p_{i}")
             tl_points.append(p)
         
         total_diem_tl = sum(tl_points)
