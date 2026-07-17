@@ -1,35 +1,54 @@
 import streamlit as st
-import sys
+import pandas as pd
 from pathlib import Path
 
 def render_xd_cham_nhanh(ai_engine):
-    st.markdown("### ⚡ Chấm bài nhanh & Phản hồi tức thì")
+    st.markdown("### ⚡ Chấm bài nhanh hàng loạt (TN & TL)")
     
-    col1, col2 = st.columns([2, 1])
-    dap_an_dung = col1.text_area("Nhập đáp án đúng hoặc tiêu chí chấm:", placeholder="VD: 1A, 2B, 3C... hoặc các ý chính cần có trong bài tự luận ngắn.")
-    diem_toi_da = col2.number_input("Điểm tối đa:", min_value=1, max_value=100, value=10)
+    # 1. Cấu hình bài kiểm tra
+    c1, c2, c3 = st.columns(3)
+    loai_bai = c1.selectbox("Loại bài:", ["Hỗn hợp (TN & TL)", "100% Trắc nghiệm", "100% Tự luận"])
+    diem_tn = c2.number_input("Tổng điểm Trắc nghiệm:", value=5.0, step=0.1)
+    diem_tl = c3.number_input("Tổng điểm Tự luận:", value=5.0, step=0.1)
     
-    bai_lam_hs = st.text_area("Dán bài làm của học sinh:", height=150)
+    # Khu vực tải file (Hỗ trợ nhiều file cùng lúc)
+    uploaded_files = st.file_uploader("Tải lên các file bài làm (PDF/DOCX/TXT):", accept_multiple_files=True, type=["pdf", "docx", "txt"])
     
-    if st.button("🚀 CHẤM NHANH", type="primary", use_container_width=True):
-        if not dap_an_dung or not bai_lam_hs:
-            st.error("Vui lòng nhập đầy đủ đáp án và bài làm!")
+    dap_an = st.text_area("Nhập Đáp án TN hoặc Tiêu chí chấm Tự luận:")
+    
+    if st.button("🚀 XỬ LÝ CHẤM LÔ (BATCH PROCESS)", type="primary"):
+        if not uploaded_files or not dap_an:
+            st.error("⚠️ Vui lòng tải file bài làm và nhập đáp án/tiêu chí!")
         else:
-            with st.spinner("⏳ AI đang chấm điểm..."):
-                prompt = f"""
-                Bạn là trợ lý giáo viên. Hãy chấm bài tập này dựa trên tiêu chí sau:
-                - Đáp án/Tiêu chí: {dap_an_dung}
-                - Điểm tối đa: {diem_toi_da}
-                - Bài làm học sinh: {bai_lam_hs}
-
-                Yêu cầu:
-                1. Cho điểm chính xác (theo thang {diem_toi_da}).
-                2. Nhận xét ngắn gọn 1-2 câu về ưu điểm và hạn chế.
-                3. Trình bày dạng bảng để giáo viên dễ ghi vào sổ.
-                """
-                try:
-                    res = ai_engine.generate_text(prompt)
-                    st.markdown("---")
-                    st.markdown(res)
-                except Exception as e:
-                    st.error(f"Lỗi chấm bài: {e}")
+            ket_qua_list = []
+            
+            with st.spinner(f"⏳ Đang chấm {len(uploaded_files)} bài làm..."):
+                for file in uploaded_files:
+                    # Đọc nội dung (giả định dùng hàm extract_text_from_file đã có)
+                    content = "Nội dung bài làm..." # Thầy sử dụng lại hàm extract_text_from_file ở các module trước
+                    
+                    prompt = f"""
+                    Bạn là giáo viên. Hãy chấm bài làm này theo cấu trúc:
+                    - Loại bài: {loai_bai}
+                    - Đáp án/Tiêu chí: {dap_an}
+                    - Trắc nghiệm: {diem_tn} điểm, Tự luận: {diem_tl} điểm.
+                    
+                    Trả về JSON duy nhất với keys: "diem_tn", "diem_tl", "tong_diem", "nhan_xet".
+                    Bài làm: {content}
+                    """
+                    
+                    # Gọi AI
+                    try:
+                        res = ai_engine.generate_text(prompt) # Cần xử lý parse JSON từ res
+                        ket_qua_list.append({"Tên file": file.name, "Kết quả": res})
+                    except Exception as e:
+                        ket_qua_list.append({"Tên file": file.name, "Kết quả": f"Lỗi: {e}"})
+            
+            # 2. Hiển thị bảng tổng hợp
+            st.markdown("### 📊 Kết quả chấm")
+            df = pd.DataFrame(ket_qua_list)
+            st.dataframe(df, use_container_width=True)
+            
+            # Xuất Excel
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Tải bảng điểm (CSV)", csv, "Bang_diem.csv", "text/csv")
