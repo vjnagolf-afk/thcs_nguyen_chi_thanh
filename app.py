@@ -250,8 +250,8 @@ elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
     tabs_to = st.tabs(["Danh sách thành viên", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
     
-    with tabs_to[0]:
-        render_danh_sach()
+    with tabs_to[0]: 
+        render_danh_sach(db)
     with tabs_to[1]:
         render_phan_cong(db)
     with tabs_to[2]:
