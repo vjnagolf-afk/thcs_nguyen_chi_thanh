@@ -35,7 +35,7 @@ try:
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
     # Import các module của phân hệ Giáo viên
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
-    from modules.ho_tro_gv.xd_de_kt import render_xd_de_kt
+    from views.xd_de_kt_view import render_xd_de_kt
     from modules.ho_tro_gv.xd_stem import render_xd_stem
     from modules.ho_tro_gv.xd_rubric import render_xd_rubric
     from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
@@ -44,7 +44,7 @@ try:
     from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
     from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
     from modules.ho_tro_gv.xd_live import render_xd_live
-    from views.xd_de_kt_view import render_xd_de_kt
+  
     # --- Hỗ trợ giảng dạy ---
     from modules.ho_tro_giang_day.rag_ask import render_rag
     from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
