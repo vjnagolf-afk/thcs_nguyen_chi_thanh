@@ -50,6 +50,7 @@ try:
     from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
     from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
     from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
+    from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
     
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
@@ -229,8 +230,8 @@ elif phan_he == "Hỗ trợ Giảng dạy":
         render_xd_hoc_lieu(ai_engine)
     with tabs_gd[4]: 
         render_xd_mo_phong(ai_engine)
-    with tabs_gd[5]:
-        st.info("💡 Tính năng Phân tích đang được phát triển.")
+    with tabs_gd[5]: 
+        render_xd_phan_tich(ai_engine)
     with tabs_gd[6]:
         st.info("💡 Tính năng Ngân hàng đề đang được phát triển.")
     with tabs_gd[7]:
