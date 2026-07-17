@@ -1,27 +1,117 @@
-YÊU CẦU: Soạn Đề kiểm tra $mon_hoc lớp $lop bài "$ten_de".
-CẤU HÌNH ĐỀ:
-- Trắc nghiệm: Tổng $tong_cau_tn câu, Tổng điểm $total_diem_tn. 
-  (Gồm: $n_nlc NLC, $n_ds Đúng/Sai, $n_dk Điền khuyết, $n_ngan TL ngắn).
-- Tự luận: $num_tl câu, Tổng điểm $total_diem_tl.
-- Phân bổ: $nb% NB, $th% TH, $vd% VD, $vdc% VDC.
+THÔNG TIN ĐỀ KIỂM TRA
 
-TÀI LIỆU BÁM SÁT: 
+Môn học: $mon_hoc
+
+Lớp: $lop
+
+Tên bài: $ten_de
+
+========================
+
+CẤU HÌNH
+
+Trắc nghiệm
+
+- NLC: $n_nlc câu
+
+- Đúng Sai: $n_ds câu
+
+- Điền khuyết: $n_dk câu
+
+- TL ngắn: $n_ngan câu
+
+Tổng số câu TN:
+
+$tong_cau_tn
+
+Tổng điểm TN:
+
+$total_diem_tn
+
+------------------------
+
+Tự luận
+
+Số câu:
+
+$num_tl
+
+Tổng điểm:
+
+$total_diem_tl
+
+------------------------
+
+MỨC ĐỘ
+
+Nhận biết:
+
+$nb %
+
+Thông hiểu:
+
+$th %
+
+Vận dụng:
+
+$vd %
+
+Vận dụng cao:
+
+$vdc %
+
+========================
+
+TÀI LIỆU
+
 $file_context
 
-BẮT BUỘC TRẢ VỀ THEO ĐÚNG CẤU TRÚC SAU (Copy y hệt form này để điền tiếp nội dung):
+========================
 
-I. MA TRẬN ĐỀ KIỂM TRA
-| Chủ đề | Nội dung | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
-|---|---|---|---|---|---|---|
-(Điền các dòng nội dung ma trận vào đây)
+HÃY TRẢ VỀ ĐÚNG CẤU TRÚC SAU
 
-II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
-| STT | Nội dung | Yêu cầu cần đạt | Số câu hỏi |
-|---|---|---|---|
-(Điền các dòng nội dung đặc tả vào đây)
+# I. MA TRẬN ĐỀ KIỂM TRA
 
-III. ĐỀ KIỂM TRA
-(Soạn chi tiết các câu hỏi trắc nghiệm và tự luận tại đây. Trắc nghiệm nhớ xuống dòng 4 đáp án A, B, C, D)
+(Bảng Markdown)
 
-IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
-(Soạn chi tiết đáp án và biểu điểm tại đây)
+# II. BẢN ĐẶC TẢ
+
+(Bảng Markdown)
+
+# III. ĐỀ KIỂM TRA
+
+Đầy đủ câu hỏi.
+
+Nếu là trắc nghiệm:
+
+A.
+
+B.
+
+C.
+
+D.
+
+Nếu có công thức phải dùng LaTeX.
+
+# IV. ĐÁP ÁN
+
+Đáp án đầy đủ.
+
+# V. HƯỚNG DẪN CHẤM
+
+Chi tiết từng ý.
+
+========================
+
+KIỂM TRA TRƯỚC KHI XUẤT
+
+- đủ các phần
+
+- tổng điểm = 10
+
+- đúng số câu
+
+- đúng cấu hình
+
+- đúng Markdown
