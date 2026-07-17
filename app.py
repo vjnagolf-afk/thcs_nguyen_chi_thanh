@@ -194,23 +194,23 @@ elif phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     tabs_gv = st.tabs(["XD KHBD", "XD Đề KT", "Thiết kế bài dạy STEM", "Rubric", "Chủ nhiệm", "Đánh giá kĩ năng Viết", "Tạo prompt", "Quizizz", "Mô phỏng thực hành"])
     
-    with tabs_gd[0]:
-        render_rag(ai_engine)
-    with tabs_gd[1]:
-        render_xd_tro_choi(ai_engine) # <--- Gọi module trò chơi
+    with tabs_gv[0]:
+        render_xd_khbd(ai_engine)
+    with tabs_gv[1]:
+        render_xd_de_kt(ai_engine)
     with tabs_gv[2]:
         render_xd_stem(ai_engine)
     with tabs_gv[3]:
         render_xd_rubric(ai_engine)
-    with tabs_gv[4]: # <--- Tab Chủ nhiệm là Tab số 5 (index 4)
+    with tabs_gv[4]:
         render_xd_chu_nhiem(ai_engine)
-    with tabs_gv[5]: # <--- Đây là vị trí Tab số 6
+    with tabs_gv[5]:
         render_xd_cham_viet(ai_engine)
-    with tabs_gv[6]: # <--- Đây là vị trí Tab Tạo prompt (index 6)
+    with tabs_gv[6]:
         render_xd_tao_prompt(ai_engine)
-    with tabs_gv[7]: # <--- Đây là vị trí Tab Quizizz (index 7)
+    with tabs_gv[7]:
         render_xd_quizizz(ai_engine)
-    with tabs_gv[8]: # <--- Đây là vị trí Tab Mô phỏng thực hành (index 8)
+    with tabs_gv[8]:
         render_xd_mo_phong(ai_engine)
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
@@ -218,9 +218,9 @@ elif phan_he == "Hỗ trợ Giảng dạy":
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
     
     with tabs_gd[0]:
-        render_rag(ai_engine) # <--- Gọi module vừa tạo
+        render_rag(ai_engine)
     with tabs_gd[1]:
-        st.info("💡 Tính năng Trò chơi tương tác đang được phát triển.")
+        render_xd_tro_choi(ai_engine) # <--- Gọi module trò chơi
     # ... các tab khác ...
 
 elif phan_he == "Quản lý Tổ chuyên môn":
