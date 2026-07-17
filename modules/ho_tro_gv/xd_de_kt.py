@@ -92,6 +92,18 @@ def render_xd_de_kt(ai_engine):
             try:
                 st.session_state['de_kt_content'] = ai_engine.generate_text(prompt)
                 st.rerun()
+                result = ai_engine.generate_text(prompt)
+                st.write(f"Độ dài kết quả: {len(result) if result else 0} ký tự")
+                if result:
+                    st.subheader("500 ký tự đầu")
+                    st.code(result[:500])
+                    st.subheader("500 ký tự cuối")
+                    st.code(result[-500:])
+                else:
+                    st.error("AI trả về rỗng.")
+                st.session_state["de_kt_content"] = result
+                st.rerun()
+            
             except Exception as e: st.error(str(e))
 
     if 'de_kt_content' in st.session_state:
