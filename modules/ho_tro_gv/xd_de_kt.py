@@ -46,14 +46,15 @@ def render_xd_de_kt(ai_engine):
         
         st.markdown("**2. Thông số Trắc nghiệm**")
         cols = st.columns(8)
+        # Điều chỉnh min_value=0.25 và step=0.25 cho các ô điểm
         n_nlc = cols[0].number_input("NLC", value=10)
-        d_nlc = cols[1].number_input("Đ.NLC", value=0.25, step=0.05)
+        d_nlc = cols[1].number_input("Đ.NLC", min_value=0.25, value=0.25, step=0.25)
         n_ds = cols[2].number_input("Đ/S", value=2)
-        d_ds = cols[3].number_input("Đ.Đ/S", value=0.25, step=0.05)
+        d_ds = cols[3].number_input("Đ.Đ/S", min_value=0.25, value=0.25, step=0.25)
         n_dk = cols[4].number_input("Điền K", value=2)
-        d_dk = cols[5].number_input("Đ.DK", value=0.25, step=0.05)
+        d_dk = cols[5].number_input("Đ.DK", min_value=0.25, value=0.25, step=0.25)
         n_ngan = cols[6].number_input("TL Ngắn", value=2)
-        d_ngan = cols[7].number_input("Đ.TLN", value=0.50, step=0.05)
+        d_ngan = cols[7].number_input("Đ.TLN", min_value=0.25, value=0.50, step=0.25)
 
         st.markdown("**3. Thông số Tự luận**")
         total_diem_tn = (n_nlc * d_nlc) + (n_ds * d_ds) + (n_dk * d_dk) + (n_ngan * d_ngan)
@@ -62,7 +63,8 @@ def render_xd_de_kt(ai_engine):
         
         tl_points = []
         for i in range(num_tl):
-            p = tl_cols[1].number_input(f"Câu {i+1} (đ)", value=1.0, step=0.25, key=f"tl_p_{i}")
+            # Điều chỉnh min_value=0.25 và step=0.25 cho điểm tự luận
+            p = tl_cols[1].number_input(f"Câu {i+1} (đ)", min_value=0.25, value=1.0, step=0.25, key=f"tl_p_{i}")
             tl_points.append(p)
         
         total_diem_tl = sum(tl_points)
@@ -81,20 +83,13 @@ def render_xd_de_kt(ai_engine):
             Bạn là chuyên gia soạn đề kiểm tra chuẩn 5512.
             YÊU CẦU: Soạn đề {mon_hoc} lớp {lop} bài {ten_de}.
             CẤU HÌNH:
-            - Trắc nghiệm: Tổng {n_nlc + n_ds + n_dk + n_ngan} câu, Tổng điểm {total_diem_tn:.2f}.
-            - Tự luận: {num_tl} câu, Tổng điểm {total_diem_tl:.2f}.
+            - Phần Trắc nghiệm: Tổng {n_nlc + n_ds + n_dk + n_ngan} câu, Tổng điểm {total_diem_tn:.2f}.
+            - Phần Tự luận: {num_tl} câu, Tổng điểm {total_diem_tl:.2f}.
             - Phân bổ: {nb}% NB, {th}% TH, {vd}% VD, {vdc}% VDC.
             
-            ĐỊNH DẠNG TRẢ VỀ (QUAN TRỌNG: MỌI BẢNG PHẢI CÓ DÒNG PHÂN CÁCH `|---|---|`):
-            1. I. MA TRẬN ĐỀ KIỂM TRA
-            (Bắt buộc dùng Markdown chuẩn như sau:
-            | Chủ đề | Nội dung | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
-            |---|---|---|---|---|---|---|
-            | ... | ... | ... | ... | ... | ... | ... |)
-            
-            2. II. BẢN ĐẶC TẢ 
-            (Kẻ bảng Markdown chuẩn có dòng `|---|---|...` tương tự)
-            
+            ĐỊNH DẠNG TRẢ VỀ:
+            1. I. MA TRẬN ĐỀ KIỂM TRA (Kẻ bảng Markdown)
+            2. II. BẢN ĐẶC TẢ (Kẻ bảng Markdown)
             3. III. ĐỀ KIỂM TRA (Ghi rõ nội dung đề)
             4. IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM (Chi tiết)
             
@@ -118,4 +113,4 @@ def render_xd_de_kt(ai_engine):
             word_bytes = WordExportEngine.export_to_word({"ai_generated_content": st.session_state['de_kt_content'], "is_de_kt": True, "title": ten_de})
             st.download_button("📥 TẢI FILE WORD", data=word_bytes, file_name="De_Thi.docx", use_container_width=True)
         except Exception as e:
-            st.warning(f"Chưa thể xuất ra file Word do bảng dữ liệu AI sinh ra bị lỗi định dạng. Vui lòng bấm tạo lại đề. Lỗi chi tiết: {e}")
+            st.warning(f"Chưa thể xuất ra file Word. Lỗi chi tiết: {e}")
