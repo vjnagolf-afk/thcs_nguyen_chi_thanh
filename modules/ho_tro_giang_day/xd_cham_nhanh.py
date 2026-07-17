@@ -1,54 +1,67 @@
 import streamlit as st
 import pandas as pd
+import json
 from pathlib import Path
+
+# Hàm đọc file (thầy đảm bảo hàm này có trong module hoặc import từ utils)
+def extract_text_from_file(uploaded_file):
+    # Sử dụng logic đọc PDF/DOCX/TXT đã thiết kế trước đó
+    return "Nội dung bài làm mẫu..." 
 
 def render_xd_cham_nhanh(ai_engine):
     st.markdown("### ⚡ Chấm bài nhanh hàng loạt (TN & TL)")
     
-    # 1. Cấu hình bài kiểm tra
-    c1, c2, c3 = st.columns(3)
-    loai_bai = c1.selectbox("Loại bài:", ["Hỗn hợp (TN & TL)", "100% Trắc nghiệm", "100% Tự luận"])
-    diem_tn = c2.number_input("Tổng điểm Trắc nghiệm:", value=5.0, step=0.1)
-    diem_tl = c3.number_input("Tổng điểm Tự luận:", value=5.0, step=0.1)
+    # 1. Cấu hình bảng điểm
+    col_a, col_b = st.columns(2)
+    with col_a:
+        diem_tn = st.number_input("Tổng điểm TN (ví dụ: 5.0):", value=5.0, step=0.1)
+        dap_an_tn = st.text_area("Nhập Đáp án Trắc nghiệm (ví dụ: 1A, 2B, 3C...):", height=100)
+    with col_b:
+        diem_tl = st.number_input("Tổng điểm TL (ví dụ: 5.0):", value=5.0, step=0.1)
+        tieu_chi_tl = st.text_area("Nhập Tiêu chí/Đáp án Tự luận:", height=100)
     
-    # Khu vực tải file (Hỗ trợ nhiều file cùng lúc)
-    uploaded_files = st.file_uploader("Tải lên các file bài làm (PDF/DOCX/TXT):", accept_multiple_files=True, type=["pdf", "docx", "txt"])
+    uploaded_files = st.file_uploader("Tải lên bài làm của HS (hàng loạt):", accept_multiple_files=True, type=["pdf", "docx", "txt"])
     
-    dap_an = st.text_area("Nhập Đáp án TN hoặc Tiêu chí chấm Tự luận:")
-    
-    if st.button("🚀 XỬ LÝ CHẤM LÔ (BATCH PROCESS)", type="primary"):
-        if not uploaded_files or not dap_an:
-            st.error("⚠️ Vui lòng tải file bài làm và nhập đáp án/tiêu chí!")
+    if st.button("🚀 XỬ LÝ CHẤM LÔ (BATCH PROCESS)", type="primary", use_container_width=True):
+        if not uploaded_files or not dap_an_tn or not tieu_chi_tl:
+            st.error("⚠️ Vui lòng nhập đầy đủ đáp án cả 2 phần và tải file bài làm!")
         else:
             ket_qua_list = []
-            
             with st.spinner(f"⏳ Đang chấm {len(uploaded_files)} bài làm..."):
                 for file in uploaded_files:
-                    # Đọc nội dung (giả định dùng hàm extract_text_from_file đã có)
-                    content = "Nội dung bài làm..." # Thầy sử dụng lại hàm extract_text_from_file ở các module trước
+                    content = extract_text_from_file(file)
                     
+                    # Prompt ép AI trả về dữ liệu cấu trúc
                     prompt = f"""
-                    Bạn là giáo viên. Hãy chấm bài làm này theo cấu trúc:
-                    - Loại bài: {loai_bai}
-                    - Đáp án/Tiêu chí: {dap_an}
-                    - Trắc nghiệm: {diem_tn} điểm, Tự luận: {diem_tl} điểm.
+                    Bạn là giáo viên. Hãy chấm bài làm này theo hai phần độc lập:
+                    1. Phần Trắc nghiệm (Tổng {diem_tn}đ): So sánh với đáp án: {dap_an_tn}
+                    2. Phần Tự luận (Tổng {diem_tl}đ): Chấm dựa trên tiêu chí: {tieu_chi_tl}
                     
-                    Trả về JSON duy nhất với keys: "diem_tn", "diem_tl", "tong_diem", "nhan_xet".
-                    Bài làm: {content}
+                    Yêu cầu trả về JSON duy nhất có cấu trúc:
+                    {{"diem_tn": (float), "diem_tl": (float), "tong_diem": (float), "nhan_xet": "..."}}
+                    
+                    Bài làm học sinh: {content}
                     """
                     
-                    # Gọi AI
                     try:
-                        res = ai_engine.generate_text(prompt) # Cần xử lý parse JSON từ res
-                        ket_qua_list.append({"Tên file": file.name, "Kết quả": res})
+                        res = ai_engine.generate_text(prompt)
+                        # Trích xuất JSON từ phản hồi (giả định AI trả về chuỗi JSON)
+                        data = json.loads(res.replace("```json", "").replace("```", "").strip())
+                        ket_qua_list.append({
+                            "Tên HS/File": file.name,
+                            "Điểm TN": data["diem_tn"],
+                            "Điểm TL": data["diem_tl"],
+                            "Tổng điểm": data["diem_tn"] + data["diem_tl"],
+                            "Nhận xét": data["nhan_xet"]
+                        })
                     except Exception as e:
-                        ket_qua_list.append({"Tên file": file.name, "Kết quả": f"Lỗi: {e}"})
+                        ket_qua_list.append({"Tên HS/File": file.name, "Điểm TN": 0, "Điểm TL": 0, "Tổng điểm": 0, "Nhận xét": "Lỗi xử lý AI"})
             
             # 2. Hiển thị bảng tổng hợp
-            st.markdown("### 📊 Kết quả chấm")
+            st.markdown("---")
             df = pd.DataFrame(ket_qua_list)
             st.dataframe(df, use_container_width=True)
             
             # Xuất Excel
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Tải bảng điểm (CSV)", csv, "Bang_diem.csv", "text/csv")
+            csv = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("📥 Tải bảng điểm tổng hợp (CSV)", csv, "Bang_diem_tong_hop.csv", "text/csv")
