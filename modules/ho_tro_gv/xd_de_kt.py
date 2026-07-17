@@ -97,11 +97,11 @@ def render_xd_de_kt(ai_engine):
             with st.spinner("⏳ AI đang thiết lập Ma trận và trộn Đề kiểm tra..."):
                 file_context = ""
                 if bam_sat:
-                    if file_de_cuong: file_context += f"\n[NỘI DUNG ĐỀ CƯƠNG]:\n{extract_text_from_file(file_de_cuong)}"
-                    if file_ma_tran: file_context += f"\n[NỘI DUNG MA TRẬN MẪU]:\n{extract_text_from_file(file_ma_tran)}"
+                    if file_de_cuong: file_context += f"\n[NỘI DUNG ĐỀ CƯƠNG BẮT BUỘC SỬ DỤNG]:\n{extract_text_from_file(file_de_cuong)}"
+                    if file_ma_tran: file_context += f"\n[CẤU TRÚC MA TRẬN MẪU BẮT BUỘC TUÂN THỦ]:\n{extract_text_from_file(file_ma_tran)}"
 
                 prompt = f"""
-                Bạn là một chuyên gia khảo thí xuất sắc. Hãy xây dựng Đề kiểm tra và Ma trận đề chuẩn sư phạm theo đúng Thông tư hiện hành.
+                Bạn là một chuyên gia khảo thí xuất sắc của Bộ GD&ĐT. Hãy xây dựng Đề kiểm tra, Ma trận và Đặc tả đề chuẩn sư phạm theo đúng Thông tư hiện hành.
                 
                 THÔNG TIN CHUNG:
                 - Môn: {mon_hoc}, Cấp độ: {lop}
@@ -109,28 +109,34 @@ def render_xd_de_kt(ai_engine):
                 - Hình thức: {hinh_thuc}
                 - Thời gian làm bài: {thoi_gian}
 
-                YÊU CẦU MA TRẬN & CẤU TRÚC ĐỀ BẮT BUỘC (Khớp 100% với thông số sau):
-                1. Tỷ lệ nhận thức: Nhận biết {tl_nhan_biet}%, Thông hiểu {tl_thong_hieu}%, Vận dụng {tl_van_dung}%, Vận dụng cao {tl_vd_cao}%.
-                2. Phần Trắc nghiệm ({tong_cau_tn} câu, tổng {tong_diem_tn} điểm):
-                   - Dạng 1: {tn_nhieu_lua_chon} câu hỏi nhiều lựa chọn (4 phương án), mỗi câu {diem_nhieu_lua_chon} điểm.
-                   - Dạng 2: {tn_dung_sai} câu hỏi Đúng/Sai (Mỗi câu gồm 4 ý a,b,c,d), tính điểm theo mốc {diem_dung_sai} đ/câu chuẩn.
+                TÀI LIỆU THAM CHIẾU (Ngữ cảnh ra đề):
+                {file_context[:12000]}
+
+                YÊU CẦU NỘI DUNG (TUÂN THỦ TUYỆT ĐỐI):
+                1. BÁM SÁT ĐỀ CƯƠNG: Chỉ thiết kế câu hỏi xoay quanh kiến thức có trong [NỘI DUNG ĐỀ CƯƠNG BẮT BUỘC SỬ DỤNG]. Tuyệt đối KHÔNG tự bịa thêm kiến thức ngoài phạm vi.
+                2. BÁM SÁT MA TRẬN: Nếu có [CẤU TRÚC MA TRẬN MẪU], bắt buộc phải vẽ cấu trúc bảng (số cột, tên cột, định dạng) giống hệt 100% mẫu đó.
+                3. Tỷ lệ nhận thức: Nhận biết {tl_nhan_biet}%, Thông hiểu {tl_thong_hieu}%, Vận dụng {tl_van_dung}%, Vận dụng cao {tl_vd_cao}%.
+                4. Phần Trắc nghiệm ({tong_cau_tn} câu, tổng {tong_diem_tn} điểm):
+                   - Dạng 1: {tn_nhieu_lua_chon} câu nhiều lựa chọn (4 phương án A, B, C, D), mỗi câu {diem_nhieu_lua_chon} điểm.
+                   - Dạng 2: {tn_dung_sai} câu Đúng/Sai (Mỗi câu gồm 4 ý a,b,c,d), tính điểm {diem_dung_sai} đ/câu chuẩn.
                    - Dạng 3: {tn_dien_khuyet} câu điền khuyết, mỗi câu {diem_dien_khuyet} điểm.
-                3. Phần Tự luận/Trả lời ngắn ({tong_cau_tl} câu, tổng {tong_diem_tl} điểm):
-                   - Trong đó có {tl_ngan} câu trả lời ngắn (mỗi câu {diem_tl_ngan} điểm).
+                5. Phần Tự luận/Trả lời ngắn ({tong_cau_tl} câu, tổng {tong_diem_tl} điểm):
+                   - {tl_ngan} câu trả lời ngắn (mỗi câu {diem_tl_ngan} điểm).
                    - Các câu tự luận còn lại phân bổ điểm hợp lý sao cho tổng phần này đạt {tong_diem_tl} điểm.
-                4. Yêu cầu chi tiết thêm từ giáo viên: {yeu_cau_chi_tiet}
+                6. Yêu cầu chi tiết từ giáo viên: {yeu_cau_chi_tiet}
 
                 CẤU TRÚC BẮT BUỘC TRẢ VỀ (Phân chia rõ ràng bằng Markdown):
-                **PHẦN 1: MA TRẬN ĐỀ KIỂM TRA** (Kẻ bảng phân bổ chi tiết các mức độ nhận thức theo đúng thông số điểm và số câu).
-                **PHẦN 2: NỘI DUNG ĐỀ KIỂM TRA** (Trình bày khoa học. Trắc nghiệm có 4 đáp án A, B, C, D rõ ràng).
-                **PHẦN 3: ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM** (Bảng đáp án trắc nghiệm chuẩn. Hướng dẫn chấm tự luận chi tiết theo từng mức điểm).
+                I. MA TRẬN ĐỀ KIỂM TRA (Kẻ bảng Markdown hoàn chỉnh phân bổ chi tiết các mức độ nhận thức).
+                II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA (Kẻ bảng Markdown chi tiết Yêu cầu cần đạt).
+                III. ĐỀ KIỂM TRA (Trình bày khoa học. Trắc nghiệm phải có 4 đáp án A, B, C, D xuống dòng rõ ràng).
+                IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM (Bảng đáp án trắc nghiệm chuẩn. Hướng dẫn chấm tự luận chi tiết theo từng mức điểm).
 
-                LƯU Ý KỸ THUẬT:
-                - Mọi công thức Toán/Lý/Hóa/Sinh BẮT BUỘC dùng cú pháp LaTeX ($...$ cho inline hoặc $$...$$ cho block).
-                - Tuyệt đối KHÔNG dùng ký tự ">" ở đầu các dòng.
-                
-                TÀI LIỆU THAM CHIẾU (Dùng làm ngữ cảnh ra đề):
-                {file_context[:10000]}
+                LƯU Ý KỸ THUẬT (CỰC KỲ QUAN TRỌNG ĐỂ HIỂN THỊ ĐÚNG GIAO DIỆN):
+                - ĐỊNH DẠNG CÔNG THỨC MÔN TOÁN/LÝ/HÓA/SINH: Mọi công thức, ký hiệu, phương trình hóa học BẮT BUỘC dùng cú pháp LaTeX. 
+                  (Ví dụ: Inline: $x^2 + y^2 = 1$, $H_2SO_4$, $\\frac{{P(x)}}{{Q(x)}}$. Block: $$E = mc^2$$). Tuyệt đối KHÔNG viết text thường cho phân số hoặc chỉ số.
+                - ĐỒ THỊ/HÌNH ẢNH: Nếu câu hỏi cần hình minh họa, hãy ghi chú bằng dòng in nghiêng: *[Chèn hình ảnh đồ thị / mạch điện / tế bào tại đây]*.
+                - BẢNG BIỂU: Phải sử dụng Markdown Table (`| Cột 1 | Cột 2 |`) chuẩn xác, gióng cột đàng hoàng để giao diện xem trước (Preview) không bị vỡ.
+                - Tuyệt đối KHÔNG dùng ký tự ">" ở đầu các dòng (Sẽ làm lỗi định dạng quote).
                 """
                 
                 try:
