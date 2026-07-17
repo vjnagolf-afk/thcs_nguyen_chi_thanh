@@ -1,4 +1,4 @@
-YÊU CẦU: Soạn bộ Đề kiểm tra $mon_hoc lớp $lop bài "$ten_de".
+YÊU CẦU: Soạn Đề kiểm tra $mon_hoc lớp $lop bài "$ten_de".
 CẤU HÌNH ĐỀ:
 - Trắc nghiệm: Tổng $tong_cau_tn câu, Tổng điểm $total_diem_tn. 
   (Gồm: $n_nlc NLC, $n_ds Đúng/Sai, $n_dk Điền khuyết, $n_ngan TL ngắn).
@@ -8,8 +8,20 @@ CẤU HÌNH ĐỀ:
 TÀI LIỆU BÁM SÁT: 
 $file_context
 
-ĐỊNH DẠNG TRẢ VỀ:
-I. MA TRẬN ĐỀ KIỂM TRA (Bảng Markdown chuẩn)
-II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA (Bảng Markdown chuẩn)
-III. ĐỀ KIỂM TRA (Ghi rõ nội dung đề)
-IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM (Chi tiết)
+BẮT BUỘC TRẢ VỀ THEO ĐÚNG CẤU TRÚC SAU (Copy y hệt form này để điền tiếp nội dung):
+
+I. MA TRẬN ĐỀ KIỂM TRA
+| Chủ đề | Nội dung | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
+|---|---|---|---|---|---|---|
+(Điền các dòng nội dung ma trận vào đây)
+
+II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
+| STT | Nội dung | Yêu cầu cần đạt | Số câu hỏi |
+|---|---|---|---|
+(Điền các dòng nội dung đặc tả vào đây)
+
+III. ĐỀ KIỂM TRA
+(Soạn chi tiết các câu hỏi trắc nghiệm và tự luận tại đây. Trắc nghiệm nhớ xuống dòng 4 đáp án A, B, C, D)
+
+IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
+(Soạn chi tiết đáp án và biểu điểm tại đây)
