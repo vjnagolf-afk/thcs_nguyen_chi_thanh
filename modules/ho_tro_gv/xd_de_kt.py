@@ -29,7 +29,7 @@ def render_xd_de_kt(ai_engine):
         st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
         bam_sat = st.checkbox("Bám sát tài liệu", value=True)
     
-    # Khu vực tải file độc lập để không bị bóp méo giao diện
+    # Khu vực tải file độc lập
     c_f1, c_f2 = st.columns(2)
     file_de_cuong = c_f1.file_uploader("Tải đề cương", type=["pdf", "docx", "txt"])
     file_ma_tran = c_f2.file_uploader("Tải ma trận mẫu", type=["pdf", "docx", "txt"])
@@ -70,34 +70,41 @@ def render_xd_de_kt(ai_engine):
 
     # 3. NÚT XỬ LÝ
     if st.button("🚀 TỰ ĐỘNG KHỞI TẠO MA TRẬN VÀ ĐỀ THI", type="primary", use_container_width=True):
-        with st.spinner("⏳ AI đang làm việc..."):
+        with st.spinner("⏳ AI đang làm việc, xin vui lòng đợi (có thể mất 1-2 phút)..."):
             file_context = ""
             if bam_sat:
                 if file_de_cuong: file_context += f"\nĐỀ CƯƠNG: {extract_text_from_file(file_de_cuong)}"
                 if file_ma_tran: file_context += f"\nMA TRẬN MẪU: {extract_text_from_file(file_ma_tran)}"
             
             prompt = f"""
-            Bạn là chuyên gia soạn đề kiểm tra chuẩn 5512.
-            YÊU CẦU: Soạn đề {mon_hoc} lớp {lop} bài {ten_de}.
-            CẤU HÌNH:
+            Bạn là chuyên gia khảo thí xuất sắc.
+            YÊU CẦU: Soạn một bộ Đề kiểm tra {mon_hoc} lớp {lop} bài "{ten_de}".
+            
+            CẤU HÌNH ĐIỂM SỐ VÀ CÂU HỎI (BẮT BUỘC TUÂN THỦ):
             - Trắc nghiệm: Tổng {n_nlc + n_ds + n_dk + n_ngan} câu, Tổng điểm {total_diem_tn:.2f}.
+              (Gồm: {n_nlc} NLC, {n_ds} Đúng/Sai, {n_dk} Điền khuyết, {n_ngan} Trả lời ngắn).
             - Tự luận: {num_tl} câu, Tổng điểm {total_diem_tl:.2f}.
-            - Phân bổ: {nb}% NB, {th}% TH, {vd}% VD, {vdc}% VDC.
+            - Phân bổ nhận thức: {nb}% NB, {th}% TH, {vd}% VD, {vdc}% VDC.
             
-            ĐỊNH DẠNG TRẢ VỀ (QUAN TRỌNG: MỌI BẢNG PHẢI CÓ DÒNG PHÂN CÁCH `|---|---|`):
-            1. I. MA TRẬN ĐỀ KIỂM TRA
-            (Bắt buộc dùng Markdown chuẩn như sau:
-            | Chủ đề | Nội dung | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
-            |---|---|---|---|---|---|---|
-            | ... | ... | ... | ... | ... | ... | ... |)
+            TÀI LIỆU THAM KHẢO: 
+            {file_context[:10000] if file_context else "Không có tài liệu đính kèm. Bạn hãy tự chọn các chủ đề trọng tâm của học kỳ để ra đề."}
             
-            2. II. BẢN ĐẶC TẢ 
-            (Kẻ bảng Markdown chuẩn có dòng `|---|---|...` tương tự)
+            ĐỊNH DẠNG BẮT BUỘC TRẢ VỀ (Gồm 4 phần, tuyệt đối không được bỏ sót phần nào, không dừng giữa chừng):
             
-            3. III. ĐỀ KIỂM TRA (Ghi rõ nội dung đề)
-            4. IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM (Chi tiết)
-            
-            TÀI LIỆU: {file_context[:10000]}
+            I. MA TRẬN ĐỀ KIỂM TRA
+            - Phải kẻ bảng Markdown chuẩn (bắt buộc có dòng phân cách `|---|---|...`). 
+            - Cột: Chủ đề, Nội dung, Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao, Tổng.
+
+            II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
+            - Phải kẻ bảng Markdown chuẩn.
+            - Cột: STT, Nội dung, Yêu cầu cần đạt, Số câu hỏi.
+
+            III. ĐỀ KIỂM TRA
+            - Ghi rõ nội dung câu hỏi phần Trắc nghiệm và phần Tự luận.
+            - Trắc nghiệm 4 đáp án A, B, C, D phải xuống dòng rõ ràng.
+
+            IV. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
+            - Đáp án chi tiết cho từng câu, có thang điểm.
             """
             try:
                 content = ai_engine.generate_text(prompt)
