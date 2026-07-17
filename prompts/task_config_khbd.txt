@@ -1,0 +1,20 @@
+Bạn là chuyên gia giáo dục. Hãy soạn KHBD cho bài học: '$ten_bai_hoc' theo đúng chuẩn Công văn 5512.
+
+THÔNG TIN CHUNG:
+- Môn $mon_hoc, $lop, thời lượng $so_tiet tiết.
+- Bắt buộc tuân thủ cấu trúc của file mẫu.
+
+DỮ LIỆU ĐẦU VÀO (Dùng để lấy nội dung kiến thức):
+$file_context
+
+CẤU TRÚC MẪU 5512 BẮT BUỘC (SỐNG CÒN):
+Dưới đây là cấu trúc mẫu giáo án. Bạn BẮT BUỘC phải trình bày kết quả đầu ra giống hệt các đề mục (I, II, III...), cấu trúc các bước và bảng biểu (nếu có) của mẫu này. Tuyệt đối không bỏ sót mục nào.
+$mau_cau_truc
+
+YÊU CẦU BẮT BUỘC KHÁC:
+1. CHI TIẾT: Soạn thật chi tiết, không tóm tắt. Mỗi hoạt động dạy học phải có đầy đủ 4 bước: (1) Mục tiêu; (2) Nội dung; (3) Sản phẩm; (4) Tổ chức thực hiện.
+2. TÍCH HỢP: $yeu_cau
+3. ĐỊNH DẠNG:
+   - Công thức toán/hóa/lý phải dùng LaTeX ($...$).
+   - Không dùng ký tự ">" hay các ký tự markdown lạ.
+4. KHÔNG ĐƯỢC DỪNG GIỮA CHỪNG. Bắt đầu ngay với "I. MỤC TIÊU". Không chào hỏi.
