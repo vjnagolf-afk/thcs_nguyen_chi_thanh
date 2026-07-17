@@ -32,7 +32,7 @@ try:
     from modules.quan_ly_to.bien_ban import render_bien_ban
     
     # --- Hỗ trợ giáo viên ---
-    from modules.ho_tro_gv.xd_khbd import render_xd_khbd
+    from views.xd_khbd_view import render_xd_khbd
     # Import các module của phân hệ Giáo viên
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
     from views.xd_de_kt_view import render_xd_de_kt
@@ -44,7 +44,7 @@ try:
     from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
     from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
     from modules.ho_tro_gv.xd_live import render_xd_live
-  
+    
     # --- Hỗ trợ giảng dạy ---
     from modules.ho_tro_giang_day.rag_ask import render_rag
     from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
