@@ -1,7 +1,3 @@
-# =====================================================================
-# FILE: models/khbd.py (ĐỐI TƯỢNG QUẢN LÝ DỮ LIỆU KẾ HOẠCH BÀI DẠY)
-# =====================================================================
-
 class KHBD:
     def __init__(self, ten_bai_hoc, mon_hoc, lop, so_tiet, yeu_cau, ai_generated_content):
         self.ten_bai_hoc = ten_bai_hoc
@@ -12,7 +8,6 @@ class KHBD:
         self.ai_generated_content = ai_generated_content
 
     def to_dict(self):
-        """Chuyển đổi thành Dictionary giống hệt cấu trúc khbd_meta cũ của thầy"""
         return {
             "title": self.ten_bai_hoc,
             "mon": self.mon_hoc,
