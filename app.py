@@ -47,6 +47,7 @@ try:
     from modules.ho_tro_giang_day.rag_ask import render_rag
     from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
     from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
+    from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
     
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
@@ -224,7 +225,8 @@ elif phan_he == "Hỗ trợ Giảng dạy":
         render_xd_tro_choi(ai_engine) # <--- Gọi module trò chơi
     with tabs_gd[2]: # <--- Đây là vị trí Tab Chấm bài (index 2)
         render_xd_cham_nhanh(ai_engine)
-
+    with tabs_gd[3]: # Index 3 là Tab thứ 4
+        render_xd_hoc_lieu(ai_engine)
 elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
     tabs_to = st.tabs(["Danh sách thành viên", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
