@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 # ========================================== #
-# 1. CẤU HÌNH TRANG (Bắt buộc ở dòng đầu tiên) #
+# 1. CẤU HÌNH TRANG (Bắt buộc ở dòng đầu tiên)
 # ========================================== #
 st.set_page_config(
     page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh",
@@ -13,31 +13,41 @@ st.set_page_config(
 )
 
 # ========================================== #
-# 2. CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG #
+# 2. CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG
 # ========================================== #
 ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# Import các phân hệ
+# ========================================== #
+# 3. IMPORT CÁC PHÂN HỆ
+# ========================================== #
 try:
     from utils.db_connector import db
     from utils.ai_engine import AIEngine
+    
+    # --- Quản lý tổ ---
     from modules.quan_ly_to.danh_sach import render_danh_sach
     from modules.quan_ly_to.phan_cong import render_phan_cong
     from modules.quan_ly_to.bien_ban import render_bien_ban
-    from modules.ho_tro_giang_day.rag_ask import render_rag
+    
+    # --- Hỗ trợ giáo viên ---
     from modules.ho_tro_gv.xd_khbd import render_xd_khbd
+    # (Nếu thầy đã có các file xd_de_kt, xd_stem... thì khai báo thêm ở đây)
+    
+    # --- Hỗ trợ giảng dạy ---
     from modules.ho_tro_giang_day.rag_ask import render_rag
     from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
     from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
     from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
+    from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
+    
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
 
 # ========================================== #
-# 3. KHỞI TẠO TRẠNG THÁI PHIÊN LÀM VIỆC #
+# 4. KHỞI TẠO TRẠNG THÁI PHIÊN LÀM VIỆC
 # ========================================== #
 if "user_api_key" not in st.session_state:
     st.session_state.user_api_key = None
@@ -45,22 +55,20 @@ if "is_admin_mode" not in st.session_state:
     st.session_state.is_admin_mode = False
 
 # ========================================== #
-# 4. HÀM KIỂM TRA ĐỊNH DẠNG API KEY #
+# 5. HÀM KIỂM TRA ĐỊNH DẠNG API KEY
 # ========================================== #
 def validate_key(key: str) -> bool:
-    """Kiểm tra xem chuỗi nhập vào có đúng định dạng API Key phổ biến không"""
     k = key.strip()
     return (
-        k.startswith("AIza")       # Gemini
-        or k.startswith("sk-ant-") # Claude
-        or k.startswith("sk-")     # OpenAI
+        k.startswith("AIza")       
+        or k.startswith("sk-ant-") 
+        or k.startswith("sk-")     
     )
 
 # ========================================== #
-# 5. HÀM LẤY ENGINE TỐI ƯU (BẢO VỆ CHỐNG RERUN) #
+# 6. HÀM LẤY ENGINE TỐI ƯU
 # ========================================== #
 def get_ai_engine_instance():
-    # Khóa bảo vệ: Nếu đã tồn tại Engine, trả về ngay lập tức để chặn khởi tạo lại
     if st.session_state.get("ai_engine_instance"):
         return st.session_state.ai_engine_instance
 
@@ -77,7 +85,6 @@ def get_ai_engine_instance():
             elif k.startswith("sk-"): keys["openai"] = k
             else: keys["gemini"] = k
 
-    # Lọc bỏ key rỗng
     keys = {k: v for k, v in keys.items() if v}
     
     if keys:
@@ -88,7 +95,7 @@ def get_ai_engine_instance():
     return st.session_state.ai_engine_instance
 
 # ========================================== #
-# 6. GIAO DIỆN SIDEBAR #
+# 7. GIAO DIỆN SIDEBAR
 # ========================================== #
 with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: #E63946;'>HỆ SINH THÁI SỐ<br>HỖ TRỢ GIÁO VIÊN</h2>", unsafe_allow_html=True)
@@ -104,7 +111,6 @@ with st.sidebar:
     st.write("")
     st.write("")
     st.write("")
-    st.write("")
     
     st.markdown(
         """
@@ -117,7 +123,6 @@ with st.sidebar:
     )
     st.markdown("---")
     
-    # Nút đăng xuất làm sạch Session triệt để
     if st.session_state.user_api_key or st.session_state.is_admin_mode:
         if st.button("🚪 Đăng xuất / Đổi Key", use_container_width=True, type="secondary"):
             st.session_state.user_api_key = None
@@ -127,7 +132,7 @@ with st.sidebar:
             st.rerun()
 
 # ========================================== #
-# 7. CỔNG BẢO MẬT (LOGIN FORM) #
+# 8. CỔNG BẢO MẬT (LOGIN FORM)
 # ========================================== #
 if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
     st.info("🔑 Vui lòng nhập API Key cá nhân hoặc Mật khẩu Quản trị để bắt đầu.")
@@ -156,16 +161,16 @@ if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
                 st.success("🚀 Khởi tạo với API Key cá nhân thành công!")
                 st.rerun()
             else:
-                st.error("❌ API Key không đúng định dạng chuẩn (Phải bắt đầu bằng 'AIza', 'sk-ant-' hoặc 'sk-'). Vui lòng kiểm tra lại!")
+                st.error("❌ API Key không đúng định dạng. Vui lòng kiểm tra lại!")
     st.stop()
 
 # ========================================== #
-# 8. KHỞI TẠO ENGINE & KIỂM TRA TOÀN VẸN #
+# 9. KHỞI TẠO ENGINE
 # ========================================== #
 ai_engine = get_ai_engine_instance()
 
 if not ai_engine:
-    st.error("❌ Không thể cấu hình Động cơ AI. Vui lòng liên hệ Quản trị viên để kiểm tra cấu hình secrets.")
+    st.error("❌ Không thể cấu hình Động cơ AI. Vui lòng kiểm tra lại Key.")
     if st.button("Quay lại màn hình đăng nhập"):
         st.session_state.user_api_key = None
         st.session_state.is_admin_mode = False
@@ -173,7 +178,7 @@ if not ai_engine:
     st.stop()
 
 # ========================================== #
-# 9. CHUYỂN HƯỚNG PHÂN HỆ (ROUTING) #
+# 10. CHUYỂN HƯỚNG PHÂN HỆ (ROUTING CHUẨN)
 # ========================================== #
 if phan_he == "Hỗ trợ Giáo viên":
     st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
@@ -183,10 +188,23 @@ if phan_he == "Hỗ trợ Giáo viên":
         render_xd_khbd(ai_engine)
     with tabs_gv[1]:
         st.info("💡 Tính năng Xây dựng Đề kiểm tra đang được phát triển.")
+    with tabs_gv[2]:
+        st.info("💡 Tính năng Thiết kế bài dạy STEM đang được phát triển.")
+    with tabs_gv[3]:
+        st.info("💡 Tính năng Rubric đang được phát triển.")
+    with tabs_gv[4]:
+        st.info("💡 Tính năng Chủ nhiệm đang được phát triển.")
+    with tabs_gv[5]:
+        st.info("💡 Tính năng Quản lý điểm đang được phát triển.")
+    with tabs_gv[6]:
+        st.info("💡 Tính năng Tạo prompt đang được phát triển.")
+    with tabs_gv[7]:
+        st.info("💡 Tính năng Quizizz đang được phát triển.")
+    with tabs_gv[8]:
+        st.info("💡 Tính năng Mô phỏng thực hành đang được phát triển.")
 
 elif phan_he == "Hỗ trợ Giảng dạy":
     st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-    # Danh sách tab của phân hệ Hỗ trợ Giảng dạy
     tabs_gd = st.tabs(["Hỏi-Đáp (RAG)", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Sinh Video", "Tương tác", "Cá nhân hóa"])
     
     with tabs_gd[0]:
@@ -195,9 +213,20 @@ elif phan_he == "Hỗ trợ Giảng dạy":
         render_xd_tro_choi(ai_engine)
     with tabs_gd[2]:
         render_xd_cham_nhanh(ai_engine)
-    with tabs_gd[3]: # Index 3 là Tab thứ 4
+    with tabs_gd[3]:
         render_xd_hoc_lieu(ai_engine)
-    # ... các tab khác ...
+    with tabs_gd[4]: 
+        render_xd_mo_phong(ai_engine)
+    with tabs_gd[5]:
+        st.info("💡 Tính năng Phân tích đang được phát triển.")
+    with tabs_gd[6]:
+        st.info("💡 Tính năng Ngân hàng đề đang được phát triển.")
+    with tabs_gd[7]:
+        st.info("💡 Tính năng Sinh Video đang được phát triển.")
+    with tabs_gd[8]:
+        st.info("💡 Tính năng Tương tác đang được phát triển.")
+    with tabs_gd[9]:
+        st.info("💡 Tính năng Cá nhân hóa đang được phát triển.")
 
 elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
@@ -210,4 +239,8 @@ elif phan_he == "Quản lý Tổ chuyên môn":
     with tabs_to[2]:
         render_bien_ban(db)
     with tabs_to[3]:
-        st.info("💡 Tính năng Kế hoạch tổ chuyên môn đang được phát triển.")
+        st.info("💡 Tính năng Kế hoạch đang được phát triển.")
+    with tabs_to[4]:
+        st.info("💡 Tính năng Thi đua đang được phát triển.")
+    with tabs_to[5]:
+        st.info("💡 Tính năng Kiểm tra KHBD đang được phát triển.")
