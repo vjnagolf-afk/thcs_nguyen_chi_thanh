@@ -45,8 +45,9 @@ try:
     from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
     from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
     from modules.ho_tro_giang_day.rag_ask import render_rag
-    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi 
-# <--- Thêm dòng này
+    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
+    from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
+    
 except ImportError as e:
     st.error(f"❌ Thiếu file hệ thống hoặc lỗi cấu trúc thư mục: {e}")
     st.stop()
@@ -221,7 +222,8 @@ elif phan_he == "Hỗ trợ Giảng dạy":
         render_rag(ai_engine)
     with tabs_gd[1]:
         render_xd_tro_choi(ai_engine) # <--- Gọi module trò chơi
-    # ... các tab khác ...
+    with tabs_gd[2]: # <--- Đây là vị trí Tab Chấm bài (index 2)
+        render_xd_cham_nhanh(ai_engine)
 
 elif phan_he == "Quản lý Tổ chuyên môn":
     st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
