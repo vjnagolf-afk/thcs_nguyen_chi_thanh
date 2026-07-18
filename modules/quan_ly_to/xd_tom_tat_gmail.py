@@ -15,24 +15,29 @@ from googleapiclient.discovery import build
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def get_gmail_service():
-    """Hàm xác thực và kết nối với Gmail"""
-    creds = None
-    # Hệ thống sẽ tự tạo file token.json sau lần đăng nhập đầu tiên
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    """Hàm xác thực và kết nối với Gmail - Tìm file theo đường dẫn tuyệt đối"""
+    # Tìm đường dẫn đến thư mục chứa app.py (thư mục gốc)
+    # Giả sử file này nằm trong modules/quan_ly_to/ -> lùi 3 cấp ra thư mục gốc
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cred_path = os.path.join(base_dir, 'credentials.json')
+    token_path = os.path.join(base_dir, 'token.json')
     
-    # Nếu chưa có token hoặc token hết hạn, yêu cầu đăng nhập
+    st.write(f"Đang tìm file tại: {cred_path}") # Dòng này để debug, chạy ngon thì thầy có thể xóa đi
+
+    creds = None
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+    
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not os.path.exists('credentials.json'):
-                st.error("🚨 Không tìm thấy file `credentials.json`. Thầy cần tải file này từ Google Cloud và để vào thư mục gốc!")
+            if not os.path.exists(cred_path):
+                st.error(f"🚨 Không tìm thấy file `credentials.json` tại: {cred_path}")
                 return None
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(cred_path, SCOPES)
             creds = flow.run_local_server(port=0)
-        # Lưu lại token cho các lần sau
-        with open('token.json', 'w') as token:
+        with open(token_path, 'w') as token:
             token.write(creds.to_json())
 
     try:
