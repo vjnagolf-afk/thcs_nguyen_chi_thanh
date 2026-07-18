@@ -42,7 +42,11 @@ from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
 from modules.quan_ly_to.danh_sach import render_danh_sach
 from modules.quan_ly_to.phan_cong import render_phan_cong
 from modules.quan_ly_to.bien_ban import render_bien_ban
-
+from modules.quan_ly_to.xd_ke_hoach import render_ke_hoach
+from modules.quan_ly_to.xd_thi_dua import render_thi_dua
+from modules.quan_ly_to.xd_kiem_tra_khbd import render_kiem_tra_khbd
+from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
+from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
 # 2. CẤU HÌNH TRANG
 st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide", page_icon="🏫")
 
@@ -134,6 +138,11 @@ try:
         with tabs[0]: render_danh_sach()
         with tabs[1]: render_phan_cong(db)
         with tabs[2]: render_bien_ban(db)
+        with tabs[3]: render_ke_hoach()
+        with tabs[4]: render_thi_dua()
+        with tabs[5]: render_kiem_tra_khbd()
+        with tabs[6]: render_sach_kn_so()
+        with tabs[7]: render_tom_tat_gmail(ai_engine)
 except Exception as e:
     st.error("🚨 Có lỗi xảy ra trong quá trình render!")
     st.exception(e)
