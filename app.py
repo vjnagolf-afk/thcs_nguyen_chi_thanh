@@ -140,7 +140,7 @@ try:
         with tabs[2]: render_bien_ban(db)
         with tabs[3]: render_ke_hoach()
         with tabs[4]: render_thi_dua()
-        with tabs[5]: render_kiem_tra_khbd()
+        with tabs[5]: render_kiem_tra_khbd(ai_engine)
         with tabs[6]: render_sach_kn_so()
         with tabs[7]: render_tom_tat_gmail(ai_engine)
 except Exception as e:
