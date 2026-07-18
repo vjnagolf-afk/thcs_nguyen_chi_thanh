@@ -115,7 +115,7 @@ try:
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        tabs = st.tabs(["HỎI ĐÁP", "TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "MÔ PHỎNG TN ẢO", "P.TÍCH KQHT", "TẠO ĐỀ NHANH", "TẠO VIDEO","TRUY VẤN T.LIỆU", " P.TÍCH BÀI HỌC","TẠO ĐỀ NHANH", "CÁ NHÂN HÓA"])
+        tabs = st.tabs(["HỎI ĐÁP", "TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "MÔ PHỎNG TN ẢO", "P.TÍCH KQHT", "TẠO ĐỀ NHANH", "TẠO VIDEO","TRUY VẤN T.LIỆU", "CÁ NHÂN HÓA", "P.TÍCH BÀI HỌC","TẠO ĐỀ NHANH"])
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
