@@ -1,20 +1,24 @@
 import streamlit as st
 import pandas as pd
 
-def seed_data_to_supabase():
-    """Hàm đẩy danh sách 10 giáo viên mặc định lên Supabase"""
-    data = [
-        {"ten": "Lê Hồng Dưỡng", "ngay_sinh": "1976", "bang_cap": "ĐH", "chu_the": "KHTN (Lý) - CN", "vai_tro": "Tổ trưởng", "email": "vjnagolf@gmail.com", "dien_thoai": "0984331178"},
-        {"ten": "Nguyễn Thị Huyền Trang", "ngay_sinh": "1983", "bang_cap": "Thạc sĩ", "chu_the": "KHTN (Lý) - CN", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123457"},
-        {"ten": "Lý Nguyễn Thu Nhi", "ngay_sinh": "1979", "bang_cap": "ĐH", "chu_the": "KHTN (Lý) - CN", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123458"},
-        {"ten": "Khương Thị Thúy Vân", "ngay_sinh": "1979", "bang_cap": "ĐH", "chu_the": "KHTN (Sinh)", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123460"},
-        {"ten": "Trần Xuân Hạnh", "ngay_sinh": "1985", "bang_cap": "ĐH", "chu_the": "GDTC", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123461"},
-        {"ten": "Trương Vĩnh Văn", "ngay_sinh": "1981", "bang_cap": "ĐH", "chu_the": "KHTN (Sinh) - GDTC", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123462"},
-        {"ten": "Phạm Xuân Thọ", "ngay_sinh": "1979", "bang_cap": "ĐH", "chu_the": "KHTN (Sinh) - GDTC", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123463"},
-        {"ten": "Lê Hùng Cường", "ngay_sinh": "1988", "bang_cap": "ĐH", "chu_the": "KHTN (Lý) - CN", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123464"},
-        {"ten": "Phạm Thùy Ngoan", "ngay_sinh": "1980", "bang_cap": "ĐH", "chu_the": "KHTN (Hóa)", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123465"},
-        {"ten": "Phạm Thị Minh Anh", "ngay_sinh": "2002", "bang_cap": "ĐH", "chu_the": "KHTN (Hóa-Sinh)", "vai_tro": "Giáo viên", "email": "nguyenvana@gmail.com", "dien_thoai": "0909123466"},
+def render_danh_sach():
+    st.markdown("### 👥 Danh sách thành viên Tổ chuyên môn")
+    st.success("📌 Dữ liệu thành viên được đồng bộ 1 chiều từ mã nguồn hệ thống.")
+
+    # 1. Khai báo danh sách giáo viên (Đã đổi key tiếng Việt để hiển thị lên bảng đẹp hơn)
+    ds_thanh_vien = [
+        {"Họ và tên": "Lê Hồng Dưỡng", "Năm sinh": "1976", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Lý) - CN", "Nhiệm vụ": "Tổ trưởng", "Email": "vjnagolf@gmail.com", "Điện thoại": "0984331178"},
+        {"Họ và tên": "Nguyễn Thị Huyền Trang", "Năm sinh": "1983", "Bằng cấp": "Thạc sĩ", "Chuyên môn": "KHTN (Lý) - CN", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123457"},
+        {"Họ và tên": "Lý Nguyễn Thu Nhi", "Năm sinh": "1979", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Lý) - CN", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123458"},
+        {"Họ và tên": "Khương Thị Thúy Vân", "Năm sinh": "1979", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Sinh)", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123460"},
+        {"Họ và tên": "Trần Xuân Hạnh", "Năm sinh": "1985", "Bằng cấp": "ĐH", "Chuyên môn": "GDTC", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123461"},
+        {"Họ và tên": "Trương Vĩnh Văn", "Năm sinh": "1981", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Sinh) - GDTC", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123462"},
+        {"Họ và tên": "Phạm Xuân Thọ", "Năm sinh": "1979", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Sinh) - GDTC", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123463"},
+        {"Họ và tên": "Lê Hùng Cường", "Năm sinh": "1988", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Lý) - CN", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123464"},
+        {"Họ và tên": "Phạm Thùy Ngoan", "Năm sinh": "1980", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Hóa)", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123465"},
+        {"Họ và tên": "Phạm Thị Minh Anh", "Năm sinh": "2002", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Hóa-Sinh)", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123466"},
     ]    
+    
     # 2. Chuyển đổi thành bảng dữ liệu (DataFrame)
     df = pd.DataFrame(ds_thanh_vien)
     
