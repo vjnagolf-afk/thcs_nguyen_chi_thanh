@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 
 def render_phan_cong(db):
     st.markdown("### 🗓️ Phân công chuyên môn")
@@ -16,12 +17,14 @@ def render_phan_cong(db):
     # Khởi tạo bộ nhớ tạm để lưu bảng phân công
     if "bang_phan_cong" not in st.session_state:
         st.session_state.bang_phan_cong = []
-        
-    # 2. Form phân công nhiệm vụ
-    with st.expander("➕ Thêm phân công mới", expanded=True):
+
+    # 2. KHU VỰC NHẬP LIỆU (CHIA 2 TABS)
+    tab_thu_cong, tab_file = st.tabs(["✍️ Nhập thủ công", "📂 Tải lên từ File (Excel/CSV)"])
+    
+    # --- Tab 1: Nhập thủ công (Như cũ) ---
+    with tab_thu_cong:
         col1, col2, col3 = st.columns(3)
         with col1:
-            # Menu dropdown tự động lấy tên từ thẻ Danh sách
             gv_duoc_chon = st.selectbox("👨‍🏫 Chọn Giáo viên:", ds_gv)
         with col2:
             mon_day = st.selectbox("📚 Môn phụ trách chính:", [
@@ -33,43 +36,88 @@ def render_phan_cong(db):
         with col3:
             so_tiet = st.number_input("⏱️ Số tiết/tuần:", min_value=1, max_value=30, value=4)
             
-        nhiem_vu_khac = st.text_input("📌 Nhiệm vụ kiêm nhiệm (nếu có):", placeholder="VD: Chủ nhiệm 9A1, Bồi dưỡng HSG Lý 9, Thư ký Hội đồng...")
+        nhiem_vu_khac = st.text_input("📌 Nhiệm vụ kiêm nhiệm (nếu có):", placeholder="VD: Chủ nhiệm 9A1, Bồi dưỡng HSG Lý 9...")
         
-        if st.button("💾 Lưu phân công", type="primary"):
-            # Thêm thông tin vào bảng tạm
+        if st.button("💾 Lưu phân công", type="primary", key="btn_luu_tc"):
             st.session_state.bang_phan_cong.append({
                 "Giáo viên": gv_duoc_chon,
                 "Môn giảng dạy": mon_day,
                 "Số tiết": so_tiet,
                 "Nhiệm vụ kiêm nhiệm": nhiem_vu_khac
             })
-            st.success(f"✅ Đã lưu phân công cho giáo viên **{gv_duoc_chon}** thành công!")
+            st.success(f"✅ Đã thêm phân công cho giáo viên **{gv_duoc_chon}**!")
             st.rerun()
+
+    # --- Tab 2: Upload File Hàng Loạt ---
+    with tab_file:
+        col_mau1, col_mau2 = st.columns([2, 1])
+        with col_mau1:
+            st.markdown("**Bước 1:** Tải file mẫu về máy, điền dữ liệu bằng Excel (Không đổi tên các cột).")
+        with col_mau2:
+            # Tạo file mẫu động dựa trên các cột yêu cầu, thêm sẵn 1 dòng dữ liệu mẫu
+            df_mau = pd.DataFrame({
+                "Giáo viên": [ds_gv[0] if ds_gv else "Nguyễn Văn A"],
+                "Môn giảng dạy": ["KHTN 9"],
+                "Số tiết": [4],
+                "Nhiệm vụ kiêm nhiệm": ["Tổ trưởng"]
+            })
+            csv_mau = df_mau.to_csv(index=False).encode('utf-8-sig') # Dùng utf-8-sig để Excel mở không bị lỗi font Tiếng Việt
+            st.download_button(
+                label="⬇️ Tải File Mẫu (CSV)",
+                data=csv_mau,
+                file_name="File_Mau_Phan_Cong.csv",
+                mime="text/csv",
+                type="secondary",
+                use_container_width=True
+            )
             
-    # 3. Hiển thị bảng tổng hợp
+        st.markdown("**Bước 2:** Tải file đã điền lên hệ thống (Hỗ trợ `.csv` hoặc `.xlsx`)")
+        uploaded_file = st.file_uploader("Kéo thả file vào đây", type=["csv", "xlsx"], label_visibility="collapsed")
+        
+        if uploaded_file is not None:
+            try:
+                # Đọc file dựa vào đuôi mở rộng
+                if uploaded_file.name.endswith('.csv'):
+                    df_upload = pd.read_csv(uploaded_file)
+                else:
+                    df_upload = pd.read_excel(uploaded_file)
+                
+                # Kiểm tra xem file có đủ 4 cột bắt buộc không
+                cot_yeu_cau = ["Giáo viên", "Môn giảng dạy", "Số tiết", "Nhiệm vụ kiêm nhiệm"]
+                if all(col in df_upload.columns for col in cot_yeu_cau):
+                    st.success("✅ File hợp lệ! Xem trước dữ liệu bên dưới:")
+                    st.dataframe(df_upload, use_container_width=True, hide_index=True)
+                    
+                    if st.button("🚀 Ghi đè dữ liệu lên hệ thống", type="primary", use_container_width=True):
+                        # Ghi đè dữ liệu mới vào bộ nhớ
+                        st.session_state.bang_phan_cong = df_upload[cot_yeu_cau].to_dict('records')
+                        st.rerun()
+                else:
+                    st.error(f"❌ File sai cấu trúc. Bắt buộc phải có các cột: {', '.join(cot_yeu_cau)}")
+            except Exception as e:
+                st.error(f"Có lỗi xảy ra khi đọc file: {e}. Vui lòng thử dùng định dạng .csv thay vì .xlsx nếu bị lỗi thư viện.")
+
+    # 3. HIỂN THỊ BẢNG TỔNG HỢP (Luôn hiển thị ở dưới cùng)
     st.markdown("---")
     if st.session_state.bang_phan_cong:
         st.markdown("#### 📋 Bảng tổng hợp Phân công hiện tại")
         
-        # Chuyển đổi dữ liệu thành DataFrame để hiển thị đẹp hơn
         df_pc = pd.DataFrame(st.session_state.bang_phan_cong)
         st.dataframe(df_pc, use_container_width=True, hide_index=True)
         
-        # Các nút tiện ích xuất file và xóa
         col_btn1, col_btn2 = st.columns([1, 1])
         with col_btn1:
-            # Chuyển DataFrame thành định dạng CSV để tải về máy
-            csv = df_pc.to_csv(index=False).encode('utf-8-sig')
+            csv_export = df_pc.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                label="⬇️ Tải bảng phân công về máy (Excel/CSV)",
-                data=csv,
+                label="⬇️ Tải bảng phân công về máy",
+                data=csv_export,
                 file_name='Bang_Phan_Cong_To_KHTN.csv',
                 mime='text/csv',
                 use_container_width=True
             )
         with col_btn2:
-            if st.button("🗑️ Xóa làm lại từ đầu", type="secondary", use_container_width=True):
+            if st.button("🗑️ Xóa toàn bộ dữ liệu", type="secondary", use_container_width=True, key="btn_xoa"):
                 st.session_state.bang_phan_cong = []
                 st.rerun()
     else:
-        st.info("💡 Hiện chưa có dữ liệu phân công nào. Thầy hãy tạo mới ở form phía trên nhé!")
+        st.info("💡 Hiện chưa có dữ liệu phân công nào. Thầy hãy nhập thủ công hoặc tải file lên nhé!")
