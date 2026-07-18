@@ -35,7 +35,7 @@ from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
 from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
-from modules.ho_tro_giang_day.xd_tuong_tac import render_xd_tuong_tac
+from modules.ho_tro_giang_day.xd_camera import render_camera_module
 from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
 from modules.ho_tro_giang_day.xd_phan_tich_bh import render_phan_tich_bh
 from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
