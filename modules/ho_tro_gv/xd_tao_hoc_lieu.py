@@ -59,7 +59,7 @@ def render_tao_hoc_lieu(ai_engine):
     with col_btn1:
         btn_tao = st.button("🪄 Sinh Học Liệu Đa Năng", type="primary", use_container_width=True)
     with col_btn2:
-        if st.button("🗑️ Xóa dữ liệu", type="secondary", use_container_width=True):
+        if st.button("🗑️ Xóa dữ liệu", type="secondary", use_container_width=True, key="xoa_thl"):
             st.session_state.tao_hoc_lieu_data = None
             st.rerun()
 
