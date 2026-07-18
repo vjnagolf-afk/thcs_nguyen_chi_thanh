@@ -16,33 +16,6 @@ from googleapiclient.discovery import build
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def get_gmail_service():
-    """Hàm xác thực dùng Streamlit Secrets (Hoạt động tốt trên Cloud)"""
-    SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
-    
-    # 1. Lấy thông tin từ Secrets
-    if "GOOGLE_CREDENTIALS" in st.secrets:
-        client_config = dict(st.secrets["GOOGLE_CREDENTIALS"])
-    else:
-        st.error("🚨 Không tìm thấy cấu hình Google trong Secrets!")
-        return None
-
-    # 2. Xử lý token (cần lưu ý: trên Cloud, token sẽ mất sau khi khởi động lại, 
-    # nên lần nào chạy nó cũng sẽ yêu cầu thầy xác thực lại là bình thường)
-    creds = None
-    # Nếu chạy local mới cần file token.json, trên Cloud ta bỏ qua bước lưu token
-    
-    # Tạo flow từ config thay vì từ file
-    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-    
-    # Mở cửa sổ xác thực
-    creds = flow.run_local_server(port=0)
-
-    try:
-        service = build('gmail', 'v1', credentials=creds)
-        return service
-    except Exception as e:
-        st.error(f"Lỗi kết nối Gmail API: {e}")
-        return None
 def render_tom_tat_gmail(ai_engine):
     st.markdown("### 📧 Đọc và Tóm tắt Văn bản / Email")
     st.caption("Trợ lý AI giúp đọc các email/công văn từ nhà trường và trích xuất ý chính, lịch công tác quan trọng.")
