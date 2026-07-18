@@ -36,7 +36,8 @@ from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
 from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
 from modules.ho_tro_giang_day.xd_tuong_tac import render_xd_tuong_tac
 from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
-
+from modules.ho_tro_giang_day.xd_phan_tich_bh import render_phan_tich_bh
+from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
 # Import Phân hệ Tổ chuyên môn
 from modules.quan_ly_to.danh_sach import render_danh_sach
 from modules.quan_ly_to.phan_cong import render_phan_cong
@@ -114,7 +115,7 @@ try:
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        tabs = st.tabs(["HỎI ĐÁP-RAG", "T.KẾ TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "T.KẾ MÔ PHỎNG", "P.TÍCH KQHT", "NGÂN HÀNG ĐỀ", "TẠO VIDEO", "TRUY VẤN TÀI LIỆU", "CÁ NHÂN HÓA"])
+        tabs = st.tabs(["HỎI ĐÁP-RAG", "T.KẾ TRÒ CHƠI", "KIỂM TRA NHANH", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "MÔ PHỎNG TN ẢO", " P.TÍCH BÀI HỌC", "P.TÍCH KQHT", "TẠO VIDEO", "TRUY VẤN TÀI LIỆU", "NGÂN HÀNG ĐỀ", "CÁ NHÂN HÓA"])
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
@@ -125,6 +126,8 @@ try:
         with tabs[7]: render_xd_sinh_video(ai_engine)
         with tabs[8]: render_xd_tuong_tac(ai_engine)
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
+        with tabs[10]: render_phan_tich_bh(ai_engine)
+        with tabs[11]: render_kiem_tra_nhanh(ai_engine)
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
         tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
