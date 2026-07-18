@@ -134,7 +134,7 @@ try:
         with tabs[11]: render_kiem_tra_nhanh(ai_engine)
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
-        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
+        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail"])
         with tabs[0]: render_danh_sach()
         with tabs[1]: render_phan_cong(db)
         with tabs[2]: render_bien_ban(db)
