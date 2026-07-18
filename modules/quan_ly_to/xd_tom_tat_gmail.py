@@ -1,31 +1,16 @@
 import streamlit as st
 import json
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+# 1. Hàm get_gmail_service (Thầy vừa thêm)
 def get_gmail_service():
-    """Hàm xác thực dùng Streamlit Secrets"""
-    SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
-    
-    # 1. Lấy thông tin từ Secrets
-    if "GOOGLE_CREDENTIALS" not in st.secrets:
-        st.error("🚨 Không tìm thấy cấu hình Google trong Secrets!")
-        return None
-    
-    # Chuyển đổi định dạng từ secrets sang dict
-    client_config = dict(st.secrets["GOOGLE_CREDENTIALS"])
-    
-    # 2. Tạo flow xác thực từ config
-    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-    
-    # 3. Chạy xác thực
-    creds = flow.run_local_server(port=0)
+    # ... nội dung code em gửi trước đó ...
+    # (Đảm bảo có hàm này)
 
-    try:
-        service = build('gmail', 'v1', credentials=creds)
-        return service
-    except Exception as e:
-        st.error(f"Lỗi kết nối Gmail API: {e}")
-        return None
+# 2. Hàm render_tom_tat_gmail (Hàm cũ bị báo lỗi thiếu)
+def render_tom_tat_gmail():
+    # ... nội dung code cũ của thầy ...
+    # (Phải đảm bảo hàm này vẫn còn ở đây, nếu mất thì app.py không gọi được)
+    st.write("Đang hiển thị tóm tắt Gmail...")
