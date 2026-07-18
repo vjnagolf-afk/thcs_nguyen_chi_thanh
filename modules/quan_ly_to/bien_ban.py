@@ -1,23 +1,22 @@
 import streamlit as st
 from pypdf import PdfReader
-import re
 
-def render_bien_ban(db): # Tham số db giữ nguyên để không lỗi app.py
+def render_bien_ban(db):
     st.markdown("### 📝 Trợ lý Thư ký: Xây dựng Biên bản Sinh hoạt")
     st.caption("AI tự động soạn thảo biên bản họp bám sát cấu trúc dự thảo kế hoạch, hỗ trợ nhiều hình thức sinh hoạt chuyên môn khác nhau.")
 
     # Lấy danh sách GV từ bộ nhớ (nếu có) để làm menu chọn Chủ tọa/Thư ký
     ds_gv = st.session_state.get("danh_sach_gv", ["Chưa có dữ liệu (Hãy qua thẻ Danh sách)"])
     
-    # Khởi tạo bộ nhớ tạm để không mất kết quả biên bản khi tải về
     if "ket_qua_bien_ban" not in st.session_state:
         st.session_state.ket_qua_bien_ban = None
 
-    # 1. KHU VỰC THÔNG TIN CUỘC HỌP
+    # 1. KHU VỰC THÔNG TIN CUỘC HỌP (Bố trí đúng 2 hàng ngang)
     with st.expander("📌 Bước 1: Thông tin cơ bản", expanded=True):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            loai_cuoc_hop = st.selectbox("Loại hình sinh hoạt:", [
+        # --- Hàng ngang 1 (3 cột) ---
+        h1_c1, h1_c2, h1_c3 = st.columns([2, 1.5, 1.5])
+        with h1_c1:
+            loai_cuoc_hop = st.selectbox("📌 Loại hình sinh hoạt:", [
                 "Sinh hoạt chuyên môn định kỳ",
                 "Nghiên cứu bài học (Bước 2, 3)",
                 "Xây dựng chuyên đề / STEM",
@@ -25,14 +24,24 @@ def render_bien_ban(db): # Tham số db giữ nguyên để không lỗi app.py
                 "Thống nhất ma trận, đặc tả đề",
                 "Hình thức khác..."
             ])
-        with col2:
+        with h1_c2:
+            thoi_gian = st.text_input("⏰ Thời gian:", placeholder="VD: 14h00, 18/07/2026")
+        with h1_c3:
+            dia_diem = st.text_input("📍 Địa điểm:", placeholder="VD: Văn phòng Trường")
+
+        # --- Hàng ngang 2 (4 cột) ---
+        h2_c1, h2_c2, h2_c3, h2_c4 = st.columns(4)
+        with h2_c1:
             chu_toa = st.selectbox("👨‍🏫 Chủ tọa:", ds_gv, index=0)
-        with col3:
-            # Chọn thư ký (mặc định người thứ 2 trong danh sách nếu có)
+        with h2_c2:
             index_thu_ky = 1 if len(ds_gv) > 1 else 0
             thu_ky = st.selectbox("✍️ Thư ký:", ds_gv, index=index_thu_ky)
+        with h2_c3:
+            co_mat = st.text_input("👥 Có mặt:", placeholder="VD: 10/10")
+        with h2_c4:
+            vang_mat = st.text_input("🚫 Vắng mặt:", placeholder="VD: 0 (hoặc ghi tên)")
 
-    # 2. KHU VỰC NẠP DỰ THẢO (Bám sát dàn ý)
+    # 2. KHU VỰC NẠP DỰ THẢO
     st.markdown("#### 📄 Bước 2: Nạp Dự thảo kế hoạch / Dàn ý")
     st.info("💡 AI sẽ dò tìm các đề mục lớn (I, II, III...) và mục nhỏ (1, 2, a, b...) trong văn bản này để tạo khung biên bản tương ứng.")
     
@@ -65,12 +74,15 @@ def render_bien_ban(db): # Tham số db giữ nguyên để không lỗi app.py
                 st.warning("⚠️ Thầy vui lòng cung cấp nội dung hoặc file Dự thảo trước nhé!")
             else:
                 with st.spinner("🧠 Thư ký AI đang tổng hợp và soạn thảo biên bản..."):
-                    # Prompt ép AI tuân thủ cấu trúc
+                    # Đã bổ sung các trường thông tin mới vào Prompt để AI viết mở đầu
                     prompt = f"""
-                    Bạn là Thư ký tổ chuyên môn trường THCS. Hãy viết một "Biên bản cuộc họp" chi tiết.
+                    Bạn là Thư ký tổ chuyên môn trường THCS. Hãy viết một "Biên bản cuộc họp" chi tiết, mang văn phong hành chính trang trọng.
                     
-                    THÔNG TIN CHUNG:
+                    THÔNG TIN CHUNG (Trình bày rõ ở phần Mở đầu):
                     - Loại hình cuộc họp: {loai_cuoc_hop}
+                    - Thời gian: {thoi_gian}
+                    - Địa điểm: {dia_diem}
+                    - Thành phần: Có mặt {co_mat}, Vắng mặt {vang_mat}
                     - Chủ tọa: {chu_toa}
                     - Thư ký: {thu_ky}
                     
@@ -79,22 +91,20 @@ def render_bien_ban(db): # Tham số db giữ nguyên để không lỗi app.py
                     Không được tự ý bỏ sót bất kỳ mục nào có trong dự thảo.
                     
                     YÊU CẦU NỘI DUNG:
-                    1. Mở đầu bằng Thời gian, Địa điểm, Thành phần tham dự.
-                    2. Tại mỗi đề mục, hãy viết phần trình bày của Chủ tọa, sau đó TỰ ĐỘNG THÊM VÀO các ý kiến thảo luận giả định (hợp lý, logic mang tính sư phạm) của các thành viên trong tổ.
-                    3. Cuối mỗi mục lớn phải có kết luận của Chủ tọa.
+                    1. Mở đầu biên bản chuẩn thể thức hành chính, bao gồm đầy đủ Thông tin chung đã cung cấp ở trên.
+                    2. Tại mỗi đề mục lớn/nhỏ, hãy trình bày nội dung của Chủ tọa, sau đó TỰ ĐỘNG THÊM VÀO các ý kiến thảo luận giả định (hợp lý, logic mang tính sư phạm) của các thành viên trong tổ.
+                    3. Cuối mỗi mục lớn phải có kết luận chốt lại vấn đề của Chủ tọa.
+                    4. Phần cuối biên bản là thời gian kết thúc và chữ ký (Chủ tọa, Thư ký).
                     
                     DỰ THẢO KẾ HOẠCH:
                     '''{noidung_du_thao}'''
                     """
                     
                     try:
-                        # Thay 'ai_engine.generate_text' bằng phương thức gọi AI thực tế của thầy (nếu được truyền qua db/session)
-                        # Vì db không chứa ai_engine trong context này, em giả định thầy có ai_engine trong session hoặc import
                         if "ai_engine" in st.session_state:
                             bien_ban = st.session_state.ai_engine.generate_text(prompt)
                         else:
-                            # Mockup nếu chưa kết nối AI để test giao diện
-                            bien_ban = f"*(Đây là bản demo vì chưa truyền ai_engine vào hàm render_bien_ban)*\n\n**BIÊN BẢN {loai_cuoc_hop.upper()}**\n\nChủ tọa: {chu_toa}\nThư ký: {thu_ky}\n\n[Nội dung AI sinh ra dựa trên dự thảo sẽ hiện ở đây...]"
+                            bien_ban = f"*(Chưa kết nối AI)*\n\n**BIÊN BẢN {loai_cuoc_hop.upper()}**\n\n- Thời gian: {thoi_gian}\n- Địa điểm: {dia_diem}\n- Thành phần: Có mặt {co_mat}, vắng {vang_mat}\n- Chủ tọa: {chu_toa}\n- Thư ký: {thu_ky}\n\n[Nội dung AI sinh ra sẽ hiện ở đây...]"
                             
                         st.session_state.ket_qua_bien_ban = bien_ban
                         st.rerun()
@@ -109,9 +119,8 @@ def render_bien_ban(db): # Tham số db giữ nguyên để không lỗi app.py
     # 4. HIỂN THỊ KẾT QUẢ VÀ TẢI VỀ
     st.markdown("---")
     if st.session_state.ket_qua_bien_ban:
-        st.success("🎉 Biên bản đã hoàn thành! Thầy có thể đọc lại hoặc tải về máy.")
+        st.success("🎉 Biên bản đã hoàn thành! Thầy có thể đọc, chỉnh sửa trực tiếp hoặc tải về máy.")
         
-        # Nút xuất file Word/TXT
         st.download_button(
             label="⬇️ Tải Biên bản về máy (.txt)",
             data=st.session_state.ket_qua_bien_ban,
@@ -121,5 +130,4 @@ def render_bien_ban(db): # Tham số db giữ nguyên để không lỗi app.py
         )
         
         st.markdown("#### 📜 Nội dung Biên bản")
-        # Dùng một khung văn bản để giáo viên có thể chỉnh sửa tay được luôn trước khi copy
-        st.text_area("Chỉnh sửa biên bản (nếu cần):", value=st.session_state.ket_qua_bien_ban, height=500)
+        st.text_area("Chỉnh sửa biên bản (nếu cần):", value=st.session_state.ket_qua_bien_ban, height=600)
