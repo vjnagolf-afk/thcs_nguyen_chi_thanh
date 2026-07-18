@@ -129,7 +129,7 @@ try:
         with tabs[5]: render_xd_phan_tich(ai_engine)
         with tabs[6]: render_xd_ngan_hang_de(ai_engine)
         with tabs[7]: render_xd_sinh_video(ai_engine)
-        with tabs[8]: render_xd_tuong_tac(ai_engine)
+        with tabs[8]: render_camera_module(ai_engine)
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
         with tabs[10]: render_phan_tich_bh(ai_engine)
         with tabs[11]: render_kiem_tra_nhanh(ai_engine)
