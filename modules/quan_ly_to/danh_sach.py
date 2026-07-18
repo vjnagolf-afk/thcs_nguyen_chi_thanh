@@ -29,4 +29,4 @@ def render_danh_sach():
     st.session_state.danh_sach_gv = df["Họ và tên"].tolist()
     
     st.markdown("---")
-    st.caption("💡 Mẹo: Danh sách này đã được lưu vào bộ nhớ tạm. Khi thầy qua thẻ 'Phân công', hệ thống sẽ tự động lấy các tên này ra để thầy xếp lịch.")
+    st.caption("💡Danh sách được cập nhật thường xuyên.")
