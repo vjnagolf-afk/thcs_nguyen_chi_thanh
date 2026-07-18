@@ -1,6 +1,7 @@
 import streamlit as st
 import os.path
 import base64
+import json
 from email.message import EmailMessage
 import os
 st.write("Thư mục hiện tại của app là: ", os.getcwd())
@@ -15,30 +16,26 @@ from googleapiclient.discovery import build
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def get_gmail_service():
-    """Hàm xác thực và kết nối với Gmail - Tìm file theo đường dẫn tuyệt đối"""
-    # Tìm đường dẫn đến thư mục chứa app.py (thư mục gốc)
-    # Giả sử file này nằm trong modules/quan_ly_to/ -> lùi 3 cấp ra thư mục gốc
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    cred_path = os.path.join(base_dir, 'credentials.json')
-    token_path = os.path.join(base_dir, 'token.json')
+    """Hàm xác thực dùng Streamlit Secrets (Hoạt động tốt trên Cloud)"""
+    SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
     
-    st.write(f"Đang tìm file tại: {cred_path}") # Dòng này để debug, chạy ngon thì thầy có thể xóa đi
+    # 1. Lấy thông tin từ Secrets
+    if "GOOGLE_CREDENTIALS" in st.secrets:
+        client_config = dict(st.secrets["GOOGLE_CREDENTIALS"])
+    else:
+        st.error("🚨 Không tìm thấy cấu hình Google trong Secrets!")
+        return None
 
+    # 2. Xử lý token (cần lưu ý: trên Cloud, token sẽ mất sau khi khởi động lại, 
+    # nên lần nào chạy nó cũng sẽ yêu cầu thầy xác thực lại là bình thường)
     creds = None
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+    # Nếu chạy local mới cần file token.json, trên Cloud ta bỏ qua bước lưu token
     
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists(cred_path):
-                st.error(f"🚨 Không tìm thấy file `credentials.json` tại: {cred_path}")
-                return None
-            flow = InstalledAppFlow.from_client_secrets_file(cred_path, SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(token_path, 'w') as token:
-            token.write(creds.to_json())
+    # Tạo flow từ config thay vì từ file
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+    
+    # Mở cửa sổ xác thực
+    creds = flow.run_local_server(port=0)
 
     try:
         service = build('gmail', 'v1', credentials=creds)
@@ -46,7 +43,6 @@ def get_gmail_service():
     except Exception as e:
         st.error(f"Lỗi kết nối Gmail API: {e}")
         return None
-
 def render_tom_tat_gmail(ai_engine):
     st.markdown("### 📧 Đọc và Tóm tắt Văn bản / Email")
     st.caption("Trợ lý AI giúp đọc các email/công văn từ nhà trường và trích xuất ý chính, lịch công tác quan trọng.")
