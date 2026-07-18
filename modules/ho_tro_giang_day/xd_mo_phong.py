@@ -1,60 +1,42 @@
 import streamlit as st
 
 def render_xd_mo_phong(ai_engine):
-    st.markdown("### 🧪 Trợ lý Thiết kế Mô phỏng & Thực hành")
-    st.info("💡 Hỗ trợ lên kịch bản thí nghiệm, hướng dẫn lắp ráp mô hình STEM, hoặc sinh mã code cho các dự án vi điều khiển (IoT, Robotics).")
-
-    if "mo_phong_result" not in st.session_state:
-        st.session_state.mo_phong_result = ""
-
-    chude = st.text_input(
-        "Tên bài thực hành / Dự án:", 
-        placeholder="Ví dụ: Hệ thống tiết kiệm điện năng thông minh dùng ESP8266..."
-    )
+    st.markdown("### 🧪 Phòng thí nghiệm ảo")
+    st.caption("Nền tảng thực hành mô phỏng tương tác giúp học sinh trực quan hóa kiến thức.")
     
+    st.markdown("""
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
+        <b>Quy trình thực nghiệm:</b><br>
+        ⚙️ Thay đổi thông số ➔ 👁️ Quan sát kết quả ➔ 🤔 Dự đoán ➔ 🧪 Thực nghiệm ➔ 📝 Kết luận
+    </div>
+    """, unsafe_allow_html=True)
+
     col1, col2 = st.columns(2)
     with col1:
-        loai_hinh = st.selectbox("Loại hình thực hành:", [
-            "Lập trình Vi điều khiển (Arduino, ESP8266, micro:bit...)",
-            "Mô hình STEM vật lý (vật liệu tái chế, cơ khí...)",
-            "Thí nghiệm Khoa học ảo (Lý, Hóa, Sinh)",
-            "Tích hợp AI & IoT"
-        ])
+        mon_hoc = st.selectbox("Chọn môn học:", ["Vật lý", "Hóa học", "Sinh học", "Toán học", "Khác"])
+    
     with col2:
-        doi_tuong = st.selectbox("Đối tượng học sinh:", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Khác"])
-
-    yeu_cau_them = st.text_area(
-        "Yêu cầu cụ thể (vật tư hiện có, phần mềm sử dụng...):", 
-        placeholder="Ví dụ: Chỉ dùng các linh kiện cơ bản, có code mẫu cho C++ / Python, cần mô tả sơ đồ nối dây để copy vào đề tài..."
-    )
-
-    if st.button("🚀 TẠO HƯỚNG DẪN THỰC HÀNH", type="primary"):
-        if chude.strip():
-            with st.spinner("⏳ AI đang thiết kế kịch bản thực hành..."):
-                prompt = f"""Đóng vai là một giáo viên chuyên hướng dẫn STEM và kỹ thuật cấp THCS, hãy thiết kế một bản hướng dẫn thực hành/mô phỏng chi tiết cho học sinh {doi_tuong}.
-                
-                - Chủ đề/Dự án: {chude}
-                - Loại hình: {loai_hinh}
-                - Yêu cầu bổ sung: {yeu_cau_them}
-                
-                Vui lòng cấu trúc bản hướng dẫn theo các phần sau:
-                1. Mục tiêu bài thực hành.
-                2. Danh sách thiết bị / vật tư cần chuẩn bị.
-                3. Hướng dẫn thực hiện từng bước (mô tả chi tiết nguyên lý, cách lắp ráp để học sinh dễ hình dung).
-                4. Mã code mẫu (nếu là dự án lập trình/IoT) có chú thích rõ ràng.
-                5. Gợi ý 2-3 câu hỏi thảo luận mở rộng.
-                
-                Trình bày bằng định dạng Markdown đẹp mắt, dùng bảng biểu nếu cần thiết để so sánh hoặc liệt kê."""
-                
-                try:
-                    res = ai_engine.generate_text(prompt)
-                    st.session_state.mo_phong_result = res
-                except Exception as e:
-                    st.error(f"Lỗi khi gọi AI: {e}")
+        if mon_hoc == "Vật lý":
+            chu_de = st.selectbox("Chủ đề mô phỏng:", ["Đo vận tốc", "Định luật Ôm", "Mạch điện", "Lực", "Công", "Năng lượng", "Âm học", "Quang học"])
         else:
-            st.warning("⚠️ Vui lòng nhập Tên bài thực hành/Dự án!")
+            chu_de = st.text_input("Nhập chủ đề cần mô phỏng:", placeholder=f"Ví dụ: Cấu tạo tế bào, Phản ứng Oxi hóa...")
 
-    if st.session_state.mo_phong_result:
-        st.markdown("---")
-        st.markdown("### 📋 Hướng dẫn Thực hành chi tiết")
-        st.markdown(st.session_state.mo_phong_result)
+    if st.button("🚀 Khởi tạo bài thực hành", type="primary"):
+        if chu_de.strip():
+            with st.spinner("AI đang thiết lập kịch bản phòng thí nghiệm..."):
+                prompt = f"""
+                Tôi đang dạy môn {mon_hoc}, chủ đề "{chu_de}". Hãy thiết kế một kịch bản "Phòng thí nghiệm ảo" cho học sinh THCS dựa theo đúng 5 bước sau:
+                1. Thay đổi thông số (Gợi ý học sinh có thể điều chỉnh các biến số nào)
+                2. Quan sát kết quả (Học sinh sẽ thấy hiện tượng gì xảy ra)
+                3. Dự đoán (Câu hỏi định hướng để học sinh suy đoán quy luật)
+                4. Thực nghiệm (Các bước kiểm chứng)
+                5. Kết luận (Kiến thức cốt lõi rút ra)
+                """
+                try:
+                    kich_ban = ai_engine.generate_text(prompt)
+                    st.success(f"Đã tải kịch bản mô phỏng cho chủ đề: {chu_de}")
+                    st.info(kich_ban)
+                except Exception as e:
+                    st.error(f"Lỗi khởi tạo: {e}")
+        else:
+            st.warning("Vui lòng nhập chủ đề trước khi khởi tạo!")
