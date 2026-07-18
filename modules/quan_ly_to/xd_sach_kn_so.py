@@ -89,7 +89,7 @@ def render_sach_kn_so():
             for idx, link_video in enumerate(st.session_state.kho_video[cm]):
                 st.markdown(f"**Bài học {idx + 1}:**")
                 try:
-                    st.video(link_video) # Streamlit tự động nhận diện và nhúng link YouTube/MP4
+                    st.video("https://youtu.be/czoOM9YC3ko") # Streamlit tự động nhận diện và nhúng link YouTube/MP4
                 except:
                     st.error(f"Không thể tải video từ link: {link_video}")
                 st.markdown("<br>", unsafe_allow_html=True) # Tạo khoảng cách
