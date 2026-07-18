@@ -29,7 +29,8 @@ from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
 from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
-from modules.quan_ly_to.xd_camera import render_camera_module
+# Sửa thành đường dẫn mới khớp với thư mục trong ảnh
+from modules.ho_tro_giang_day.xd_camera import render_camera_module
 from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
