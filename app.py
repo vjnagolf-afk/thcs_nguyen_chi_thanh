@@ -23,7 +23,8 @@ from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
 from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
 from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_gv.xd_live import render_xd_live
-
+from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
+from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
 # Import Phân hệ Giảng dạy
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
@@ -111,7 +112,7 @@ try:
         with tabs[9]: render_xd_live(ai_engine)
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        tabs = st.tabs(["RAG", "Trò chơi", "Chấm bài", "Học liệu", "Mô phỏng", "Phân tích", "Ngân hàng đề", "Video", "Tương tác", "Cá nhân"])
+        tabs = st.tabs(["HỎI ĐÁP-RAG", "T.KẾ TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "T.KẾ MÔ PHỎNG", "P.TÍCH KQHT", "NGÂN HÀNG ĐỀ", "TẠO VIDEO", "TRUY VẤN TÀI LIỆU", "CÁ NHÂN HÓA","CHUYỂN T.LIỆU THÀNH KHBD", "TẠO HỌC LIỆU"])
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
@@ -122,6 +123,8 @@ try:
         with tabs[7]: render_xd_sinh_video(ai_engine)
         with tabs[8]: render_xd_tuong_tac(ai_engine)
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
+        with tabs[10]: render_chuyen_doi(ai_engine)
+        with tabs[11]: render_tao_hoc_lieu(ai_engine)
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
         tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
