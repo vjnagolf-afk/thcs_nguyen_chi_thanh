@@ -1,68 +1,118 @@
 import streamlit as st
+import os.path
+import base64
+from email.message import EmailMessage
+
+# Thư viện của Google
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+
+# Quyền truy cập: Chỉ đọc Email
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+def get_gmail_service():
+    """Hàm xác thực và kết nối với Gmail"""
+    creds = None
+    # Hệ thống sẽ tự tạo file token.json sau lần đăng nhập đầu tiên
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    
+    # Nếu chưa có token hoặc token hết hạn, yêu cầu đăng nhập
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            if not os.path.exists('credentials.json'):
+                st.error("🚨 Không tìm thấy file `credentials.json`. Thầy cần tải file này từ Google Cloud và để vào thư mục gốc!")
+                return None
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Lưu lại token cho các lần sau
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    try:
+        service = build('gmail', 'v1', credentials=creds)
+        return service
+    except Exception as e:
+        st.error(f"Lỗi kết nối Gmail API: {e}")
+        return None
 
 def render_tom_tat_gmail(ai_engine):
     st.markdown("### 📧 Đọc và Tóm tắt Văn bản / Email")
-    st.caption("Trợ lý AI giúp đọc các email/công văn dài từ nhà trường, Phòng/Sở GD&ĐT và trích xuất lại các ý chính, lịch công tác quan trọng.")
+    st.caption("Trợ lý AI giúp đọc các email/công văn từ nhà trường và trích xuất ý chính, lịch công tác quan trọng.")
 
-    # --- Chia làm 2 Tab (Dán tay và Kết nối sau này) ---
-    tab_nhap, tab_api = st.tabs(["✍️ Xử lý Email thủ công", "🔗 Kết nối tài khoản Gmail (Sắp ra mắt)"])
+    tab_nhap, tab_api = st.tabs(["✍️ Xử lý Email thủ công", "🔗 Kết nối tài khoản Gmail"])
 
+    # --- TAB 1: NHẬP THỦ CÔNG (Giữ nguyên như cũ) ---
     with tab_nhap:
         col_input, col_options = st.columns([2, 1])
-        
         with col_input:
-            email_content = st.text_area("Dán nội dung Email / Công văn vào đây:", height=250, placeholder="Kính gửi các đồng chí Tổ trưởng...\nNội dung công việc tuần tới như sau...")
-            
+            email_content = st.text_area("Dán nội dung Email / Công văn vào đây:", height=250)
         with col_options:
             st.markdown("**Mục tiêu phân tích:**")
             yeu_cau = st.radio("AI sẽ tập trung tìm kiếm:", [
                 "📝 Tóm tắt gọn gàng ý chính",
                 "⏰ Trích xuất Hạn chót (Deadlines)",
-                "✅ Liệt kê công việc cần làm",
-                "📊 Phân tích yêu cầu chuyên môn"
+                "✅ Liệt kê công việc cần làm"
             ])
-            
-            st.markdown("<br>", unsafe_allow_html=True)
             btn_tom_tat = st.button("🪄 Phân tích bằng AI", type="primary", use_container_width=True)
 
-        # Xử lý khi bấm nút Tóm tắt
-        if btn_tom_tat:
-            if not email_content.strip():
-                st.warning("⚠️ Thầy vui lòng dán nội dung Email hoặc công văn vào ô trống trước nhé!")
-            else:
-                with st.spinner("AI đang đọc văn bản và nhặt ra các thông tin quan trọng..."):
-                    prompt = f"""
-                    Bạn là Trợ lý cá nhân của Tổ trưởng chuyên môn trường THCS. Hãy đọc nội dung Email/Công văn hành chính dưới đây và thực hiện yêu cầu: {yeu_cau}.
-                    
-                    NGUYÊN TẮC BẮT BUỘC:
-                    1. Trình bày cực kỳ ngắn gọn, rõ ràng bằng gạch đầu dòng (bullet points).
-                    2. Bôi đậm (bold) các mốc thời gian, hạn chót và người chịu trách nhiệm (nếu có).
-                    3. Bỏ qua các câu chào hỏi, kính gửi rườm rà. Đi thẳng vào việc.
-                    4. Sử dụng văn phong hành chính chuyên nghiệp.
+        if btn_tom_tat and email_content:
+            with st.spinner("AI đang đọc văn bản..."):
+                prompt = f"Là thư ký Tổ chuyên môn, hãy đọc nội dung sau và {yeu_cau}. Trình bày ngắn gọn bằng gạch đầu dòng, bôi đậm hạn chót/nhiệm vụ.\n\nNội dung:\n{email_content}"
+                try:
+                    summary = ai_engine.generate_text(prompt)
+                    st.success("✅ Đã xử lý xong!")
+                    with st.container(border=True):
+                        st.markdown(summary)
+                except Exception as e:
+                    st.error(f"Lỗi AI: {e}")
 
-                    NỘI DUNG VĂN BẢN:
-                    '''{email_content}'''
-                    """
-                    try:
-                        summary = ai_engine.generate_text(prompt)
-                        st.success("✅ Đã xử lý xong văn bản!")
-                        
-                        st.markdown("#### 📌 Kết quả Phân tích:")
-                        # Đặt kết quả vào một khung container cho đẹp
-                        with st.container(border=True):
-                            st.markdown(summary)
-                            
-                        # Nút copy nhanh
-                        st.download_button(
-                            label="⬇️ Lưu kết quả về máy (.txt)",
-                            data=summary,
-                            file_name="TomTat_Email.txt",
-                            mime="text/plain"
-                        )
-                    except Exception as e:
-                        st.error(f"Lỗi hệ thống hoặc lỗi kết nối AI: {e}")
-
+    # --- TAB 2: KẾT NỐI TRỰC TIẾP GMAIL ---
     with tab_api:
-        st.info("💡 Tính năng tự động quét hộp thư đến (Inbox) đòi hỏi cấp quyền API (OAuth2) từ Google Workspace. Chúng ta sẽ phát triển tính năng này sau khi ứng dụng đã được BGH nhà trường duyệt đưa vào sử dụng chính thức.")
-        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Gmail2020.logo.png/512px-Gmail2020.logo.png", width=100)
-        st.write("Sắp tích hợp...")
+        st.markdown("#### 📥 Quét Hộp thư đến (Inbox)")
+        st.info("Hệ thống sẽ kết nối với Gmail để lấy 5 email mới nhất và nhờ AI tổng hợp công việc.")
+        
+        if st.button("🚀 Kết nối & Tải Email mới nhất", type="primary"):
+            service = get_gmail_service()
+            if service:
+                with st.spinner("Đang tải dữ liệu từ Gmail..."):
+                    try:
+                        # Gọi API lấy ID của 5 email mới nhất
+                        results = service.users().messages().list(userId='me', maxResults=5).execute()
+                        messages = results.get('messages', [])
+
+                        if not messages:
+                            st.warning("Hộp thư của thầy trống!")
+                        else:
+                            st.success("✅ Đã tải thành công 5 email mới nhất!")
+                            
+                            for idx, message in enumerate(messages):
+                                # Lấy chi tiết từng email
+                                msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
+                                
+                                # Lấy tiêu đề (Subject) và Người gửi (From)
+                                headers = msg['payload'].get('headers', [])
+                                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "Không có tiêu đề")
+                                sender = next((h['value'] for h in headers if h['name'] == 'From'), "Không rõ người gửi")
+                                
+                                # Bóc tách nội dung email (Snippet - Đoạn trích ngắn do Google tự tạo)
+                                snippet = msg.get('snippet', '')
+
+                                with st.expander(f"📧 Thư {idx + 1}: {subject}", expanded=False):
+                                    st.markdown(f"**Từ:** `{sender}`")
+                                    st.markdown(f"**Nội dung sơ lược:** {snippet}...")
+                                    
+                                    # Nút yêu cầu AI tóm tắt chính email này
+                                    if st.button("🪄 Nhờ AI trích xuất nhiệm vụ email này", key=f"btn_ai_{idx}"):
+                                        with st.spinner("AI đang phân tích..."):
+                                            prompt_gmail = f"Hãy tóm tắt ngắn gọn và liệt kê các công việc/hạn chót cần làm từ email sau. Tiêu đề: {subject}. Người gửi: {sender}. Nội dung: {snippet}"
+                                            kq_gmail = ai_engine.generate_text(prompt_gmail)
+                                            st.markdown("---")
+                                            st.markdown("🤖 **AI Phân tích:**")
+                                            st.info(kq_gmail)
+                    except Exception as e:
+                        st.error(f"Lỗi khi tải thư: {e}")
