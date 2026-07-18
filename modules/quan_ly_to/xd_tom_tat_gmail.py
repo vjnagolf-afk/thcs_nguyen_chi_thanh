@@ -2,7 +2,9 @@ import streamlit as st
 import os.path
 import base64
 from email.message import EmailMessage
-
+import os
+st.write("Thư mục hiện tại của app là: ", os.getcwd())
+st.write("Các file đang thấy là: ", os.listdir())
 # Thư viện của Google
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
