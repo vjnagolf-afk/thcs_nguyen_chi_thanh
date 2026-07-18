@@ -100,7 +100,7 @@ try:
     ai_engine = get_ai_engine_instance()
     if phan_he == "Hỗ trợ Giáo viên":
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-        tabs = st.tabs(["XD KHBD", "XD Đề KT", "STEM", "Rubric", "Chủ nhiệm", "Kỹ năng viết", "Prompt", "Quizizz", "Mô phỏng", "Live","CHUYỂN T.LIỆU THÀNH KHBD", "TẠO HỌC LIỆU"])
+        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE","T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
         with tabs[0]: render_xd_khbd(ai_engine)
         with tabs[1]: render_xd_de_kt(ai_engine)
         with tabs[2]: render_xd_stem(ai_engine)
@@ -115,7 +115,7 @@ try:
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        tabs = st.tabs(["HỎI ĐÁP", "TRÒ CHƠI", "K.TRA NHANH", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "MÔ PHỎNG TN ẢO", " P.TÍCH BÀI HỌC", "P.TÍCH KQHT", "TẠO VIDEO", "TRUY VẤN T.LIỆU", "TẠO ĐỀ NHANH", "CÁ NHÂN HÓA"])
+        tabs = st.tabs(["HỎI ĐÁP", "TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "MÔ PHỎNG TN ẢO", "P.TÍCH KQHT", "TẠO ĐỀ NHANH", "TẠO VIDEO","TRUY VẤN T.LIỆU", " P.TÍCH BÀI HỌC","TẠO ĐỀ NHANH", "CÁ NHÂN HÓA"])
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
