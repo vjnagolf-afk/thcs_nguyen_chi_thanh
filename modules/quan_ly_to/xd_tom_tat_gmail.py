@@ -8,11 +8,25 @@ def render_tom_tat_gmail(ai_engine):
     tab_nhap, tab_api = st.tabs(["✍️ Xử lý Email thủ công", "🔗 Kết nối tài khoản Gmail (Sắp ra mắt)"])
 
     with tab_nhap:
+        # Thêm chức năng tải file
+        uploaded_file = st.file_uploader("Hoặc tải lên file công văn (PDF, TXT, DOCX):", type=["txt", "pdf", "docx"])
+        
         col_input, col_options = st.columns([2, 1])
         
         with col_input:
-            email_content = st.text_area("Dán nội dung Email / Công văn vào đây:", height=250, placeholder="Kính gửi các đồng chí Tổ trưởng...\nNội dung công việc tuần tới như sau...")
+            # Nếu có file tải lên, tự động lấy nội dung file
+            content_from_file = ""
+            if uploaded_file is not None:
+                # Xử lý đơn giản cho file .txt (Thầy có thể mở rộng cho .pdf/.docx sau)
+                if uploaded_file.type == "text/plain":
+                    content_from_file = uploaded_file.read().decode("utf-8")
+                else:
+                    st.warning("⚠️ Hiện tại chức năng này hỗ trợ tốt nhất cho file .txt. Thầy có thể dán nội dung vào ô dưới đây:")
             
+            email_content = st.text_area("Dán nội dung Email / Công văn vào đây:", 
+                                         value=content_from_file, 
+                                         height=250, 
+                                         placeholder="Kính gửi các đồng chí Tổ trưởng...")
         with col_options:
             st.markdown("**Mục tiêu phân tích:**")
             yeu_cau = st.radio("AI sẽ tập trung tìm kiếm:", [
