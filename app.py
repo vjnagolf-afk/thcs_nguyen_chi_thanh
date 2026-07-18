@@ -99,7 +99,7 @@ try:
     ai_engine = get_ai_engine_instance()
     if phan_he == "Hỗ trợ Giáo viên":
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-        tabs = st.tabs(["XD KHBD", "XD Đề KT", "STEM", "Rubric", "Chủ nhiệm", "Kỹ năng viết", "Prompt", "Quizizz", "Mô phỏng", "Live"])
+        tabs = st.tabs(["XD KHBD", "XD Đề KT", "STEM", "Rubric", "Chủ nhiệm", "Kỹ năng viết", "Prompt", "Quizizz", "Mô phỏng", "Live","CHUYỂN T.LIỆU THÀNH KHBD", "TẠO HỌC LIỆU"])
         with tabs[0]: render_xd_khbd(ai_engine)
         with tabs[1]: render_xd_de_kt(ai_engine)
         with tabs[2]: render_xd_stem(ai_engine)
@@ -110,9 +110,11 @@ try:
         with tabs[7]: render_xd_quizizz(ai_engine)
         with tabs[8]: render_xd_mo_phong(ai_engine)
         with tabs[9]: render_xd_live(ai_engine)
+        with tabs[10]: render_chuyen_doi(ai_engine)
+        with tabs[11]: render_tao_hoc_lieu(ai_engine)
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        tabs = st.tabs(["HỎI ĐÁP-RAG", "T.KẾ TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "T.KẾ MÔ PHỎNG", "P.TÍCH KQHT", "NGÂN HÀNG ĐỀ", "TẠO VIDEO", "TRUY VẤN TÀI LIỆU", "CÁ NHÂN HÓA","CHUYỂN T.LIỆU THÀNH KHBD", "TẠO HỌC LIỆU"])
+        tabs = st.tabs(["HỎI ĐÁP-RAG", "T.KẾ TRÒ CHƠI", "CHẤM BÀI", "TÓM TẮT HỌC LIỆU", "T.KẾ MÔ PHỎNG", "P.TÍCH KQHT", "NGÂN HÀNG ĐỀ", "TẠO VIDEO", "TRUY VẤN TÀI LIỆU", "CÁ NHÂN HÓA"])
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
@@ -123,8 +125,6 @@ try:
         with tabs[7]: render_xd_sinh_video(ai_engine)
         with tabs[8]: render_xd_tuong_tac(ai_engine)
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
-        with tabs[10]: render_chuyen_doi(ai_engine)
-        with tabs[11]: render_tao_hoc_lieu(ai_engine)
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
         tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Kế hoạch", "Thi đua", "Kiểm tra KHBD"])
