@@ -93,7 +93,7 @@ def render_chuyen_doi(ai_engine):
                 st.warning("⚠️ Thầy vui lòng cung cấp tài liệu (Nhập chữ, up file hoặc dán link) trước khi chạy nhé!")
 
     with col_btn2:
-        if st.button("🗑️ Xóa dữ liệu", type="secondary", use_container_width=True):
+        if st.button("🗑️ Xóa dữ liệu", type="secondary", use_container_width=True, key="xoa_cd"):
             st.session_state.chuyen_doi_data = None
             st.rerun()
 
