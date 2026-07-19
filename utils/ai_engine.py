@@ -1,6 +1,6 @@
 # ============================================================
 # ai_engine.py
-# AI ENGINE CORE v1.1 (OpenRouter Compatible)
+# AI ENGINE CORE v1.2 (Kiến trúc OpenRouter Độc lập)
 # Hệ sinh thái số THCS Nguyễn Chí Thanh
 # ============================================================
 import os
@@ -37,7 +37,7 @@ except ImportError:
     tiktoken = None
 
 # ============================================================
-# GOOGLE GEMINI SDK
+# SDK PROVIDERS
 # ============================================================
 try:
     from google import genai
@@ -46,43 +46,33 @@ except ImportError:
     genai = None
     types = None
 
-# ============================================================
-# OPENAI / OPENROUTER
-# ============================================================
 try:
     import openai
 except ImportError:
     openai = None
 
-# ============================================================
-# CLAUDE
-# ============================================================
 try:
     import anthropic
 except ImportError:
     anthropic = None
 
+# Lấy cấu hình model mặc định từ Secrets, phòng hờ nếu không có sẽ dùng Gemini 2.5 Flash
+DEFAULT_OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+
 # ============================================================
-# MODEL PRICE TABLE (OpenRouter ID Format)
+# MODEL PRICE TABLE (Bao gồm cả mã định danh OpenRouter)
 # USD / 1M tokens
 # ============================================================
 MODEL_PRICES = {
-    "google/gemini-2.5-flash": {
-        "input": 0.30,
-        "output": 2.50
-    },
-    "google/gemini-2.5-pro": {
-        "input": 1.25,
-        "output": 10.00
-    },
-    "openai/gpt-4o-mini": {
-        "input": 0.15,
-        "output": 0.60
-    },
-    "anthropic/claude-3.5-sonnet": {
-        "input": 3.00,
-        "output": 15.00
-    }
+    "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.00},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "claude-3-5-sonnet-20240620": {"input": 3.00, "output": 15.00},
+    # Ánh xạ giá cho OpenRouter tương ứng
+    "google/gemini-2.5-flash": {"input": 0.30, "output": 2.50},
+    "google/gemini-2.5-pro": {"input": 1.25, "output": 10.00},
+    "openai/gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "anthropic/claude-3-5-sonnet": {"input": 3.00, "output": 15.00}
 }
 # ============================================================
 # CHAT MEMORY
@@ -93,10 +83,7 @@ class ChatMemory:
         self.max_history = max_history
 
     def add_message(self, role: str, content: str):
-        self.history.append({
-            "role": role,
-            "content": content
-        })
+        self.history.append({"role": role, "content": content})
         if len(self.history) > self.max_history * 2:
             self.history = self.history[-self.max_history * 2:]
 
@@ -109,8 +96,8 @@ class ChatMemory:
 # ============================================================
 class AIEngine:
     MODELS = {
-        "flash": "google/gemini-2.5-flash",
-        "pro": "google/gemini-2.5-pro"
+        "flash": "gemini-2.5-flash",
+        "pro": "gemini-2.5-pro"
     }
 
     def __init__(self, api_key: str = None, keys: Dict[str, str] = None, system_prompt: str = None):
@@ -129,40 +116,38 @@ Nhiệm vụ:
 """
         )
 
-        self.token_usage = {
-            "google/gemini-2.5-flash": 0,
-            "google/gemini-2.5-pro": 0,
-            "openai/gpt-4o-mini": 0,
-            "anthropic/claude-3.5-sonnet": 0
-        }
-        self.cost_estimate = {
-            "google/gemini-2.5-flash": 0,
-            "google/gemini-2.5-pro": 0,
-            "openai/gpt-4o-mini": 0,
-            "anthropic/claude-3.5-sonnet": 0
-        }
+        # Khởi tạo bảng lưu trữ token và chi phí
+        self.token_usage = {k: 0 for k in MODEL_PRICES.keys()}
+        self.cost_estimate = {k: 0 for k in MODEL_PRICES.keys()}
 
         self.active_endpoints = []
         self.gemini_clients = {}
         self.openai_clients = {}
         self.claude_clients = {}
+        self.openrouter_clients = {}  # Pool lưu trữ Client OpenRouter độc lập
 
+        # 1. LOAD GEMINI KEY
         if self.keys.get("gemini"):
-            if isinstance(self.keys["gemini"], str):
-                gemini_keys = [k.strip() for k in self.keys["gemini"].split(",")]
-            else:
-                gemini_keys = self.keys["gemini"]
+            gemini_keys = [k.strip() for k in self.keys["gemini"].split(",")] if isinstance(self.keys["gemini"], str) else self.keys["gemini"]
             for key in gemini_keys:
                 if key:
                     self.active_endpoints.append(("gemini", key))
 
+        # 2. LOAD OPENAI / OPENROUTER KEY (Kiểm tra và phân loại ngay từ đầu vào)
         if self.keys.get("openai"):
-            self.active_endpoints.append(("openai", self.keys["openai"]))
+            openai_key = self.keys["openai"].strip()
+            if openai_key.startswith("sk-or-v1"):
+                self.active_endpoints.append(("openrouter", openai_key))
+            else:
+                self.active_endpoints.append(("openai", openai_key))
 
+        # 3. LOAD CLAUDE KEY
         if self.keys.get("claude"):
             self.active_endpoints.append(("claude", self.keys["claude"]))
 
-        # KHỞI TẠO CLIENT POOL (ĐÃ SỬA LỖI 401 CHUYỂN HƯỚNG OPENROUTER)
+        # =========================
+        # INIT CLIENT POOL
+        # =========================
         for provider, key in self.active_endpoints:
             if provider == "gemini":
                 if genai is None:
@@ -171,11 +156,13 @@ Nhiệm vụ:
                     self.gemini_clients[key] = genai.Client(api_key=key)
             elif provider == "openai":
                 if openai:
-                    # Kiểm tra nếu key là của OpenRouter thì đổi endpoint máy chủ
-                    base_url = "https://openrouter.ai" if key.startswith("sk-or-v1") else None
-                    self.openai_clients[key] = openai.Client(
-                        api_key=key, 
-                        base_url=base_url, 
+                    self.openai_clients[key] = openai.Client(api_key=key, timeout=60)
+            elif provider == "openrouter":
+                if openai:
+                    # Sửa lỗi địa chỉ: Cấu hình chuẩn endpoint OpenRouter
+                    self.openrouter_clients[key] = openai.Client(
+                        api_key=key,
+                        base_url="https://openrouter.ai/api/v1",
                         timeout=60
                     )
             elif provider == "claude":
@@ -186,7 +173,7 @@ Nhiệm vụ:
             "text": self.MODELS["flash"],
             "vision": self.MODELS["pro"]
         }
-        logger.info(f"AI Engine v1.1 initialized - {len(self.active_endpoints)} endpoints")
+        logger.info(f"AI Engine v1.2 initialized - {len(self.active_endpoints)} endpoints")
     # =====================================================
     # CACHE KEY
     # =====================================================
@@ -273,9 +260,9 @@ Nhiệm vụ:
     # PROVIDER ROUTER
     # =====================================================
     def _call_provider(self, provider, api_key, prompt, **kwargs):
-        # =========================
-        # 1. GEMINI
-        # =========================
+        # ==========================================
+        # 1. GEMINI (Google SDK gốc)
+        # ==========================================
         if provider == "gemini":
             client = self.gemini_clients[api_key]
             model_name = (
@@ -294,16 +281,15 @@ Nhiệm vụ:
             )
             return (response.text, model_name)
 
-        # =========================
-        # 2. OPENAI / OPENROUTER
-        # =========================
+        # ==========================================
+        # 2. OPENAI (OpenAI SDK gốc - Chỉ chạy key sk-proj-)
+        # ==========================================
         elif provider == "openai":
             client = self.openai_clients[api_key]
-            # Đổi model mặc định sang định dạng OpenRouter
             model_name = (
                 kwargs.get("model")
                 or kwargs.get("model_name")
-                or "openai/gpt-4o-mini"
+                or "gpt-4o-mini"
             )
             current_system_prompt = kwargs.get("system_prompt", self.system_prompt)
             openai_messages = []
@@ -317,17 +303,42 @@ Nhiệm vụ:
                 temperature=kwargs.get("temperature", 0.7),
                 max_tokens=kwargs.get("max_tokens", 4096)
             )
-            return (response.choices[0].message.content, model_name)
+            return (response.choices.message.content, model_name)
 
-        # =========================
-        # 3. CLAUDE
-        # =========================
+        # ==========================================
+        # 3. OPENROUTER (Nhánh độc lập chuẩn hóa)
+        # ==========================================
+        elif provider == "openrouter":
+            client = self.openrouter_clients[api_key]
+            # Sửa lỗi chọn sai model: Lấy trực tiếp từ biến môi trường của thầy
+            model_name = (
+                kwargs.get("model")
+                or kwargs.get("model_name")
+                or DEFAULT_OPENROUTER_MODEL
+            )
+            current_system_prompt = kwargs.get("system_prompt", self.system_prompt)
+            or_messages = []
+            if current_system_prompt:
+                or_messages.append({"role": "system", "content": current_system_prompt})
+            or_messages.append({"role": "user", "content": prompt})
+
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=or_messages,
+                temperature=kwargs.get("temperature", 0.7),
+                max_tokens=kwargs.get("max_tokens", 4096)
+            )
+            return (response.choices.message.content, model_name)
+
+        # ==========================================
+        # 4. CLAUDE (Anthropic SDK gốc)
+        # ==========================================
         elif provider == "claude":
             client = self.claude_clients[api_key]
             model_name = (
                 kwargs.get("model")
                 or kwargs.get("model_name")
-                or "anthropic/claude-3.5-sonnet"
+                or "claude-3-5-sonnet-20240620"
             )
             current_system_prompt = kwargs.get("system_prompt", self.system_prompt)
 
@@ -338,7 +349,7 @@ Nhiệm vụ:
                 system=current_system_prompt,
                 messages=[{"role": "user", "content": prompt}]
             )
-            return (response.content[0].text, model_name)
+            return (response.content.text, model_name)
 
         else:
             raise ValueError(f"Provider {provider} không được hỗ trợ.")
