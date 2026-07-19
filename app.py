@@ -14,31 +14,61 @@ from utils.ai_engine_2 import AIEngine2
 from models.khbd import KHBD
 
 # Import Phân hệ Giáo viên
-from views.xd_khbd_view import render_xd_khbd
-from views.xd_de_kt_view import render_xd_de_kt
-from modules.ho_tro_gv.xd_stem import render_xd_stem
-from modules.ho_tro_gv.xd_rubric import render_xd_rubric
-from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
-from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
-from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
-from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-from modules.ho_tro_gv.mo_phong.page import render_mo_phong
-from modules.ho_tro_gv.xd_live import render_xd_live
-from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
-from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
-# Import Phân hệ Giảng dạy
-from modules.ho_tro_giang_day.rag_ask import render_rag
-from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
-from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
-from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac # Sửa đúng tên hàm từ file xd_hoc_lieu.py
-from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
-from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
-from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
-from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
-from modules.ho_tro_giang_day.xd_camera import render_camera_module
-from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
-from modules.ho_tro_giang_day.xd_phan_tich_bh import render_phan_tich_bh
-from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
+if phan_he == "Hỗ trợ Giáo viên":
+    st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
+    tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
+    with tabs[0]:
+        render_xd_khbd(ai_engine)
+    with tabs[1]:
+        render_xd_de_kt(ai_engine)
+    with tabs[2]:
+        render_xd_stem(ai_engine)
+    with tabs[3]:
+        render_xd_rubric(ai_engine)
+    with tabs[4]:
+        render_xd_chu_nhiem(ai_engine)
+    with tabs[5]:
+        render_xd_cham_viet(ai_engine)
+    with tabs[6]:
+        render_xd_tao_prompt(ai_engine)
+    with tabs[7]:
+        render_xd_quizizz(ai_engine)
+    with tabs[8]:
+        render_mo_phong(ai_engine)
+    with tabs[9]:
+        render_xd_live(ai_engine)
+    with tabs[10]:
+        render_chuyen_doi(ai_engine)
+    with tabs[11]:
+        render_tao_hoc_lieu(ai_engine)
+elif phan_he == "Hỗ trợ Giảng dạy":
+    st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
+    tabs = st.tabs(["Hỏi đáp", "Trò chơi", "Chấm bài", "Tóm tắt tài liệu", "Mô phỏng LT TN ảo", "Phân tích KQ học tập", "Tạo đề nhanh", "Tạo Video", "Camera chấm bài", "Cá nhân hóa", "Phân tích bài học", "Tương tác trên lớp"])
+    with tabs[0]:
+        render_rag(ai_engine)
+    with tabs[1]:
+        render_xd_tro_choi(ai_engine)
+    with tabs[2]:
+        render_xd_cham_nhanh(ai_engine)
+    with tabs[3]:
+        render_xd_tuong_tac(ai_engine)
+    # MODULE MÔ PHỎNG CŨ
+    with tabs[4]:
+        render_xd_mo_phong(ai_engine)
+    with tabs[5]:
+        render_xd_phan_tich(ai_engine)
+    with tabs[6]:
+        render_xd_ngan_hang_de(ai_engine)
+    with tabs[7]:
+        render_xd_sinh_video(ai_engine)
+    with tabs[8]:
+        render_camera_module()
+    with tabs[9]:
+        render_xd_ca_nhan_hoa(ai_engine)
+    with tabs[10]:
+        render_phan_tich_bh(ai_engine)
+    with tabs[11]:
+        render_kiem_tra_nhanh(ai_engine)
 # Import Phân hệ Tổ chuyên môn
 from modules.quan_ly_to.danh_sach import render_danh_sach
 from modules.quan_ly_to.phan_cong import render_phan_cong
