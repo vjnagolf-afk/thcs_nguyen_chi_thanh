@@ -33,8 +33,7 @@ from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
 from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
 from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac
-# from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong as render_mo_phong_giangday # (Tab 5: Mô phỏng LT TN ảo)
-
+from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong as render_mo_phong_giangday
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
 from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
