@@ -147,3 +147,9 @@ try:
 except Exception as e:
     st.error("🚨 Có lỗi xảy ra trong quá trình render!")
     st.exception(e)
+else:
+            k = st.session_state.user_api_key
+            if k: 
+                # Thêm dòng này để kiểm tra xem hệ thống đang dùng khóa nào
+                st.sidebar.info(f"Đang dùng key: {k[:8]}...") 
+                keys["gemini" if k.startswith("AIza") else "openai"] = k
