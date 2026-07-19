@@ -72,7 +72,24 @@ def get_ai_engine_instance():
     return st.session_state.ai_engine_instance
 def get_ai_engine_2_instance():
     if "ai_engine_2_instance" not in st.session_state:
-        st.session_state.ai_engine_2_instance = AIEngine2()
+
+        openrouter_key = st.secrets.get(
+            "OPENROUTER_API_KEY"
+        )
+
+        if not openrouter_key:
+
+            st.error(
+                "❌ Chưa tìm thấy OPENROUTER_API_KEY trong Secrets."
+            )
+
+            return None
+
+        st.session_state.ai_engine_2_instance = AIEngine2(
+
+            api_key=openrouter_key
+
+        )
 
     return st.session_state.ai_engine_2_instance
 # 4. KHỞI TẠO STATE
