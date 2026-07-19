@@ -48,6 +48,8 @@ from modules.quan_ly_to.xd_thi_dua import render_thi_dua
 from modules.quan_ly_to.xd_kiem_tra_khbd import render_kiem_tra_khbd
 from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
 from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
+from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
+from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
 # 2. CẤU HÌNH TRANG
 st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide", page_icon="🏫")
 
@@ -135,7 +137,7 @@ try:
         with tabs[11]: render_kiem_tra_nhanh(ai_engine)
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
-        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Chuyên đề", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail"])
+        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Chuyên đề", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail","Viết sáng kiến", "Chấm sáng kiến"])
         with tabs[0]: render_danh_sach()
         with tabs[1]: render_phan_cong(db)
         with tabs[2]: render_bien_ban(db)
@@ -144,6 +146,8 @@ try:
         with tabs[5]: render_kiem_tra_khbd(ai_engine)
         with tabs[6]: render_sach_kn_so()
         with tabs[7]: render_tom_tat_gmail(ai_engine)
+        with tabs[8]: render_viet_sang_kien(ai_engine)
+        with tabs[9]: render_cham_sang_kien(ai_engine)
 except Exception as e:
     st.error("🚨 Có lỗi xảy ra trong quá trình render!")
     st.exception(e)
