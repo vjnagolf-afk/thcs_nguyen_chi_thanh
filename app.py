@@ -149,7 +149,7 @@ try:
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
         with tabs[3]: render_xd_tuong_tac(ai_engine) # Gọi đúng hàm render_xd_tuong_tac
-        with tabs[4]: render_xd_mo_phong(ai_engine)
+        with tabs[4]: render_mo_phong(ai_engine)
         with tabs[5]: render_xd_phan_tich(ai_engine)
         with tabs[6]: render_xd_ngan_hang_de(ai_engine)
         with tabs[7]: render_xd_sinh_video(ai_engine)
