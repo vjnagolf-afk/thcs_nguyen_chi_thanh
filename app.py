@@ -102,28 +102,63 @@ try:
     ai_engine = get_ai_engine_instance()
     ai_engine_2 = get_ai_engine_2_instance()
 
+# ========================================================
+    # PHÂN HỆ 1: HỖ TRỢ GIÁO VIÊN
+    # ========================================================
     if phan_he == "Hỗ trợ Giáo viên":
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
         tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
-        tab_funcs = [render_xd_khbd, render_xd_de_kt, render_xd_stem, render_xd_rubric, render_xd_chu_nhiem, render_xd_cham_viet, render_xd_tao_prompt, render_xd_quizizz, render_mo_phong, render_xd_live, render_chuyen_doi, render_tao_hoc_lieu]
-        for t, f in zip(tabs, tab_funcs): 
-            with t: f(ai_engine)
+        
+        with tabs[0]: render_xd_khbd(ai_engine)
+        with tabs[1]: render_xd_de_kt(ai_engine)
+        with tabs[2]: render_xd_stem(ai_engine)
+        with tabs[3]: render_xd_rubric(ai_engine)
+        with tabs[4]: render_xd_chu_nhiem(ai_engine)
+        with tabs[5]: render_xd_cham_viet(ai_engine)
+        with tabs[6]: render_xd_tao_prompt(ai_engine)
+        with tabs[7]: render_xd_quizizz(ai_engine)
+        with tabs[8]: render_mo_phong(ai_engine)
+        with tabs[9]: render_xd_live(ai_engine)
+        with tabs[10]: render_chuyen_doi(ai_engine)
+        with tabs[11]: render_tao_hoc_lieu(ai_engine)
 
+    # ========================================================
+    # PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY
+    # ========================================================
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
         tabs = st.tabs(["Hỏi đáp", "Trò chơi", "Chấm bài", "Tóm tắt tài liệu", "Mô phỏng LT TN ảo", "Phân tích KQ học tập", "Tạo đề nhanh", "Tạo Video", "Camera chấm bài", "Cá nhân hóa", "Phân tích bài học", "Tương tác trên lớp"])
-        tab_funcs = [render_rag, render_xd_tro_choi, render_xd_cham_nhanh, render_xd_tuong_tac, render_xd_mo_phong, render_xd_phan_tich, render_xd_ngan_hang_de, render_xd_sinh_video, render_camera_module, render_xd_ca_nhan_hoa, render_phan_tich_bh, render_kiem_tra_nhanh]
-        for t, f in zip(tabs, tab_funcs): 
-            with t: f(ai_engine)
+        
+        with tabs[0]: render_rag(ai_engine)
+        with tabs[1]: render_xd_tro_choi(ai_engine)
+        with tabs[2]: render_xd_cham_nhanh(ai_engine)
+        with tabs[3]: render_xd_tuong_tac(ai_engine)
+        with tabs[4]: render_xd_mo_phong(ai_engine)
+        with tabs[5]: render_xd_phan_tich(ai_engine)
+        with tabs[6]: render_xd_ngan_hang_de(ai_engine)
+        with tabs[7]: render_xd_sinh_video(ai_engine)
+        with tabs[8]: render_camera_module() # Không cần tham số
+        with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
+        with tabs[10]: render_phan_tich_bh(ai_engine)
+        with tabs[11]: render_kiem_tra_nhanh(ai_engine)
 
+    # ========================================================
+    # PHÂN HỆ 3: QUẢN LÝ TỔ CHUYÊN MÔN
+    # ========================================================
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
         tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Chuyên đề", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail", "Viết sáng kiến", "Chấm sáng kiến"])
-        tab_funcs = [render_danh_sach, render_phan_cong, render_bien_ban, render_ke_hoach, render_thi_dua, render_kiem_tra_khbd, render_sach_kn_so, render_tom_tat_gmail, render_viet_sang_kien, render_cham_sang_kien]
-        for t, f in zip(tabs, tab_funcs):
-            # Các hàm chuyên môn dùng ai_engine_2 (được thiết lập trong code thầy)
-            if f in [render_viet_sang_kien, render_cham_sang_kien]: f(ai_engine_2)
-            else: f(ai_engine if f != render_phan_cong and f != render_bien_ban else db)
+        
+        with tabs[0]: render_danh_sach()
+        with tabs[1]: render_phan_cong(db)
+        with tabs[2]: render_bien_ban(db)
+        with tabs[3]: render_ke_hoach()
+        with tabs[4]: render_thi_dua()
+        with tabs[5]: render_kiem_tra_khbd(ai_engine)
+        with tabs[6]: render_sach_kn_so()
+        with tabs[7]: render_tom_tat_gmail(ai_engine)
+        with tabs[8]: render_viet_sang_kien(ai_engine_2)
+        with tabs[9]: render_cham_sang_kien(ai_engine_2)
 
 except Exception as e:
     st.error("🚨 Lỗi hệ thống!")
