@@ -1,67 +1,78 @@
 import streamlit as st
 import PyPDF2
 from docx import Document
+from PIL import Image
+import io
 
+# 1. HÀM XỬ LÝ FILE (TEXT & IMAGE)
 def extract_text_from_file(uploaded_file):
     text = ""
-    try:
-        if uploaded_file.name.endswith('.docx'):
-            doc = Document(uploaded_file)
-            text = "\n".join([para.text for para in doc.paragraphs])
-        elif uploaded_file.name.endswith('.pdf'):
-            reader = PyPDF2.PdfReader(uploaded_file)
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-    except Exception as e:
-        st.error(f"Lỗi đọc file: {e}")
+    # Xử lý PDF
+    if uploaded_file.name.endswith('.pdf'):
+        reader = PyPDF2.PdfReader(uploaded_file)
+        for page in reader.pages: text += page.extract_text() + "\n"
+    # Xử lý Word
+    elif uploaded_file.name.endswith('.docx'):
+        doc = Document(uploaded_file)
+        text = "\n".join([para.text for para in doc.paragraphs])
     return text
 
 def render_cham_sang_kien(ai_engine):
-    st.markdown("### 🔍 Chấm & Góp ý Sáng kiến (Hỗ trợ file)")
+    st.markdown("### 🔍 Chấm & Góp ý Sáng kiến Kinh nghiệm")
     
-    # 1. Khu vực tải file
-    uploaded_file = st.file_uploader("Tải lên bản sáng kiến (PDF hoặc DOCX):", type=["pdf", "docx"])
+    # Khu vực tải lên: Hỗ trợ cả file tài liệu và ảnh chụp
+    uploaded_files = st.file_uploader("Tải lên bản sáng kiến (PDF, DOCX hoặc Ảnh chụp trang):", 
+                                     accept_multiple_files=True, type=["pdf", "docx", "jpg", "png"])
     
-    # 2. Hoặc nhập tay
-    van_ban_input = st.text_area("Hoặc dán nội dung sáng kiến:", height=200)
-    
-    if st.button("⚖️ BẮT ĐẦU CHẤM ĐIỂM"):
-        content = ""
-        if uploaded_file:
-            with st.spinner("Đang đọc nội dung file..."):
-                content = extract_text_from_file(uploaded_file)
-        else:
-            content = van_ban_input
-
-        if not content.strip():
-            st.warning("⚠️ Vui lòng tải file hoặc dán nội dung sáng kiến!")
+    if st.button("⚖️ BẮT ĐẦU CHẤM ĐIỂM & PHÂN TÍCH"):
+        if not uploaded_files:
+            st.warning("⚠️ Vui lòng tải file sáng kiến lên!")
             return
-            
-        # 3. Gọi AI phân tích với Prompt chuyên sâu
-        with st.spinner("AI đang chấm điểm và phân tích..."):
-            prompt = f"""Bạn là chuyên gia giáo dục hội đồng chấm sáng kiến kinh nghiệm.
-            Hãy phân tích bản sáng kiến dưới đây dựa trên các tiêu chí: 
-            1. Tính mới, 2. Tính khả thi, 3. Hiệu quả áp dụng, 4. Bố cục sư phạm.
-            
-            Sau đó, xuất ra bảng điểm Rubrics và gợi ý chỉnh sửa chi tiết.
-            
-            Nội dung: {content}"""
-            
-            try:
-                response = ai_engine.generate_text(prompt)
-                st.markdown("---")
-                st.markdown(response)
-                
-                # Lưu vào session để xuất file sau
-                st.session_state['last_result'] = response
-            except Exception as e:
-                st.error(f"❌ Lỗi khi gọi AI: {str(e)}")
 
-    # 4. Nút xuất kết quả
-    if 'last_result' in st.session_state:
+        with st.spinner("AI đang xử lý nội dung & phân tích chuyên sâu..."):
+            full_content = []
+            image_payload = []
+            
+            # Xử lý từng file
+            for file in uploaded_files:
+                if file.type.startswith('image'):
+                    image_payload.append(Image.open(file))
+                else:
+                    full_content.append(extract_text_from_file(file))
+            
+            combined_text = "\n".join(full_content)
+            
+            # 2. PROMPT CHUYÊN GIA (NLP CHUYÊN SÂU)
+            prompt = f"""
+            Bạn là chuyên gia hội đồng thẩm định sáng kiến kinh nghiệm cấp cơ sở. Hãy phân tích sáng kiến sau:
+            Nội dung: {combined_text}
+            
+            YÊU CẦU PHÂN TÍCH:
+            1. Chấm điểm theo thang Rubric: Tính mới (3đ), Tính khả thi (3đ), Hiệu quả (2đ), Phạm vi ảnh hưởng (2đ).
+            2. Phát hiện logic: Đối chiếu các giải pháp với thực tế giáo dục.
+            3. Kiểm tra tính nguyên gốc: Đưa ra nhận xét về mức độ văn phong tự nhiên.
+            4. Bảng nhận xét: Tổng hợp điểm mạnh/điểm yếu chi tiết.
+            """
+            
+            # 3. GỌI AI
+            try:
+                # Phân tích nội dung + hình ảnh (nếu có ảnh chụp trang)
+                response = ai_engine.generate_content([prompt] + image_payload)
+                st.session_state['sk_result'] = response.text
+                st.markdown(response.text)
+            except Exception as e:
+                st.error(f"❌ Lỗi xử lý: {str(e)}")
+
+    # 4. XUẤT BÁO CÁO TỰ ĐỘNG
+    if 'sk_result' in st.session_state:
         st.download_button(
-            label="💾 Tải kết quả chấm điểm (TXT)",
-            data=st.session_state['last_result'],
-            file_name="ket_qua_cham_sk.txt",
-            mime="text/plain"
+            label="📄 Xuất kết quả ra File (Markdown)",
+            data=st.session_state['sk_result'],
+            file_name="Bao_cao_cham_sk.md",
+            mime="text/markdown"
         )
+        
+    # GỢI Ý TÍCH HỢP NGOÀI
+    with st.expander("🛡️ Tiện ích kiểm tra nâng cao"):
+        st.info("Chức năng kiểm tra đạo văn và AI Detector yêu cầu API Key từ Copyscape/Originality.ai")
+        st.write("Thầy có thể liên hệ đơn vị cung cấp API để tích hợp vào khối lệnh này.")
