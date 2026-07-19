@@ -26,11 +26,11 @@ from modules.ho_tro_gv.xd_live import render_xd_live
 from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
 # Import Phân hệ Giảng dạy
+# Import Phân hệ Giảng dạy
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
 from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
-# Sửa thành đường dẫn mới khớp với thư mục trong ảnh
-from modules.ho_tro_giang_day.xd_camera import render_camera_module
+from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac # Sửa đúng tên hàm từ file xd_hoc_lieu.py
 from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
@@ -124,7 +124,7 @@ try:
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
-        with tabs[3]: render_xd_hoc_lieu(ai_engine)
+        with tabs[3]: render_xd_tuong_tac(ai_engine) # Gọi đúng hàm render_xd_tuong_tac
         with tabs[4]: render_xd_mo_phong(ai_engine)
         with tabs[5]: render_xd_phan_tich(ai_engine)
         with tabs[6]: render_xd_ngan_hang_de(ai_engine)
