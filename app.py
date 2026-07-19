@@ -23,9 +23,8 @@ from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
 from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
 from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
 from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong
 from modules.ho_tro_gv.xd_live import render_xd_live
-from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
+from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
 
 # Phân hệ Hỗ trợ Giảng dạy
@@ -33,6 +32,7 @@ from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
 from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
 from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac
+from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
@@ -41,7 +41,6 @@ from modules.ho_tro_giang_day.xd_camera import render_camera_module
 from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
 from modules.ho_tro_giang_day.xd_phan_tich_bh import render_phan_tich_bh
 from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
-
 # Phân hệ Quản lý Tổ chuyên môn
 from modules.quan_ly_to.danh_sach import render_danh_sach
 from modules.quan_ly_to.phan_cong import render_phan_cong
