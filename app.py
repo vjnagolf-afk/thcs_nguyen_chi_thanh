@@ -33,7 +33,8 @@ from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
 from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
 from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac
-from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong as render_mo_phong_giangday # (Tab 5: Mô phỏng LT TN ảo)
+# from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong as render_mo_phong_giangday # (Tab 5: Mô phỏng LT TN ảo)
+
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
 from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
@@ -41,6 +42,7 @@ from modules.ho_tro_giang_day.xd_camera import render_camera_module
 from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
 from modules.ho_tro_giang_day.xd_phan_tich_bh import render_phan_tich_bh
 from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
+
 # Phân hệ Quản lý Tổ chuyên môn
 from modules.quan_ly_to.danh_sach import render_danh_sach
 from modules.quan_ly_to.phan_cong import render_phan_cong
@@ -129,7 +131,7 @@ try:
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
         with tabs[3]: render_xd_tuong_tac(ai_engine)
-        with tabs[4]: render_mo_phong_giangday(ai_engine) # Gọi module từ ho_tro_giang_day/mo_phong
+        # with tabs[4]: render_mo_phong_giangday(ai_engine) # Gọi module từ ho_tro_giang_day/mo_phong
         with tabs[5]: render_xd_phan_tich(ai_engine)
         with tabs[6]: render_xd_ngan_hang_de(ai_engine)
         with tabs[7]: render_xd_sinh_video(ai_engine)
