@@ -22,11 +22,10 @@ from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
 from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
 from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
 from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
+from modules.ho_tro_gv.mo_phong.page import render_mo_phong
 from modules.ho_tro_gv.xd_live import render_xd_live
 from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
-# Import Phân hệ Giảng dạy
 # Import Phân hệ Giảng dạy
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
