@@ -115,7 +115,7 @@ try:
         with tabs[5]: render_xd_cham_viet(ai_engine)
         with tabs[6]: render_xd_tao_prompt(ai_engine)
         with tabs[7]: render_xd_quizizz(ai_engine)
-        with tabs[8]: render_mo_phong(ai_engine) # Gọi module từ ho_tro_gv
+        with tabs[8]: render_xd_mo_phong(ai_engine)
         with tabs[9]: render_xd_live(ai_engine)
         with tabs[10]: render_chuyen_doi(ai_engine)
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
