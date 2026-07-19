@@ -1,78 +1,1618 @@
+"""
+Module: modules/cham_sang_kien.py
+
+Mô tả:
+    Module chấm và phân tích sáng kiến kinh nghiệm bằng AI.
+
+Tính năng:
+    - Đọc PDF
+    - Đọc DOCX
+    - Đọc ảnh JPG/JPEG/PNG bằng AI Engine trung tâm
+    - Chấm theo Rubric 10 điểm
+    - Phân tích tính mới
+    - Phân tích tính khả thi
+    - Phân tích hiệu quả
+    - Phân tích phạm vi ảnh hưởng
+    - Kiểm tra logic của sáng kiến
+    - Phát hiện dấu hiệu văn phong máy móc / sao chép ở mức tham khảo
+    - Xuất kết quả Markdown
+    - Xuất báo cáo Word
+
+Yêu cầu:
+    - streamlit
+    - PyPDF2
+    - python-docx
+    - Pillow
+"""
+
 import streamlit as st
 import PyPDF2
+
 from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+
 from PIL import Image
+
 import io
+import re
+import json
+from typing import List, Dict, Any
 
-# 1. HÀM XỬ LÝ FILE (TEXT & IMAGE)
-def extract_text_from_file(uploaded_file):
-    text = ""
-    # Xử lý PDF
-    if uploaded_file.name.endswith('.pdf'):
+
+# ============================================================
+# 1. CẤU HÌNH MODULE
+# ============================================================
+
+MAX_TEXT_LENGTH = 120000
+MAX_IMAGE_COUNT = 30
+
+
+# ============================================================
+# 2. HÀM TIỆN ÍCH CHUNG
+# ============================================================
+
+def safe_text(value: Any) -> str:
+    """
+    Chuyển dữ liệu bất kỳ thành chuỗi an toàn.
+    """
+    if value is None:
+        return ""
+
+    return str(value).strip()
+
+
+def normalize_text(text: str) -> str:
+    """
+    Chuẩn hóa văn bản.
+    """
+
+    if not text:
+        return ""
+
+    text = text.replace("\x00", " ")
+
+    text = re.sub(r"\r\n", "\n", text)
+    text = re.sub(r"\r", "\n", text)
+
+    # Loại bỏ nhiều khoảng trắng liên tiếp
+    text = re.sub(r"[ \t]+", " ", text)
+
+    # Loại bỏ quá nhiều dòng trống
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
+def truncate_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
+    """
+    Giới hạn độ dài văn bản để tránh vượt context window.
+    """
+
+    if not text:
+        return ""
+
+    if len(text) <= max_length:
+        return text
+
+    return (
+        text[:max_length]
+        + "\n\n"
+        "[HỆ THỐNG: Nội dung đã được cắt bớt do vượt giới hạn xử lý.]"
+    )
+
+
+# ============================================================
+# 3. ĐỌC FILE PDF
+# ============================================================
+
+def extract_text_from_pdf(uploaded_file) -> str:
+    """
+    Trích xuất văn bản từ file PDF.
+    """
+
+    text_parts = []
+
+    try:
+        uploaded_file.seek(0)
+
         reader = PyPDF2.PdfReader(uploaded_file)
-        for page in reader.pages: text += page.extract_text() + "\n"
-    # Xử lý Word
-    elif uploaded_file.name.endswith('.docx'):
-        doc = Document(uploaded_file)
-        text = "\n".join([para.text for para in doc.paragraphs])
-    return text
 
-def render_cham_sang_kien(ai_engine):
-    st.markdown("### 🔍 Chấm & Góp ý Sáng kiến Kinh nghiệm")
-    
-    # Khu vực tải lên: Hỗ trợ cả file tài liệu và ảnh chụp
-    uploaded_files = st.file_uploader("Tải lên bản sáng kiến (PDF, DOCX hoặc Ảnh chụp trang):", 
-                                     accept_multiple_files=True, type=["pdf", "docx", "jpg", "png"])
-    
-    if st.button("⚖️ BẮT ĐẦU CHẤM ĐIỂM & PHÂN TÍCH"):
+        for page_number, page in enumerate(reader.pages, start=1):
+
+            try:
+                page_text = page.extract_text() or ""
+
+                if page_text.strip():
+                    text_parts.append(
+                        f"\n--- TRANG {page_number} ---\n"
+                        f"{page_text}"
+                    )
+
+            except Exception as page_error:
+                text_parts.append(
+                    f"\n--- TRANG {page_number} ---\n"
+                    f"[Không thể đọc trang này: {page_error}]"
+                )
+
+    except Exception as error:
+        raise RuntimeError(
+            f"Không thể đọc file PDF: {error}"
+        )
+
+    return normalize_text("\n".join(text_parts))
+
+
+# ============================================================
+# 4. ĐỌC FILE WORD
+# ============================================================
+
+def extract_text_from_docx(uploaded_file) -> str:
+    """
+    Trích xuất nội dung từ DOCX.
+
+    Bao gồm:
+        - Paragraph
+        - Table
+    """
+
+    try:
+        uploaded_file.seek(0)
+
+        doc = Document(uploaded_file)
+
+        content_parts = []
+
+        # -----------------------------
+        # Đọc các đoạn văn
+        # -----------------------------
+
+        for paragraph in doc.paragraphs:
+
+            text = paragraph.text.strip()
+
+            if text:
+                content_parts.append(text)
+
+        # -----------------------------
+        # Đọc các bảng
+        # -----------------------------
+
+        for table_index, table in enumerate(doc.tables, start=1):
+
+            content_parts.append(
+                f"\n--- BẢNG {table_index} ---"
+            )
+
+            for row in table.rows:
+
+                row_values = []
+
+                for cell in row.cells:
+
+                    cell_text = cell.text.strip()
+
+                    row_values.append(cell_text)
+
+                content_parts.append(
+                    " | ".join(row_values)
+                )
+
+    except Exception as error:
+        raise RuntimeError(
+            f"Không thể đọc file Word: {error}"
+        )
+
+    return normalize_text(
+        "\n".join(content_parts)
+    )
+
+
+# ============================================================
+# 5. ĐỌC FILE ẢNH
+# ============================================================
+
+def load_image(uploaded_file):
+    """
+    Đọc ảnh và chuyển về RGB.
+    """
+
+    try:
+
+        uploaded_file.seek(0)
+
+        image = Image.open(uploaded_file)
+
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        return image
+
+    except Exception as error:
+
+        raise RuntimeError(
+            f"Không thể đọc hình ảnh: {error}"
+        )
+
+
+# ============================================================
+# 6. PHÂN LOẠI VÀ XỬ LÝ FILE
+# ============================================================
+
+def process_uploaded_files(uploaded_files):
+    """
+    Xử lý toàn bộ file được tải lên.
+
+    Returns:
+        {
+            "text": "...",
+            "images": [...],
+            "files": [...]
+        }
+    """
+
+    text_parts = []
+
+    images = []
+
+    processed_files = []
+
+    for uploaded_file in uploaded_files:
+
+        file_name = uploaded_file.name.lower()
+
+        file_type = uploaded_file.type or ""
+
+        processed_files.append(
+            uploaded_file.name
+        )
+
+        # -----------------------------
+        # PDF
+        # -----------------------------
+
+        if file_name.endswith(".pdf"):
+
+            text = extract_text_from_pdf(
+                uploaded_file
+            )
+
+            if text:
+                text_parts.append(
+                    f"\n===== FILE: {uploaded_file.name} =====\n"
+                    f"{text}"
+                )
+
+        # -----------------------------
+        # DOCX
+        # -----------------------------
+
+        elif file_name.endswith(".docx"):
+
+            text = extract_text_from_docx(
+                uploaded_file
+            )
+
+            if text:
+                text_parts.append(
+                    f"\n===== FILE: {uploaded_file.name} =====\n"
+                    f"{text}"
+                )
+
+        # -----------------------------
+        # ẢNH
+        # -----------------------------
+
+        elif (
+            file_name.endswith(".jpg")
+            or file_name.endswith(".jpeg")
+            or file_name.endswith(".png")
+        ):
+
+            if len(images) < MAX_IMAGE_COUNT:
+
+                image = load_image(
+                    uploaded_file
+                )
+
+                images.append(image)
+
+    combined_text = normalize_text(
+        "\n".join(text_parts)
+    )
+
+    combined_text = truncate_text(
+        combined_text
+    )
+
+    return {
+        "text": combined_text,
+        "images": images,
+        "files": processed_files
+    }
+
+
+# ============================================================
+# 7. PROMPT CHUYÊN GIA CHẤM SÁNG KIẾN
+# ============================================================
+
+def build_evaluation_prompt(
+    content: str,
+    file_names: List[str],
+    has_images: bool = False
+) -> str:
+    """
+    Tạo prompt chuyên gia đánh giá sáng kiến.
+    """
+
+    image_note = ""
+
+    if has_images:
+
+        image_note = """
+Ngoài phần văn bản dưới đây, hệ thống có thể cung cấp thêm
+hình ảnh các trang tài liệu. Hãy sử dụng thông tin trong hình ảnh
+khi cần thiết để bổ sung cho việc phân tích.
+"""
+
+    prompt = f"""
+VAI TRÒ
+
+Bạn là chuyên gia trong hội đồng đánh giá sáng kiến kinh nghiệm
+trong lĩnh vực giáo dục.
+
+Bạn có nhiệm vụ phân tích khách quan, có căn cứ và có tính phản biện
+đối với một sáng kiến kinh nghiệm.
+
+MỤC TIÊU
+
+Hãy đánh giá sáng kiến dựa trên nội dung thực tế được cung cấp.
+Không được tự bịa thêm kết quả, số liệu, minh chứng hoặc thông tin
+không xuất hiện trong tài liệu.
+
+Nếu tài liệu thiếu thông tin để đánh giá một tiêu chí, phải ghi rõ:
+
+"Chưa đủ minh chứng để kết luận chắc chắn."
+
+Không được khẳng định sáng kiến đạo văn chỉ dựa trên văn phong.
+
+Đánh giá dấu hiệu AI hoặc sao chép chỉ được trình bày dưới dạng:
+
+"Nhận diện tham khảo, không phải kết luận pháp lý hoặc kết luận đạo văn."
+
+{image_note}
+
+============================================================
+THÔNG TIN FILE ĐƯỢC PHÂN TÍCH
+============================================================
+
+{chr(10).join(file_names)}
+
+============================================================
+NỘI DUNG SÁNG KIẾN
+============================================================
+
+{content}
+
+============================================================
+RUBRIC CHẤM ĐIỂM
+============================================================
+
+TỔNG ĐIỂM: 10 ĐIỂM
+
+1. TÍNH MỚI: 0 - 3 ĐIỂM
+
+Đánh giá:
+
+- Vấn đề có thực sự cần giải quyết hay không?
+- Giải pháp có điểm mới so với cách làm thông thường không?
+- Mức độ sáng tạo của giải pháp.
+- Có sự cải tiến rõ ràng hay chỉ là mô tả lại phương pháp cũ?
+- Có bằng chứng cho thấy điểm mới hay không?
+
+2. TÍNH KHẢ THI: 0 - 3 ĐIỂM
+
+Đánh giá:
+
+- Giải pháp có thể triển khai trong điều kiện thực tế không?
+- Có phù hợp với nguồn lực nhà trường không?
+- Có phù hợp với đối tượng học sinh không?
+- Quy trình triển khai có rõ ràng không?
+- Có thể nhân rộng không?
+
+3. HIỆU QUẢ: 0 - 2 ĐIỂM
+
+Đánh giá:
+
+- Có minh chứng trước và sau khi áp dụng không?
+- Có số liệu hoặc bằng chứng cụ thể không?
+- Kết quả có phù hợp với giải pháp không?
+- Có khả năng lặp lại kết quả không?
+
+4. PHẠM VI ẢNH HƯỞNG: 0 - 2 ĐIỂM
+
+Đánh giá:
+
+- Có thể áp dụng cho lớp khác không?
+- Có thể áp dụng cho trường khác không?
+- Có thể áp dụng cho môn học hoặc đối tượng khác không?
+- Mức độ nhân rộng của sáng kiến.
+
+============================================================
+YÊU CẦU ĐẦU RA
+============================================================
+
+Hãy trả lời bằng MARKDOWN theo đúng cấu trúc sau:
+
+# BÁO CÁO ĐÁNH GIÁ SÁNG KIẾN KINH NGHIỆM
+
+## I. TÓM TẮT ĐÁNH GIÁ
+
+Tóm tắt ngắn gọn:
+
+- Vấn đề chính mà sáng kiến giải quyết.
+- Giải pháp cốt lõi.
+- Đối tượng áp dụng.
+- Kết quả nổi bật.
+- Nhận định tổng quan.
+
+## II. BẢNG ĐIỂM TỔNG HỢP
+
+| STT | Tiêu chí | Điểm tối đa | Điểm đạt | Nhận xét ngắn |
+|---|---|---:|---:|---|
+| 1 | Tính mới | 3 | x | ... |
+| 2 | Tính khả thi | 3 | x | ... |
+| 3 | Hiệu quả | 2 | x | ... |
+| 4 | Phạm vi ảnh hưởng | 2 | x | ... |
+| | TỔNG CỘNG | 10 | x | ... |
+
+ĐIỂM TỔNG: x/10
+
+MỨC ĐÁNH GIÁ:
+
+- 9,0 - 10,0: Rất tốt
+- 8,0 - 8,9: Tốt
+- 6,5 - 7,9: Khá
+- 5,0 - 6,4: Đạt
+- Dưới 5,0: Cần hoàn thiện
+
+## III. PHÂN TÍCH CHI TIẾT TỪNG TIÊU CHÍ
+
+### 1. TÍNH MỚI: x/3 ĐIỂM
+
+#### Điểm mạnh
+
+- ...
+
+#### Hạn chế
+
+- ...
+
+#### Minh chứng trong sáng kiến
+
+- ...
+
+#### Nhận xét của chuyên gia
+
+...
+
+### 2. TÍNH KHẢ THI: x/3 ĐIỂM
+
+#### Điểm mạnh
+
+- ...
+
+#### Hạn chế
+
+- ...
+
+#### Minh chứng trong sáng kiến
+
+- ...
+
+#### Nhận xét của chuyên gia
+
+...
+
+### 3. HIỆU QUẢ: x/2 ĐIỂM
+
+#### Điểm mạnh
+
+- ...
+
+#### Hạn chế
+
+- ...
+
+#### Minh chứng trong sáng kiến
+
+- ...
+
+#### Nhận xét của chuyên gia
+
+...
+
+### 4. PHẠM VI ẢNH HƯỞNG: x/2 ĐIỂM
+
+#### Điểm mạnh
+
+- ...
+
+#### Hạn chế
+
+- ...
+
+#### Minh chứng trong sáng kiến
+
+- ...
+
+#### Nhận xét của chuyên gia
+
+...
+
+## IV. KIỂM TRA TÍNH LOGIC
+
+Phân tích các nội dung:
+
+### 1. Tính logic của vấn đề
+
+...
+
+### 2. Tính logic giữa nguyên nhân và giải pháp
+
+...
+
+### 3. Tính logic giữa giải pháp và kết quả
+
+...
+
+### 4. Tính phù hợp của số liệu minh chứng
+
+...
+
+### 5. Những điểm còn mâu thuẫn hoặc chưa thuyết phục
+
+...
+
+## V. PHÂN TÍCH TÍNH NGUYÊN GỐC VÀ VĂN PHONG
+
+Chỉ đưa ra nhận diện tham khảo.
+
+Phân tích:
+
+- Mức độ tự nhiên của văn phong.
+- Mức độ nhất quán giữa các phần.
+- Dấu hiệu sử dụng ngôn ngữ khuôn mẫu.
+- Dấu hiệu lặp ý hoặc lặp cấu trúc.
+- Dấu hiệu nội dung có thể được tổng hợp từ nguồn khác.
+- Những đoạn cần kiểm tra lại nguồn trích dẫn.
+
+KẾT LUẬN BẮT BUỘC:
+
+"Phân tích này chỉ là nhận diện tham khảo, không thay thế công cụ kiểm tra đạo văn hoặc quy trình xác minh bản quyền."
+
+## VI. ƯU ĐIỂM NỔI BẬT
+
+Liệt kê ít nhất 5 ưu điểm nếu có căn cứ.
+
+## VII. HẠN CHẾ VÀ RỦI RO
+
+Liệt kê các hạn chế thực tế.
+
+## VIII. CÁC ĐIỂM CẦN BỔ SUNG MINH CHỨNG
+
+Đề xuất cụ thể:
+
+- Số liệu nào cần bổ sung?
+- Bảng biểu nào cần bổ sung?
+- So sánh trước và sau nào cần bổ sung?
+- Minh chứng thực tế nào cần bổ sung?
+
+## IX. ĐỀ XUẤT CHỈNH SỬA
+
+Đề xuất các chỉnh sửa cụ thể theo thứ tự ưu tiên:
+
+1. ...
+2. ...
+3. ...
+
+## X. KẾT LUẬN CHUYÊN MÔN
+
+Đưa ra:
+
+- Điểm tổng.
+- Mức đánh giá.
+- Khả năng hoàn thiện.
+- Khả năng áp dụng thực tế.
+- Khả năng nhân rộng.
+
+Kết luận phải khách quan, không tâng bốc và không hạ thấp tác giả.
+
+============================================================
+QUY TẮC QUAN TRỌNG
+============================================================
+
+1. Không tự bịa số liệu.
+2. Không tự bịa kết quả nghiên cứu.
+3. Không khẳng định đạo văn nếu không có công cụ kiểm tra đối chiếu.
+4. Không khẳng định văn bản do AI tạo ra chỉ dựa vào văn phong.
+5. Nếu thiếu minh chứng, phải ghi rõ thiếu minh chứng.
+6. Điểm số phải phù hợp với phân tích.
+7. Tổng điểm phải bằng tổng điểm của 4 tiêu chí.
+8. Tính mới tối đa 3 điểm.
+9. Tính khả thi tối đa 3 điểm.
+10. Hiệu quả tối đa 2 điểm.
+11. Phạm vi ảnh hưởng tối đa 2 điểm.
+12. Tổng điểm tối đa 10 điểm.
+13. Phải phân biệt rõ "có minh chứng" và "chỉ là tuyên bố của tác giả".
+14. Ưu tiên đánh giá dựa trên bằng chứng.
+15. Không đưa ra kết luận tuyệt đối nếu tài liệu không đủ dữ liệu.
+"""
+
+    return prompt
+
+
+# ============================================================
+# 8. GỌI AI ENGINE TRUNG TÂM
+# ============================================================
+
+def call_ai_engine(
+    ai_engine,
+    prompt: str
+) -> str:
+    """
+    Gọi AI Engine trung tâm.
+
+    Ưu tiên:
+        ai_engine.generate_text(prompt)
+
+    Đây là điểm kết nối duy nhất với AI.
+    """
+
+    if ai_engine is None:
+
+        raise RuntimeError(
+            "AI Engine chưa được khởi tạo."
+        )
+
+    if not hasattr(
+        ai_engine,
+        "generate_text"
+    ):
+
+        raise AttributeError(
+            "AI Engine hiện tại không có phương thức "
+            "'generate_text(prompt)'."
+        )
+
+    result = ai_engine.generate_text(
+        prompt
+    )
+
+    # Trường hợp AI Engine trả về chuỗi
+    if isinstance(result, str):
+
+        return result.strip()
+
+    # Trường hợp trả về object có text
+    if hasattr(result, "text"):
+
+        return safe_text(
+            result.text
+        )
+
+    # Trường hợp trả về dict
+    if isinstance(result, dict):
+
+        for key in [
+            "text",
+            "content",
+            "response",
+            "result"
+        ]:
+
+            if key in result:
+
+                return safe_text(
+                    result[key]
+                )
+
+    return safe_text(result)
+
+
+# ============================================================
+# 9. TẠO BÁO CÁO MARKDOWN
+# ============================================================
+
+def build_markdown_report(
+    ai_result: str,
+    file_names: List[str]
+) -> str:
+    """
+    Tạo báo cáo Markdown hoàn chỉnh.
+    """
+
+    report = []
+
+    report.append(
+        "# BÁO CÁO CHẤM VÀ PHÂN TÍCH SÁNG KIẾN KINH NGHIỆM"
+    )
+
+    report.append("")
+
+    report.append(
+        "## THÔNG TIN HỒ SƠ"
+    )
+
+    report.append("")
+
+    report.append(
+        "### Tài liệu được phân tích"
+    )
+
+    for file_name in file_names:
+
+        report.append(
+            f"- {file_name}"
+        )
+
+    report.append("")
+
+    report.append(
+        "---"
+    )
+
+    report.append("")
+
+    report.append(
+        ai_result
+    )
+
+    report.append("")
+
+    report.append(
+        "---"
+    )
+
+    report.append("")
+
+    report.append(
+        "*Báo cáo được tạo với sự hỗ trợ của AI. "
+        "Kết quả cần được hội đồng chuyên môn kiểm tra, "
+        "đối chiếu và quyết định cuối cùng.*"
+    )
+
+    return "\n".join(report)
+
+
+# ============================================================
+# 10. HỖ TRỢ WORD
+# ============================================================
+
+def set_cell_shading(
+    cell,
+    fill: str = "D9EAF7"
+):
+    """
+    Tô màu nền ô bảng Word.
+    """
+
+    tc_pr = cell._tc.get_or_add_tcPr()
+
+    shd = tc_pr.find(
+        qn("w:shd")
+    )
+
+    if shd is None:
+
+        shd = OxmlElement(
+            "w:shd"
+        )
+
+        tc_pr.append(
+            shd
+        )
+
+    shd.set(
+        qn("w:fill"),
+        fill
+    )
+
+
+def set_cell_text_bold(
+    cell
+):
+    """
+    In đậm toàn bộ nội dung trong ô.
+    """
+
+    for paragraph in cell.paragraphs:
+
+        for run in paragraph.runs:
+
+            run.bold = True
+
+
+def set_table_borders(
+    table
+):
+    """
+    Thiết lập đường viền cho bảng Word.
+    """
+
+    tbl = table._tbl
+
+    tbl_pr = tbl.tblPr
+
+    borders = tbl_pr.first_child_found_in(
+        "w:tblBorders"
+    )
+
+    if borders is None:
+
+        borders = OxmlElement(
+            "w:tblBorders"
+        )
+
+        tbl_pr.append(
+            borders
+        )
+
+    for edge in (
+        "top",
+        "left",
+        "bottom",
+        "right",
+        "insideH",
+        "insideV"
+    ):
+
+        tag = "w:" + edge
+
+        element = borders.find(
+            qn(tag)
+        )
+
+        if element is None:
+
+            element = OxmlElement(
+                tag
+            )
+
+            borders.append(
+                element
+            )
+
+        element.set(
+            qn("w:val"),
+            "single"
+        )
+
+        element.set(
+            qn("w:sz"),
+            "4"
+        )
+
+        element.set(
+            qn("w:space"),
+            "0"
+        )
+
+        element.set(
+            qn("w:color"),
+            "808080"
+        )
+
+
+def add_markdown_content_to_docx(
+    document: Document,
+    markdown_text: str
+):
+    """
+    Chuyển nội dung Markdown cơ bản sang Word.
+
+    Hỗ trợ:
+        - Heading
+        - Bullet
+        - Numbered list
+        - Paragraph
+        - Table Markdown
+    """
+
+    lines = markdown_text.splitlines()
+
+    index = 0
+
+    while index < len(lines):
+
+        line = lines[index].strip()
+
+        # -----------------------------
+        # Dòng trống
+        # -----------------------------
+
+        if not line:
+
+            index += 1
+
+            continue
+
+        # -----------------------------
+        # Heading
+        # -----------------------------
+
+        if line.startswith("#"):
+
+            level = len(
+                line
+            ) - len(
+                line.lstrip("#")
+            )
+
+            title = line.lstrip("#").strip()
+
+            if level <= 1:
+
+                heading = document.add_heading(
+                    title,
+                    level=1
+                )
+
+            elif level == 2:
+
+                heading = document.add_heading(
+                    title,
+                    level=2
+                )
+
+            else:
+
+                heading = document.add_heading(
+                    title,
+                    level=3
+                )
+
+            heading.alignment = (
+                WD_ALIGN_PARAGRAPH.LEFT
+            )
+
+            index += 1
+
+            continue
+
+        # -----------------------------
+        # Markdown Table
+        # -----------------------------
+
+        if (
+            "|" in line
+            and index + 1 < len(lines)
+            and "|" in lines[index + 1]
+        ):
+
+            table_lines = []
+
+            while (
+                index < len(lines)
+                and "|" in lines[index]
+            ):
+
+                current_line = lines[index].strip()
+
+                # Bỏ dòng phân cách Markdown
+                if not re.match(
+                    r"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$",
+                    current_line
+                ):
+
+                    table_lines.append(
+                        current_line
+                    )
+
+                index += 1
+
+            if table_lines:
+
+                rows = []
+
+                for table_line in table_lines:
+
+                    cells = [
+                        cell.strip()
+                        for cell in table_line.strip("|").split("|")
+                    ]
+
+                    rows.append(cells)
+
+                max_columns = max(
+                    len(row)
+                    for row in rows
+                )
+
+                table = document.add_table(
+                    rows=len(rows),
+                    cols=max_columns
+                )
+
+                table.alignment = (
+                    WD_TABLE_ALIGNMENT.CENTER
+                )
+
+                table.style = (
+                    "Table Grid"
+                )
+
+                set_table_borders(
+                    table
+                )
+
+                for row_index, row in enumerate(rows):
+
+                    for col_index in range(max_columns):
+
+                        cell = table.cell(
+                            row_index,
+                            col_index
+                        )
+
+                        cell.vertical_alignment = (
+                            WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                        )
+
+                        if col_index < len(row):
+
+                            cell.text = row[col_index]
+
+                        else:
+
+                            cell.text = ""
+
+                        if row_index == 0:
+
+                            set_cell_shading(
+                                cell
+                            )
+
+                            set_cell_text_bold(
+                                cell
+                            )
+
+                document.add_paragraph()
+
+            continue
+
+        # -----------------------------
+        # Bullet
+        # -----------------------------
+
+        if line.startswith("- ") or line.startswith("* "):
+
+            paragraph = document.add_paragraph(
+                style="List Bullet"
+            )
+
+            paragraph.add_run(
+                line[2:].strip()
+            )
+
+            index += 1
+
+            continue
+
+        # -----------------------------
+        # Numbered list
+        # -----------------------------
+
+        numbered_match = re.match(
+            r"^\d+\.\s+(.*)",
+            line
+        )
+
+        if numbered_match:
+
+            paragraph = document.add_paragraph(
+                style="List Number"
+            )
+
+            paragraph.add_run(
+                numbered_match.group(1)
+            )
+
+            index += 1
+
+            continue
+
+        # -----------------------------
+        # Paragraph thường
+        # -----------------------------
+
+        paragraph = document.add_paragraph()
+
+        paragraph.add_run(
+            line
+        )
+
+        index += 1
+
+
+def create_word_report(
+    markdown_report: str
+) -> bytes:
+    """
+    Tạo file Word từ báo cáo Markdown.
+    """
+
+    document = Document()
+
+    # --------------------------------
+    # Thiết lập lề
+    # --------------------------------
+
+    section = document.sections[0]
+
+    section.top_margin = Inches(
+        0.7
+    )
+
+    section.bottom_margin = Inches(
+        0.7
+    )
+
+    section.left_margin = Inches(
+        0.8
+    )
+
+    section.right_margin = Inches(
+        0.8
+    )
+
+    # --------------------------------
+    # Font mặc định
+    # --------------------------------
+
+    styles = document.styles
+
+    normal_style = styles["Normal"]
+
+    normal_style.font.name = (
+        "Times New Roman"
+    )
+
+    normal_style.font.size = Pt(
+        12
+    )
+
+    # --------------------------------
+    # Tiêu đề báo cáo
+    # --------------------------------
+
+    title = document.add_paragraph()
+
+    title.alignment = (
+        WD_ALIGN_PARAGRAPH.CENTER
+    )
+
+    run = title.add_run(
+        "BÁO CÁO CHẤM VÀ PHÂN TÍCH\n"
+        "SÁNG KIẾN KINH NGHIỆM"
+    )
+
+    run.bold = True
+
+    run.font.name = (
+        "Times New Roman"
+    )
+
+    run.font.size = Pt(
+        16
+    )
+
+    document.add_paragraph()
+
+    # --------------------------------
+    # Nội dung
+    # --------------------------------
+
+    add_markdown_content_to_docx(
+        document,
+        markdown_report
+    )
+
+    # --------------------------------
+    # Xuất BytesIO
+    # --------------------------------
+
+    output = io.BytesIO()
+
+    document.save(
+        output
+    )
+
+    output.seek(0)
+
+    return output.getvalue()
+
+
+# ============================================================
+# 11. GIAO DIỆN STREAMLIT
+# ============================================================
+
+def render_cham_sang_kien(
+    ai_engine
+):
+    """
+    Hàm giao diện chính của module.
+    """
+
+    st.markdown(
+        "## 🔍 Chấm & Góp ý Sáng kiến Kinh nghiệm"
+    )
+
+    st.caption(
+        "Phân tích sáng kiến theo Rubric 10 điểm "
+        "và hỗ trợ xây dựng báo cáo phản biện chuyên môn."
+    )
+
+    # ========================================================
+    # THÔNG TIN SÁNG KIẾN
+    # ========================================================
+
+    with st.expander(
+        "ℹ️ Hướng dẫn sử dụng",
+        expanded=False
+    ):
+
+        st.markdown(
+            """
+**Bước 1:** Tải lên một hoặc nhiều file sáng kiến.
+
+**Bước 2:** Có thể tải lên:
+
+- File PDF.
+- File Word DOCX.
+- Ảnh JPG/JPEG/PNG.
+
+**Bước 3:** Nhấn **BẮT ĐẦU CHẤM ĐIỂM & PHÂN TÍCH**.
+
+**Bước 4:** Kiểm tra kết quả và xuất báo cáo Word.
+"""
+        )
+
+    # ========================================================
+    # TẢI FILE
+    # ========================================================
+
+    uploaded_files = st.file_uploader(
+        "📂 Tải lên bản sáng kiến",
+        type=[
+            "pdf",
+            "docx",
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        accept_multiple_files=True,
+        help=(
+            "Có thể tải lên nhiều file PDF, DOCX hoặc ảnh "
+            "các trang sáng kiến."
+        )
+    )
+
+    # ========================================================
+    # THÔNG TIN FILE
+    # ========================================================
+
+    if uploaded_files:
+
+        st.success(
+            f"Đã tải lên {len(uploaded_files)} file."
+        )
+
+        with st.expander(
+            "📄 Danh sách file",
+            expanded=False
+        ):
+
+            for file in uploaded_files:
+
+                st.write(
+                    f"• {file.name}"
+                )
+
+    # ========================================================
+    # NÚT PHÂN TÍCH
+    # ========================================================
+
+    analyze_button = st.button(
+        "⚖️ BẮT ĐẦU CHẤM ĐIỂM & PHÂN TÍCH",
+        type="primary",
+        use_container_width=True
+    )
+
+    if analyze_button:
+
         if not uploaded_files:
-            st.warning("⚠️ Vui lòng tải file sáng kiến lên!")
+
+            st.warning(
+                "⚠️ Vui lòng tải ít nhất một file sáng kiến."
+            )
+
             return
 
-        with st.spinner("AI đang xử lý nội dung & phân tích chuyên sâu..."):
-            full_content = []
-            image_payload = []
-            
-            # Xử lý từng file
-            for file in uploaded_files:
-                if file.type.startswith('image'):
-                    image_payload.append(Image.open(file))
-                else:
-                    full_content.append(extract_text_from_file(file))
-            
-            combined_text = "\n".join(full_content)
-            
-            # 2. PROMPT CHUYÊN GIA (NLP CHUYÊN SÂU)
-            prompt = f"""
-            Bạn là chuyên gia hội đồng thẩm định sáng kiến kinh nghiệm cấp cơ sở. Hãy phân tích sáng kiến sau:
-            Nội dung: {combined_text}
-            
-            YÊU CẦU PHÂN TÍCH:
-            1. Chấm điểm theo thang Rubric: Tính mới (3đ), Tính khả thi (3đ), Hiệu quả (2đ), Phạm vi ảnh hưởng (2đ).
-            2. Phát hiện logic: Đối chiếu các giải pháp với thực tế giáo dục.
-            3. Kiểm tra tính nguyên gốc: Đưa ra nhận xét về mức độ văn phong tự nhiên.
-            4. Bảng nhận xét: Tổng hợp điểm mạnh/điểm yếu chi tiết.
-            """
-            
-            # 3. GỌI AI
-            try:
-                # Phân tích nội dung + hình ảnh (nếu có ảnh chụp trang)
-                response = ai_engine.generate_content([prompt] + image_payload)
-                st.session_state['sk_result'] = response.text
-                st.markdown(response.text)
-            except Exception as e:
-                st.error(f"❌ Lỗi xử lý: {str(e)}")
+        try:
 
-    # 4. XUẤT BÁO CÁO TỰ ĐỘNG
-    if 'sk_result' in st.session_state:
-        st.download_button(
-            label="📄 Xuất kết quả ra File (Markdown)",
-            data=st.session_state['sk_result'],
-            file_name="Bao_cao_cham_sk.md",
-            mime="text/markdown"
+            with st.spinner(
+                "🔍 Đang đọc và xử lý tài liệu..."
+            ):
+
+                processed_data = (
+                    process_uploaded_files(
+                        uploaded_files
+                    )
+                )
+
+            combined_text = (
+                processed_data["text"]
+            )
+
+            images = (
+                processed_data["images"]
+            )
+
+            file_names = (
+                processed_data["files"]
+            )
+
+            if not combined_text and not images:
+
+                st.error(
+                    "❌ Không thể đọc được nội dung "
+                    "từ các file đã tải lên."
+                )
+
+                return
+
+            # --------------------------------------------
+            # Hiển thị thống kê
+            # --------------------------------------------
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+
+                st.metric(
+                    "Số file",
+                    len(file_names)
+                )
+
+            with col2:
+
+                st.metric(
+                    "Số ký tự văn bản",
+                    f"{len(combined_text):,}"
+                )
+
+            with col3:
+
+                st.metric(
+                    "Số ảnh",
+                    len(images)
+                )
+
+            # --------------------------------------------
+            # Tạo prompt
+            # --------------------------------------------
+
+            with st.spinner(
+                "🧠 AI đang xây dựng phân tích chuyên môn..."
+            ):
+
+                prompt = build_evaluation_prompt(
+                    content=combined_text,
+                    file_names=file_names,
+                    has_images=bool(images)
+                )
+
+            # --------------------------------------------
+            # Gọi AI
+            # --------------------------------------------
+
+            with st.spinner(
+                "⚖️ AI đang chấm điểm theo Rubric..."
+            ):
+
+                # ----------------------------------------
+                # QUAN TRỌNG
+                #
+                # AI Engine trung tâm hiện tại dùng:
+                #
+                # ai_engine.generate_text(prompt)
+                #
+                # Không gọi trực tiếp Gemini/OpenAI tại đây.
+                # ----------------------------------------
+
+                ai_result = call_ai_engine(
+                    ai_engine,
+                    prompt
+                )
+
+            if not ai_result:
+
+                st.error(
+                    "❌ AI không trả về kết quả."
+                )
+
+                return
+
+            # --------------------------------------------
+            # Tạo báo cáo Markdown
+            # --------------------------------------------
+
+            markdown_report = (
+                build_markdown_report(
+                    ai_result,
+                    file_names
+                )
+            )
+
+            # --------------------------------------------
+            # Lưu session state
+            # --------------------------------------------
+
+            st.session_state[
+                "sk_result"
+            ] = ai_result
+
+            st.session_state[
+                "sk_markdown_report"
+            ] = markdown_report
+
+            st.session_state[
+                "sk_file_names"
+            ] = file_names
+
+            # --------------------------------------------
+            # Thông báo
+            # --------------------------------------------
+
+            st.success(
+                "✅ Đã hoàn thành phân tích sáng kiến."
+            )
+
+        except Exception as error:
+
+            st.error(
+                f"❌ Lỗi xử lý: {error}"
+            )
+
+            st.exception(
+                error
+            )
+
+    # ========================================================
+    # HIỂN THỊ KẾT QUẢ
+    # ========================================================
+
+    if (
+        "sk_result"
+        in st.session_state
+    ):
+
+        st.divider()
+
+        st.markdown(
+            "## 📊 KẾT QUẢ CHẤM VÀ PHÂN TÍCH"
         )
-        
-    # GỢI Ý TÍCH HỢP NGOÀI
-    with st.expander("🛡️ Tiện ích kiểm tra nâng cao"):
-        st.info("Chức năng kiểm tra đạo văn và AI Detector yêu cầu API Key từ Copyscape/Originality.ai")
-        st.write("Thầy có thể liên hệ đơn vị cung cấp API để tích hợp vào khối lệnh này.")
+
+        st.markdown(
+            st.session_state[
+                "sk_result"
+            ]
+        )
+
+        st.divider()
+
+        # ====================================================
+        # XUẤT BÁO CÁO
+        # ====================================================
+
+        st.markdown(
+            "## 📥 XUẤT BÁO CÁO"
+        )
+
+        markdown_report = (
+            st.session_state[
+                "sk_markdown_report"
+            ]
+        )
+
+        # --------------------------------------------
+        # Tạo file Word
+        # --------------------------------------------
+
+        try:
+
+            word_bytes = (
+                create_word_report(
+                    markdown_report
+                )
+            )
+
+        except Exception as error:
+
+            word_bytes = None
+
+            st.warning(
+                f"Không thể tạo file Word: {error}"
+            )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.download_button(
+                label="📄 Tải báo cáo Markdown",
+                data=markdown_report,
+                file_name=(
+                    "Bao_cao_cham_sang_kien.md"
+                ),
+                mime="text/markdown",
+                use_container_width=True
+            )
+
+        with col2:
+
+            if word_bytes:
+
+                st.download_button(
+                    label="📝 Tải báo cáo Word",
+                    data=word_bytes,
+                    file_name=(
+                        "Bao_cao_cham_sang_kien.docx"
+                    ),
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"
+                    ),
+                    use_container_width=True
+                )
+
+    # ========================================================
+    # TIỆN ÍCH NÂNG CAO
+    # ========================================================
+
+    with st.expander(
+        "🛡️ Tiện ích kiểm tra nâng cao",
+        expanded=False
+    ):
+
+        st.info(
+            """
+Phần nhận diện tính nguyên gốc trong báo cáo AI chỉ mang tính
+tham khảo dựa trên phân tích văn phong và tính nhất quán nội dung.
+
+Không được sử dụng kết quả này như kết luận chính thức về đạo văn
+hoặc việc sử dụng AI.
+
+Để kiểm tra đạo văn chính thức, cần sử dụng công cụ đối chiếu
+với cơ sở dữ liệu nguồn phù hợp.
+"""
+        )
+
+        st.markdown(
+            """
+### Gợi ý mở rộng trong tương lai
+
+Có thể tích hợp thêm:
+
+- Cơ sở dữ liệu sáng kiến đã được công bố.
+- Tìm kiếm văn bản tương đồng.
+- So sánh các phiên bản sáng kiến.
+- Theo dõi lịch sử chỉnh sửa.
+- Phiếu chấm riêng cho từng thành viên hội đồng.
+- Tổng hợp điểm trung bình của nhiều giám khảo.
+"""
+        )
