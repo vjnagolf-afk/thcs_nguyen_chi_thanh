@@ -3,13 +3,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import re
-import json
 from datetime import datetime
 
-
-# ============================================================
-# CẤU HÌNH
-# ============================================================
 
 PHET_URL = "https://phet.colorado.edu/vi/"
 
@@ -19,16 +14,11 @@ MOZAWEB_URL = (
 )
 
 
-# ============================================================
-# HÀM TIỆN ÍCH
-# ============================================================
-
 def _extract_html_code(text):
 
     if not text:
         return ""
 
-    # Tìm code trong markdown code block
     match = re.search(
         r"```(?:html)?\s*(.*?)```",
         text,
@@ -36,22 +26,16 @@ def _extract_html_code(text):
     )
 
     if match:
-
         code = match.group(1).strip()
-
     else:
-
         code = text.strip()
 
-    # Nếu AI trả thêm nội dung trước/sau HTML
     html_start = code.lower().find("<!doctype html>")
 
     if html_start == -1:
-
         html_start = code.lower().find("<html")
 
     if html_start >= 0:
-
         code = code[html_start:]
 
     return code.strip()
@@ -60,7 +44,6 @@ def _extract_html_code(text):
 def _is_valid_html(code):
 
     if not code:
-
         return False
 
     code_lower = code.lower()
@@ -79,10 +62,6 @@ def _get_current_code():
     )
 
 
-# ============================================================
-# PROMPT XÂY DỰNG KỊCH BẢN
-# ============================================================
-
 def _build_scenario_prompt(
     ten_mo_phong,
     mon_hoc,
@@ -97,8 +76,6 @@ Bạn là chuyên gia thiết kế mô phỏng khoa học
 và giáo dục STEM cho học sinh THCS.
 
 Hãy xây dựng một kịch bản mô phỏng tương tác.
-
-THÔNG TIN:
 
 Tên mô phỏng:
 {ten_mo_phong}
@@ -118,41 +95,26 @@ Các đại lượng hoặc biến số cần điều chỉnh:
 Yêu cầu bổ sung:
 {yeu_cau}
 
-Hãy trình bày theo cấu trúc:
+Hãy trình bày:
 
-1. TÊN MÔ PHỎNG
-
-2. MỤC TIÊU HỌC TẬP
-
-3. HIỆN TƯỢNG KHOA HỌC
-
-4. CƠ SỞ LÝ THUYẾT
-
-5. CÁC BIẾN SỐ ĐẦU VÀO
-
-6. CÁC ĐẠI LƯỢNG ĐẦU RA
-
-7. CÔNG THỨC KHOA HỌC
-
-8. KỊCH BẢN TƯƠNG TÁC
-
-9. CÁC BƯỚC HOẠT ĐỘNG CỦA HỌC SINH
-
-10. CÂU HỎI KHÁM PHÁ
-
-11. CÂU HỎI VẬN DỤNG
-
-12. GỢI Ý MỞ RỘNG
+1. Tên mô phỏng
+2. Mục tiêu học tập
+3. Hiện tượng khoa học
+4. Cơ sở lý thuyết
+5. Các biến số đầu vào
+6. Các đại lượng đầu ra
+7. Công thức khoa học
+8. Kịch bản tương tác
+9. Hoạt động của học sinh
+10. Câu hỏi khám phá
+11. Câu hỏi vận dụng
+12. Gợi ý mở rộng
 
 Nội dung phải phù hợp với học sinh THCS,
 chính xác về mặt khoa học và có thể chuyển
 thành mô phỏng HTML/JavaScript.
 """
 
-
-# ============================================================
-# PROMPT SINH MÃ MÔ PHỎNG
-# ============================================================
 
 def _build_code_prompt(
     ten_mo_phong,
@@ -168,30 +130,26 @@ cho giáo dục THCS.
 
 Hãy tạo một mô phỏng tương tác hoàn chỉnh.
 
-TÊN MÔ PHỎNG:
+Tên mô phỏng:
 {ten_mo_phong}
 
-MÔN HỌC:
+Môn học:
 {mon_hoc}
 
-KHỐI LỚP:
+Khối lớp:
 {khoi_lop}
 
-KỊCH BẢN:
+Kịch bản:
 {scenario}
 
-YÊU CẦU:
+Yêu cầu:
 {yeu_cau}
 
-YÊU CẦU KỸ THUẬT BẮT BUỘC:
+YÊU CẦU KỸ THUẬT:
 
 1. Chỉ trả về một file HTML hoàn chỉnh.
 
-2. Bao gồm đầy đủ:
-   - <!DOCTYPE html>
-   - HTML
-   - CSS
-   - JavaScript
+2. Bao gồm đầy đủ HTML, CSS và JavaScript.
 
 3. Không sử dụng backend.
 
@@ -201,35 +159,30 @@ YÊU CẦU KỸ THUẬT BẮT BUỘC:
 
 6. Có giao diện tiếng Việt.
 
-7. Có các điều khiển tương tác phù hợp.
+7. Có các điều khiển tương tác.
 
-8. Có slider hoặc input để thay đổi
-   các đại lượng quan trọng.
+8. Có slider hoặc input.
 
 9. Hiển thị kết quả theo thời gian thực.
 
-10. Có nút:
-    - Bắt đầu
-    - Tạm dừng
-    - Đặt lại
+10. Có nút Bắt đầu.
 
-11. Hiển thị công thức khoa học.
+11. Có nút Tạm dừng.
 
-12. Có phần giải thích hiện tượng.
+12. Có nút Đặt lại.
 
-13. Có câu hỏi khám phá.
+13. Hiển thị công thức khoa học.
 
-14. Mã phải chạy được khi lưu thành file .html
-    và mở bằng trình duyệt.
+14. Có phần giải thích hiện tượng.
+
+15. Có câu hỏi khám phá.
+
+16. Chạy được khi lưu thành file .html.
 
 CHỈ TRẢ VỀ MÃ HTML.
 KHÔNG GIẢI THÍCH NGOÀI MÃ.
 """
 
-
-# ============================================================
-# PROMPT KIỂM TRA / SỬA MÃ
-# ============================================================
 
 def _build_fix_prompt(
     code,
