@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 # Import các thư viện/module hệ thống
 from utils.db_connector import db
 from utils.ai_engine import AIEngine
+from utils.ai_engine_2 import AIEngine2
 from models.khbd import KHBD
 
 # Import Phân hệ Giáo viên
@@ -69,7 +70,11 @@ def get_ai_engine_instance():
         keys = {k: v for k, v in keys.items() if v}
         st.session_state.ai_engine_instance = AIEngine(keys=keys) if keys else None
     return st.session_state.ai_engine_instance
+def get_ai_engine_2_instance():
+    if "ai_engine_2_instance" not in st.session_state:
+        st.session_state.ai_engine_2_instance = AIEngine2()
 
+    return st.session_state.ai_engine_2_instance
 # 4. KHỞI TẠO STATE
 if "user_api_key" not in st.session_state: st.session_state.user_api_key = None
 if "is_admin_mode" not in st.session_state: st.session_state.is_admin_mode = False
@@ -105,6 +110,7 @@ if not st.session_state.user_api_key and not st.session_state.is_admin_mode:
 # 6. RENDER NỘI DUNG (Có bọc lỗi)
 try:
     ai_engine = get_ai_engine_instance()
+    ai_engine_2 = get_ai_engine_2_instance()
     if phan_he == "Hỗ trợ Giáo viên":
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
         tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE","T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
@@ -146,8 +152,8 @@ try:
         with tabs[5]: render_kiem_tra_khbd(ai_engine)
         with tabs[6]: render_sach_kn_so()
         with tabs[7]: render_tom_tat_gmail(ai_engine)
-        with tabs[8]: render_viet_sang_kien(ai_engine)
-        with tabs[9]: render_cham_sang_kien(ai_engine)
+        with tabs[8]: render_viet_sang_kien(ai_engine_2)
+        with tabs[9]: render_cham_sang_kien(ai_engine_2)
 except Exception as e:
     st.error("🚨 Có lỗi xảy ra trong quá trình render!")
     st.exception(e)
