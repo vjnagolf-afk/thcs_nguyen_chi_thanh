@@ -1,42 +1,34 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 def render_xd_mo_phong(ai_engine):
-    st.markdown("### 🧪 Phòng thí nghiệm ảo")
-    st.caption("Nền tảng thực hành mô phỏng tương tác giúp học sinh trực quan hóa kiến thức.")
+    st.markdown("### 🧪 Mô phỏng & Thí nghiệm ảo")
     
-    st.markdown("""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
-        <b>Quy trình thực nghiệm:</b><br>
-        ⚙️ Thay đổi thông số ➔ 👁️ Quan sát kết quả ➔ 🤔 Dự đoán ➔ 🧪 Thực nghiệm ➔ 📝 Kết luận
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        mon_hoc = st.selectbox("Chọn môn học:", ["Vật lý", "Hóa học", "Sinh học", "Toán học", "Khác"])
+    # 1. Menu lựa chọn nguồn tài nguyên
+    nguon = st.selectbox(
+        "Chọn nền tảng mô phỏng:",
+        ["PhET Interactive Simulations", "MozaWeb - Thư viện 3D"]
+    )
     
-    with col2:
-        if mon_hoc == "Vật lý":
-            chu_de = st.selectbox("Chủ đề mô phỏng:", ["Đo vận tốc", "Định luật Ôm", "Mạch điện", "Lực", "Công", "Năng lượng", "Âm học", "Quang học"])
-        else:
-            chu_de = st.text_input("Nhập chủ đề cần mô phỏng:", placeholder=f"Ví dụ: Cấu tạo tế bào, Phản ứng Oxi hóa...")
-
-    if st.button("🚀 Khởi tạo bài thực hành", type="primary"):
-        if chu_de.strip():
-            with st.spinner("AI đang thiết lập kịch bản phòng thí nghiệm..."):
-                prompt = f"""
-                Tôi đang dạy môn {mon_hoc}, chủ đề "{chu_de}". Hãy thiết kế một kịch bản "Phòng thí nghiệm ảo" cho học sinh THCS dựa theo đúng 5 bước sau:
-                1. Thay đổi thông số (Gợi ý học sinh có thể điều chỉnh các biến số nào)
-                2. Quan sát kết quả (Học sinh sẽ thấy hiện tượng gì xảy ra)
-                3. Dự đoán (Câu hỏi định hướng để học sinh suy đoán quy luật)
-                4. Thực nghiệm (Các bước kiểm chứng)
-                5. Kết luận (Kiến thức cốt lõi rút ra)
-                """
-                try:
-                    kich_ban = ai_engine.generate_text(prompt)
-                    st.success(f"Đã tải kịch bản mô phỏng cho chủ đề: {chu_de}")
-                    st.info(kich_ban)
-                except Exception as e:
-                    st.error(f"Lỗi khởi tạo: {e}")
-        else:
-            st.warning("Vui lòng nhập chủ đề trước khi khởi tạo!")
+    # 2. Xử lý logic nhúng (Embed)
+    if nguon == "PhET Interactive Simulations":
+        st.info("💡 PhET cung cấp các mô phỏng tương tác miễn phí cho môn Vật lý, Hóa học, Sinh học, Toán học.")
+        # Link PhET cho phép nhúng (embed)
+        phong_phet = "https://phet.colorado.edu/vi/"
+        components.iframe(phong_phet, height=700, scrolling=True)
+        
+    elif nguon == "MozaWeb - Thư viện 3D":
+        st.info("💡 MozaWeb mang đến các mô hình 3D trực quan cho bài giảng.")
+        # Lưu ý: MozaWeb có thể chặn nhúng tùy vào cấu hình bảo mật của trang web
+        phong_moza = "https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO"
+        components.iframe(phong_moza, height=700, scrolling=True)
+        
+    # 3. Ghi chú cho giáo viên
+    with st.expander("📝 Hướng dẫn sử dụng"):
+        st.write("""
+        - **PhET**: Chọn chủ đề, sau đó click vào nút Play trên mô phỏng để chạy.
+        - **MozaWeb**: Bạn cần đăng nhập tài khoản MozaWeb nếu hệ thống yêu cầu quyền truy cập vào các nội dung 3D cao cấp.
+        - Nếu trang web không hiện, hãy thử mở trực tiếp bằng nút liên kết dưới đây.
+        """)
+        st.link_button("Mở PhET trong tab mới", "https://phet.colorado.edu/vi/")
+        st.link_button("Mở MozaWeb trong tab mới", "https://mozaweb.vn/vi/")
