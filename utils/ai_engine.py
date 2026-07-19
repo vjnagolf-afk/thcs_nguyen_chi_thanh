@@ -74,106 +74,50 @@ MODEL_PRICES = {
     "openai/gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "anthropic/claude-3-5-sonnet": {"input": 3.00, "output": 15.00}
 }
-# ============================================================
-# CHAT MEMORY
-# ============================================================
-class ChatMemory:
-    def __init__(self, max_history=10):
-        self.history = []
-        self.max_history = max_history
-
-    def add_message(self, role: str, content: str):
-        self.history.append({"role": role, "content": content})
-        if len(self.history) > self.max_history * 2:
-            self.history = self.history[-self.max_history * 2:]
-
-    def get_context_string(self):
-        return "\n".join([f"{m['role']}: {m['content']}" for m in self.history])
-
-
-# ============================================================
-# AI ENGINE
-# ============================================================
-class AIEngine:
-    MODELS = {
-        "flash": "gemini-2.5-flash",
-        "pro": "gemini-2.5-pro"
-    }
-
-    def __init__(self, api_key: str = None, keys: Dict[str, str] = None, system_prompt: str = None):
-        self.keys = keys if keys is not None else {}
-        if api_key:
-            self.keys["gemini"] = api_key
-
-        self.system_prompt = (
-            system_prompt or """
-Bạn là AI Teacher Assistant.
-Nhiệm vụ:
-- Hỗ trợ giáo viên THCS.
-- Bám sát CT GDPT 2018.
-- Trả lời có cấu trúc.
-- Ưu tiên tính chính xác và khả năng áp dụng.
-"""
-        )
-
-        # Khởi tạo bảng lưu trữ token và chi phí
-        self.token_usage = {k: 0 for k in MODEL_PRICES.keys()}
-        self.cost_estimate = {k: 0 for k in MODEL_PRICES.keys()}
-
-        self.active_endpoints = []
-        self.gemini_clients = {}
-        self.openai_clients = {}
-        self.claude_clients = {}
-        self.openrouter_clients = {}  # Pool lưu trữ Client OpenRouter độc lập
-
-        # 1. LOAD GEMINI KEY
-        if self.keys.get("gemini"):
-            gemini_keys = [k.strip() for k in self.keys["gemini"].split(",")] if isinstance(self.keys["gemini"], str) else self.keys["gemini"]
-            for key in gemini_keys:
-                if key:
-                    self.active_endpoints.append(("gemini", key))
-
-        # 2. LOAD OPENAI / OPENROUTER KEY (Kiểm tra và phân loại ngay từ đầu vào)
+        # ==========================================
+        # ĐOẠN 2 SỬA ĐỔI: TƯỜNG MINH HÓA KHỞI TẠO CLIENT
+        # ==========================================
+        
+        # 1. PHÂN LOẠI ENDPOINT NGAY TỪ ĐẦU VÀO
         if self.keys.get("openai"):
             openai_key = self.keys["openai"].strip()
+            # Tách biệt tuyệt đối bằng cấu trúc rẽ nhánh rõ ràng
             if openai_key.startswith("sk-or-v1"):
                 self.active_endpoints.append(("openrouter", openai_key))
             else:
                 self.active_endpoints.append(("openai", openai_key))
 
-        # 3. LOAD CLAUDE KEY
         if self.keys.get("claude"):
             self.active_endpoints.append(("claude", self.keys["claude"]))
 
-        # =========================
-        # INIT CLIENT POOL
-        # =========================
+        # 2. KHỞI TẠO CLIENT TRONG POOL THEO ĐÚNG PROVIDER
         for provider, key in self.active_endpoints:
             if provider == "gemini":
                 if genai is None:
                     logger.error("Thiếu thư viện google-genai")
                 else:
                     self.gemini_clients[key] = genai.Client(api_key=key)
+                    
             elif provider == "openai":
                 if openai:
+                    # Tuyệt đối không dùng toán tử ba ngôi gán biến None ở đây nữa
+                    # Khối này chỉ chịu trách nhiệm khởi tạo kết nối thuần túy tới OpenAI
                     self.openai_clients[key] = openai.Client(api_key=key, timeout=60)
+                    
             elif provider == "openrouter":
                 if openai:
-                    # Sửa lỗi địa chỉ: Cấu hình chuẩn endpoint OpenRouter
+                    # Tách hẳn thành một logic độc lập, gán cứng endpoint chuẩn của OpenRouter
+                    # Không còn rủi ro biến base_url bị rơi vào trạng thái None
                     self.openrouter_clients[key] = openai.Client(
                         api_key=key,
-                        base_url="https://openrouter.ai/api/v1",
+                        base_url="https://openrouter.ai",
                         timeout=60
                     )
+                    logger.info("Cổng kết nối OpenRouter Client đã được cấu hình cố định.")
+                    
             elif provider == "claude":
                 if anthropic:
                     self.claude_clients[key] = anthropic.Anthropic(api_key=key, timeout=60)
-
-        self.gemini_models = {
-            "text": self.MODELS["flash"],
-            "vision": self.MODELS["pro"]
-        }
-        logger.info(f"AI Engine v1.2 initialized - {len(self.active_endpoints)} endpoints")
     # =====================================================
     # CACHE KEY
     # =====================================================
