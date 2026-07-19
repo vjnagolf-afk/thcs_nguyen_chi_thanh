@@ -1,6 +1,6 @@
 # ============================================================
 # ai_engine.py
-# AI ENGINE CORE v1.2 (Kiến trúc OpenRouter Độc lập)
+# AI ENGINE CORE v1.2 (Kiến trúc OpenRouter Độc lập & Robust Parser)
 # Hệ sinh thái số THCS Nguyễn Chí Thanh
 # ============================================================
 import os
@@ -263,7 +263,22 @@ Nhiệm vụ:
                 temperature=kwargs.get("temperature", 0.7),
                 max_tokens=kwargs.get("max_tokens", 4096)
             )
-            return (response.choices[0].message.content, model_name)
+            
+            # Chuẩn hóa kết quả trả về
+            if isinstance(response, str):
+                result_text = response
+            elif hasattr(response, "choices"):
+                result_text = response.choices[0].message.content
+            elif isinstance(response, dict):
+                result_text = (
+                    response.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
+            else:
+                result_text = str(response)
+                
+            return (result_text, model_name)
 
         elif provider == "openrouter":
             client = self.openrouter_clients[api_key]
@@ -284,7 +299,22 @@ Nhiệm vụ:
                 temperature=kwargs.get("temperature", 0.7),
                 max_tokens=kwargs.get("max_tokens", 4096)
             )
-            return (response.choices[0].message.content, model_name)
+            
+            # Chuẩn hóa kết quả trả về
+            if isinstance(response, str):
+                result_text = response
+            elif hasattr(response, "choices"):
+                result_text = response.choices[0].message.content
+            elif isinstance(response, dict):
+                result_text = (
+                    response.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
+            else:
+                result_text = str(response)
+                
+            return (result_text, model_name)
 
         elif provider == "claude":
             client = self.claude_clients[api_key]
