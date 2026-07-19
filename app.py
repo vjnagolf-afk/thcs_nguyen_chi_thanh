@@ -14,7 +14,7 @@ from utils.ai_engine_2 import AIEngine2
 st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide", page_icon="🏫")
 
 # 3. IMPORT CÁC MODULE PHÂN HỆ
-# Phân hệ Hỗ trợ Giáo viên
+# --- PHÂN HỆ HỖ TRỢ GIÁO VIÊN ---
 from views.xd_khbd_view import render_xd_khbd
 from views.xd_de_kt_view import render_xd_de_kt
 from modules.ho_tro_gv.xd_stem import render_xd_stem
@@ -23,22 +23,17 @@ from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
 from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
 from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
 from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
+from modules.ho_tro_gv.mo_phong.page import render_mo_phong # (Tab 9: MÔ PHỎNG TN)
 from modules.ho_tro_gv.xd_live import render_xd_live
-from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
+from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
 
-try:
-    from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
-except ImportError:
-    render_xd_chuyen_doi = None
-    st.sidebar.error("❌ Lỗi: Không tìm thấy file xd_chuyen_doi.py")
-# Phân hệ Hỗ trợ Giảng dạy
+# --- PHÂN HỆ HỖ TRỢ GIẢNG DẠY ---
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
 from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
 from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac
-from modules.ho_tro_giang_day.xd_mo_phong import render_xd_mo_phong
-from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong
+from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong as render_mo_phong_giangday # (Tab 5: Mô phỏng LT TN ảo)
 from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
 from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
 from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
@@ -109,6 +104,9 @@ try:
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
         tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
         
+        # Render Phân hệ Hỗ trợ Giáo viên (12 tab)
+    elif phan_he == "Hỗ trợ Giáo viên":
+        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
         with tabs[0]: render_xd_khbd(ai_engine)
         with tabs[1]: render_xd_de_kt(ai_engine)
         with tabs[2]: render_xd_stem(ai_engine)
@@ -117,27 +115,25 @@ try:
         with tabs[5]: render_xd_cham_viet(ai_engine)
         with tabs[6]: render_xd_tao_prompt(ai_engine)
         with tabs[7]: render_xd_quizizz(ai_engine)
-        with tabs[8]: render_mo_phong(ai_engine)
+        with tabs[8]: render_mo_phong(ai_engine) # Gọi module từ ho_tro_gv
         with tabs[9]: render_xd_live(ai_engine)
         with tabs[10]: render_chuyen_doi(ai_engine)
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
-
     # ========================================================
     # PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY
     # ========================================================
+     # Render Phân hệ Hỗ trợ Giảng dạy (12 tab)
     elif phan_he == "Hỗ trợ Giảng dạy":
-        st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
         tabs = st.tabs(["Hỏi đáp", "Trò chơi", "Chấm bài", "Tóm tắt tài liệu", "Mô phỏng LT TN ảo", "Phân tích KQ học tập", "Tạo đề nhanh", "Tạo Video", "Camera chấm bài", "Cá nhân hóa", "Phân tích bài học", "Tương tác trên lớp"])
-        
         with tabs[0]: render_rag(ai_engine)
         with tabs[1]: render_xd_tro_choi(ai_engine)
         with tabs[2]: render_xd_cham_nhanh(ai_engine)
         with tabs[3]: render_xd_tuong_tac(ai_engine)
-        with tabs[4]: render_xd_mo_phong(ai_engine)
+        with tabs[4]: render_mo_phong_giangday(ai_engine) # Gọi module từ ho_tro_giang_day/mo_phong
         with tabs[5]: render_xd_phan_tich(ai_engine)
         with tabs[6]: render_xd_ngan_hang_de(ai_engine)
         with tabs[7]: render_xd_sinh_video(ai_engine)
-        with tabs[8]: render_camera_module() # Không cần tham số
+        with tabs[8]: render_camera_module()
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
         with tabs[10]: render_phan_tich_bh(ai_engine)
         with tabs[11]: render_kiem_tra_nhanh(ai_engine)
