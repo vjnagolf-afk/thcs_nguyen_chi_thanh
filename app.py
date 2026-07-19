@@ -23,7 +23,7 @@ from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
 from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
 from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
 from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-from modules.ho_tro_gv.mo_phong.page import render_mo_phong # (Tab 9: MÔ PHỎNG TN)
+from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_gv.xd_live import render_xd_live
 from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
