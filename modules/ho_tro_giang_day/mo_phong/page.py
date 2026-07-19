@@ -93,16 +93,25 @@ def render_mo_phong(ai_engine):
             st.markdown("👇 **Khu vực chạy thử Mô phỏng trực tiếp:**")
             components.html(st.session_state.code_mo_phong, height=600, scrolling=True)
 
-    # ------------------------------------------
+   # ------------------------------------------
     # KHU VỰC 2: NHÚNG PHET & MOZAWEB
     # ------------------------------------------
     with tab_nhung:
         st.markdown("#### Khám phá kho học liệu chuẩn quốc tế")
-        st.info("💡 Lời khuyên: Để các mô phỏng chạy mượt mà, thầy cô nên ấn mở trong thẻ mới.")
+        st.info("💡 Nếu khung mô phỏng bên dưới bị xám hoặc báo lỗi từ chối kết nối (do cơ chế bảo mật của trang gốc chặn tính năng nhúng), thầy cô vui lòng sử dụng nút bấm để mở sang Tab mới.")
+        
         col_phet, col_moza = st.columns(2)
+        
         with col_phet:
             st.markdown("### ⚛️ PhET Simulations")
-            st.link_button("🚀 Mở PhET Tiếng Việt", "[https://phet.colorado.edu/vi/](https://phet.colorado.edu/vi/)", use_container_width=True)
+            # 1. Khung nhúng trực tiếp (iframe)
+            components.iframe("https://phet.colorado.edu/vi/", height=600, scrolling=True)
+            # 2. Nút dự phòng
+            st.link_button("🚀 Mở PhET rộng toàn màn hình", "https://phet.colorado.edu/vi/", use_container_width=True)
+
         with col_moza:
             st.markdown("### 🧬 MozaWeb 3D")
-            st.link_button("🌐 Mở MozaWeb 3D", "[https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO](https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO)", use_container_width=True)
+            # 1. Khung nhúng trực tiếp (iframe)
+            components.iframe("https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO", height=600, scrolling=True)
+            # 2. Nút dự phòng
+            st.link_button("🌐 Mở MozaWeb rộng toàn màn hình", "https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO", use_container_width=True)
