@@ -98,20 +98,29 @@ def render_mo_phong(ai_engine):
     # ------------------------------------------
     with tab_nhung:
         st.markdown("#### Khám phá kho học liệu chuẩn quốc tế")
-        st.info("💡 Nếu khung mô phỏng bên dưới bị xám hoặc báo lỗi từ chối kết nối (do cơ chế bảo mật của trang gốc chặn tính năng nhúng), thầy cô vui lòng sử dụng nút bấm để mở sang Tab mới.")
+        st.info("💡 Lưu ý bảo mật: Các nền tảng thường chặn nhúng TRANG CHỦ. Để nhúng thành công, thầy cô hãy dán đường link của **TỪNG THÍ NGHIỆM CỤ THỂ** vào ô bên dưới.")
         
         col_phet, col_moza = st.columns(2)
         
         with col_phet:
             st.markdown("### ⚛️ PhET Simulations")
-            # 1. Khung nhúng trực tiếp (iframe)
-            components.iframe("https://phet.colorado.edu/vi/", height=600, scrolling=True)
-            # 2. Nút dự phòng
-            st.link_button("🚀 Mở PhET rộng toàn màn hình", "https://phet.colorado.edu/vi/", use_container_width=True)
+            st.markdown("**Đại học Colorado Boulder**")
+            
+            # Ô nhập link để giáo viên linh hoạt đổi bài dạy (Mặc định em để sẵn 1 bài Cân bằng phương trình Hóa học)
+            phet_link = st.text_input(
+                "🔗 Dán link thí nghiệm PhET vào đây:", 
+                value="https://phet.colorado.edu/sims/html/balancing-chemical-equations/latest/balancing-chemical-equations_vi.html"
+            )
+            
+            if phet_link:
+                # Khung nhúng sẽ hiển thị bài học cụ thể
+                components.iframe(phet_link, height=500, scrolling=True)
+                
+            st.link_button("🔍 Mở PhET để tìm thí nghiệm khác", "https://phet.colorado.edu/vi/", use_container_width=True)
 
         with col_moza:
             st.markdown("### 🧬 MozaWeb 3D")
-            # 1. Khung nhúng trực tiếp (iframe)
-            components.iframe("https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO", height=600, scrolling=True)
-            # 2. Nút dự phòng
-            st.link_button("🌐 Mở MozaWeb rộng toàn màn hình", "https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO", use_container_width=True)
+            st.markdown("**Thư viện Giáo dục Mozaik**")
+            
+            st.warning("⚠️ MozaWeb có bảo mật bản quyền rất cao, không cho phép nhúng trực tiếp. Thầy cô vui lòng sử dụng nút bên dưới để mở thư viện.")
+            st.link_button("🌐 Mở MozaWeb 3D (Tab mới)", "https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO", use_container_width=True)
