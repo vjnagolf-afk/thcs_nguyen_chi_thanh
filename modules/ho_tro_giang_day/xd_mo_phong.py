@@ -18,13 +18,15 @@ def render_xd_mo_phong(ai_engine):
         # Ví dụ: prompt = st.text_area("Yêu cầu mô phỏng...")
         # if st.button("Tạo mô phỏng"): ...
         
-    # 3. Logic bổ sung tính năng nhúng
+    # 3. Logic thay thế (Sử dụng Link Button thay vì Iframe)
     else:
         nguon = st.selectbox("Chọn nền tảng:", ["PhET Interactive Simulations", "MozaWeb - Thư viện 3D"])
         
         if nguon == "PhET Interactive Simulations":
-            components.iframe("https://phet.colorado.edu/vi/", height=700, scrolling=True)
+            st.success("Nhấn vào nút bên dưới để mở phòng thí nghiệm ảo PhET trong tab mới:")
+            st.link_button("🚀 Truy cập PhET Simulations", "https://phet.colorado.edu/vi/")
         else:
-            st.warning("MozaWeb có thể chặn nhúng. Nếu không hiển thị, hãy dùng nút mở dưới đây:")
-            components.iframe("https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO", height=700, scrolling=True)
-            st.link_button("Mở MozaWeb trong tab mới", "https://mozaweb.vn/vi/")
+            st.warning("Nhấn vào nút bên dưới để mở thư viện 3D MozaWeb:")
+            st.link_button("🌐 Truy cập MozaWeb 3D", "https://mozaweb.vn/vi/lexikon.php?cmd=getlist&let=3D&sid=BIO")
+        
+        st.info("💡 Lưu ý: Các nền tảng này yêu cầu mở ở tab riêng để đảm bảo tính năng tương tác không bị chặn.")
