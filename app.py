@@ -136,12 +136,9 @@ try:
         with tabs[5]: render_xd_cham_viet(ai_engine)
         with tabs[6]: render_xd_tao_prompt(ai_engine)
         with tabs[7]: render_xd_quizizz(ai_engine)
-        with tabs[8]: render_mo_phong(ai_engine) 
+        with tabs[8]: render_xd_mo_phong(ai_engine)
         with tabs[9]: render_xd_live(ai_engine)
-        
-        # Nếu thầy vẫn chưa có file xd_chuyen_doi.py thì giữ dấu # ở dòng dưới. Nếu có rồi thì xóa dấu # đi.
         with tabs[10]: render_chuyen_doi(ai_engine) 
-        
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
 
     # --- PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY ---
