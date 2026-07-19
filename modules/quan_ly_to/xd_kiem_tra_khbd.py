@@ -1,7 +1,7 @@
 import streamlit as st
 from pypdf import PdfReader
 import re
-import docx  # Thư viện mới để đọc file Word
+import docx
 
 def render_kiem_tra_khbd(ai_engine):
     st.markdown("### 🔎 Kiểm tra, phê duyệt Kế hoạch bài dạy (Giáo án)")
@@ -30,7 +30,6 @@ def render_kiem_tra_khbd(ai_engine):
             khoi_lop = st.selectbox("Khối lớp:", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"])
             
             st.markdown("**Tải file giáo án lên đây:**")
-            # Cập nhật: Cho phép tải cả file pdf và docx
             file_khbd = st.file_uploader("Hỗ trợ định dạng PDF và Word (.docx)", type=["pdf", "docx"], label_visibility="collapsed")
             
             if st.button("🚀 Quét & Phân tích (Thực tế)", type="primary", use_container_width=True):
@@ -46,11 +45,9 @@ def render_kiem_tra_khbd(ai_engine):
                             # XỬ LÝ NẾU LÀ FILE WORD (.docx)
                             if file_khbd.name.endswith(".docx"):
                                 doc = docx.Document(file_khbd)
-                                # Đọc các đoạn văn bản thường
                                 for para in doc.paragraphs:
                                     if para.text.strip():
                                         extracted_text += para.text + "\n"
-                                # Đọc dữ liệu nằm trong các bảng biểu (Table)
                                 for table in doc.tables:
                                     for row in table.rows:
                                         row_data = [cell.text.strip() for cell in row.cells if cell.text.strip()]
@@ -65,14 +62,11 @@ def render_kiem_tra_khbd(ai_engine):
                                     if text:
                                         extracted_text += text + "\n"
                             
-                            # Cắt giới hạn ký tự để không vượt dung lượng AI xử lý
                             noidung = extracted_text[:15000]
                             
-                            # Dọn dẹp khoảng trắng rác (chủ yếu hữu ích cho PDF)
                             noidung = re.sub(r'(?<=[a-zA-ZáàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴĐ])\s+(?=[a-zA-Záàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])', ' ', noidung)
                             st.session_state.noidung_khbd = noidung
                             
-                            # GỌI AI PHÂN TÍCH
                             prompt_scan = f"""
                             Bạn là chuyên gia thẩm định Kế hoạch bài dạy (KHBD) theo Công văn 5512. Hãy phân tích KHBD dưới đây và lập Báo cáo chi tiết theo 2 phần:
 
@@ -127,6 +121,37 @@ def render_kiem_tra_khbd(ai_engine):
                     quick_prompt = "Với bài học này, tôi có thể lồng ghép công cụ số, AI hay thí nghiệm ảo nào? Hãy gợi ý chi tiết."
                 if st.button("📝 Chỉnh lại văn phong", use_container_width=True): 
                     quick_prompt = "Hãy tìm các đoạn diễn đạt lủng củng trong giáo án và viết lại chúng sao cho chuẩn văn phong sư phạm (bỏ qua lỗi khoảng trắng)."
+
+            # THÊM NÚT THẨM ĐỊNH CHUYÊN SÂU NẰM RIÊNG BIỆT BÊN DƯỚI CHO NỔI BẬT
+            st.markdown("---") # Đường kẻ ngang phân cách
+            btn_tham_dinh = st.button("🧐 BÁO CÁO THẨM ĐỊNH TOÀN DIỆN (5 TIÊU CHÍ TỔ TRƯỞNG)", use_container_width=True, type="primary")
+
+            if btn_tham_dinh:
+                if st.session_state.noidung_khbd:
+                    with st.spinner("🕵️‍♂️ Tổ trưởng AI đang phân tích sâu 5 tiêu chí (Sư phạm, CNTT, Năng lực số, AI, Đánh giá)..."):
+                        try:
+                            # 1. Đọc nội dung file prompt .txt
+                            with open("prompts/prompt_tham_dinh_khbd.txt", "r", encoding="utf-8") as f:
+                                prompt_template = f.read()
+                                
+                            # 2. Thay thế chữ [NOI_DUNG_KHBD_ODAY] bằng nội dung file giáo án thật
+                            noi_dung_khbd = st.session_state.noidung_khbd
+                            prompt_hoan_thien = prompt_template.replace("[NOI_DUNG_KHBD_ODAY]", noi_dung_khbd)
+                            
+                            # 3. Gọi AI xử lý
+                            ket_qua_tham_dinh = ai_engine.generate_text(prompt_hoan_thien)
+                            
+                            # 4. Hiển thị ra màn hình chat
+                            st.session_state.chat_history_khbd.append({"role": "user", "content": "Hãy thẩm định KHBD này theo 5 tiêu chí của Tổ trưởng chuyên môn."})
+                            st.session_state.chat_history_khbd.append({"role": "assistant", "content": ket_qua_tham_dinh})
+                            st.rerun() 
+                            
+                        except FileNotFoundError:
+                            st.error("🚨 Không tìm thấy file prompt! Thầy kiểm tra lại xem file 'prompt_tham_dinh_khbd.txt' đã nằm đúng trong thư mục 'prompts' chưa nhé.")
+                        except Exception as e:
+                            st.error(f"Đã xảy ra lỗi khi gọi AI: {e}")
+                else:
+                    st.warning("⚠️ Thầy cần tải file KHBD lên ở cột bên trái và bấm 'Quét & Phân tích' trước khi thẩm định!")
 
             user_input = st.chat_input("Hỏi AI về nội dung giáo án đang tải lên...")
             
