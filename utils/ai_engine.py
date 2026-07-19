@@ -1,9 +1,8 @@
 # ============================================================
 # ai_engine.py
-# AI ENGINE CORE v1.2 (Kiến trúc OpenRouter Độc lập & Robust Parser)
+# AI ENGINE CORE v1.4 (Kiến trúc Độc lập Đa Provider - Bản Fix Lỗi)
 # Hệ sinh thái số THCS Nguyễn Chí Thanh
 # ============================================================
-import os
 import json
 import hashlib
 import time
@@ -47,7 +46,8 @@ try:
 except ImportError:
     anthropic = None
 
-DEFAULT_OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+# Gắn cứng giá trị mặc định để tương thích 100% với Streamlit
+DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash"
 
 # ============================================================
 # MODEL PRICE TABLE
@@ -113,21 +113,30 @@ Nhiệm vụ:
         self.claude_clients = {}
         self.openrouter_clients = {}
 
+        # 1. Khởi tạo GEMINI (Đã fix lỗi dict split)
         if self.keys.get("gemini"):
             gemini_keys = [k.strip() for k in self.keys["gemini"].split(",")] if isinstance(self.keys["gemini"], str) else self.keys["gemini"]
             for key in gemini_keys:
                 if key:
                     self.active_endpoints.append(("gemini", key))
 
+        # 2. Khởi tạo OPENAI
         if self.keys.get("openai"):
             openai_key = self.keys["openai"].strip()
-            if openai_key.startswith("sk-or-v1"):
-                self.active_endpoints.append(("openrouter", openai_key))
-            else:
+            if openai_key:
                 self.active_endpoints.append(("openai", openai_key))
 
+        # 3. Khởi tạo OPENROUTER
+        if self.keys.get("openrouter"):
+            openrouter_key = self.keys["openrouter"].strip()
+            if openrouter_key:
+                self.active_endpoints.append(("openrouter", openrouter_key))
+
+        # 4. Khởi tạo CLAUDE
         if self.keys.get("claude"):
-            self.active_endpoints.append(("claude", self.keys["claude"]))
+            claude_key = self.keys["claude"].strip()
+            if claude_key:
+                self.active_endpoints.append(("claude", claude_key))
 
         for provider, key in self.active_endpoints:
             if provider == "gemini":
@@ -153,7 +162,7 @@ Nhiệm vụ:
             "text": self.MODELS["flash"],
             "vision": self.MODELS["pro"]
         }
-        logger.info(f"AI Engine v1.2 initialized - {len(self.active_endpoints)} endpoints")
+        logger.info(f"AI Engine v1.4 initialized - {len(self.active_endpoints)} endpoints")
 
     def _get_cache_key(self, prompt, kwargs):
         raw = prompt + json.dumps(kwargs, sort_keys=True)
@@ -264,17 +273,12 @@ Nhiệm vụ:
                 max_tokens=kwargs.get("max_tokens", 4096)
             )
             
-            # Chuẩn hóa kết quả trả về
             if isinstance(response, str):
                 result_text = response
             elif hasattr(response, "choices"):
                 result_text = response.choices[0].message.content
             elif isinstance(response, dict):
-                result_text = (
-                    response.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                )
+                result_text = response.get("choices", [{}])[0].get("message", {}).get("content", "")
             else:
                 result_text = str(response)
                 
@@ -300,17 +304,12 @@ Nhiệm vụ:
                 max_tokens=kwargs.get("max_tokens", 4096)
             )
             
-            # Chuẩn hóa kết quả trả về
             if isinstance(response, str):
                 result_text = response
             elif hasattr(response, "choices"):
                 result_text = response.choices[0].message.content
             elif isinstance(response, dict):
-                result_text = (
-                    response.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                )
+                result_text = response.get("choices", [{}])[0].get("message", {}).get("content", "")
             else:
                 result_text = str(response)
                 
@@ -332,7 +331,15 @@ Nhiệm vụ:
                 system=current_system_prompt,
                 messages=[{"role": "user", "content": prompt}]
             )
-            return (response.content[0].text, model_name)
+            
+            if isinstance(response, str):
+                result_text = response
+            elif hasattr(response, "content") and isinstance(response.content, list):
+                result_text = response.content[0].text
+            else:
+                result_text = str(response)
+                
+            return (result_text, model_name)
 
         else:
             raise ValueError(f"Provider {provider} không được hỗ trợ.")
