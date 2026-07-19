@@ -27,6 +27,11 @@ from modules.ho_tro_gv.xd_live import render_xd_live
 from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
 
+try:
+    from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
+except ImportError:
+    render_xd_chuyen_doi = None
+    st.sidebar.error("❌ Lỗi: Không tìm thấy file xd_chuyen_doi.py")
 # Phân hệ Hỗ trợ Giảng dạy
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
