@@ -91,7 +91,28 @@ with st.sidebar:
 
 if not phan_he:
     st.info("🔑 Vui lòng đăng nhập để bắt đầu.")
-    # ... [Giữ nguyên logic form đăng nhập cũ của thầy]
+    
+    with st.form("login_form"):
+        key_input = st.text_input("Nhập API Key / Mật khẩu:", type="password")
+        submit = st.form_submit_button("Xác nhận đăng nhập")
+        
+        if submit:
+            # Lấy mật khẩu admin từ secrets, mặc định là admin123456
+            admin_pwd = st.secrets.get("ADMIN_PASSWORD", "admin123456")
+            
+            # Xử lý đăng nhập Admin
+            if key_input.strip() == admin_pwd:
+                st.session_state.is_admin_mode = True
+                st.rerun()
+                
+            # Xử lý đăng nhập bằng API Key (Gemini/OpenAI)
+            elif key_input.strip().startswith(("AIza", "sk-ant-", "sk-")):
+                st.session_state.user_api_key = key_input.strip()
+                st.rerun()
+                
+            else:
+                st.error("❌ Key không hợp lệ! Vui lòng kiểm tra lại.")
+                
     st.stop()
 
 # 7. RENDER
