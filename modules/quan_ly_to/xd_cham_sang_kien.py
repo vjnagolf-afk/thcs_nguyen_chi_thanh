@@ -1,29 +1,67 @@
 import streamlit as st
-def render_cham_sang_kien(ai_engine):
-    st.markdown("### 🔍 Trợ lý Chấm & Đánh giá Sáng kiến")
-    
-    # 1. Input dữ liệu
-    van_ban_sk = st.text_area("Dán nội dung sáng kiến:", height=250)
-    
-    # 2. Các tùy chọn nâng cao
-    col1, col2 = st.columns(2)
-    with col1:
-        check_dao_van = st.checkbox("Kiểm tra đạo văn (Tích hợp API)")
-    with col2:
-        check_ai = st.checkbox("Phát hiện văn bản do AI sinh")
+import PyPDF2
+from docx import Document
 
+def extract_text_from_file(uploaded_file):
+    text = ""
+    try:
+        if uploaded_file.name.endswith('.docx'):
+            doc = Document(uploaded_file)
+            text = "\n".join([para.text for para in doc.paragraphs])
+        elif uploaded_file.name.endswith('.pdf'):
+            reader = PyPDF2.PdfReader(uploaded_file)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+    except Exception as e:
+        st.error(f"Lỗi đọc file: {e}")
+    return text
+
+def render_cham_sang_kien(ai_engine):
+    st.markdown("### 🔍 Chấm & Góp ý Sáng kiến (Hỗ trợ file)")
+    
+    # 1. Khu vực tải file
+    uploaded_file = st.file_uploader("Tải lên bản sáng kiến (PDF hoặc DOCX):", type=["pdf", "docx"])
+    
+    # 2. Hoặc nhập tay
+    van_ban_input = st.text_area("Hoặc dán nội dung sáng kiến:", height=200)
+    
     if st.button("⚖️ BẮT ĐẦU CHẤM ĐIỂM"):
-        # Bước 1: Gọi mô-đun kiểm tra đạo văn (Sử dụng API như Copyscape hoặc tương đương)
-        # Bước 2: Gọi mô-đun phát hiện AI (Sử dụng các API chuyên biệt)
-        # Bước 3: Phân tích NLP chuyên sâu với AI (Prompt kỹ thuật)
-        
-        prompt_chuyen_sau = f"""
-        Đóng vai chuyên gia hội đồng thi sáng kiến kinh nghiệm. Đánh giá nội dung: {van_ban_sk}
-        Yêu cầu:
-        1. Chấm điểm theo thang Rubrics: Tính mới (3đ), Tính khả thi (3đ), Hiệu quả (2đ), Phạm vi ảnh hưởng (2đ).
-        2. Phân tích ngữ cảnh giáo dục: Đối chiếu mức độ khả thi thực tế.
-        3. Xuất bảng điểm chi tiết và các điểm cần cải thiện.
-        """
-        
-        # Gọi AI và hiển thị báo cáo
-        # Thầy có thể sử dụng st.download_button để xuất file PDF/Word từ kết quả trả về
+        content = ""
+        if uploaded_file:
+            with st.spinner("Đang đọc nội dung file..."):
+                content = extract_text_from_file(uploaded_file)
+        else:
+            content = van_ban_input
+
+        if not content.strip():
+            st.warning("⚠️ Vui lòng tải file hoặc dán nội dung sáng kiến!")
+            return
+            
+        # 3. Gọi AI phân tích với Prompt chuyên sâu
+        with st.spinner("AI đang chấm điểm và phân tích..."):
+            prompt = f"""Bạn là chuyên gia giáo dục hội đồng chấm sáng kiến kinh nghiệm.
+            Hãy phân tích bản sáng kiến dưới đây dựa trên các tiêu chí: 
+            1. Tính mới, 2. Tính khả thi, 3. Hiệu quả áp dụng, 4. Bố cục sư phạm.
+            
+            Sau đó, xuất ra bảng điểm Rubrics và gợi ý chỉnh sửa chi tiết.
+            
+            Nội dung: {content}"""
+            
+            try:
+                response = ai_engine.generate_text(prompt)
+                st.markdown("---")
+                st.markdown(response)
+                
+                # Lưu vào session để xuất file sau
+                st.session_state['last_result'] = response
+            except Exception as e:
+                st.error(f"❌ Lỗi khi gọi AI: {str(e)}")
+
+    # 4. Nút xuất kết quả
+    if 'last_result' in st.session_state:
+        st.download_button(
+            label="💾 Tải kết quả chấm điểm (TXT)",
+            data=st.session_state['last_result'],
+            file_name="ket_qua_cham_sk.txt",
+            mime="text/plain"
+        )
