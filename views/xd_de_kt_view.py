@@ -404,7 +404,7 @@ def render_xd_de_kt(ai_engine):
             "Số câu Tự luận",
             min_value=1,
             max_value=10,
-            value=6,
+            value=2,
             key="de_kt_num_tl"
         )
 
