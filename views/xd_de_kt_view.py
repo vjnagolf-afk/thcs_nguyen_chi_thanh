@@ -7,7 +7,7 @@ def render_xd_de_kt(ai_engine):
     from io import BytesIO
 
     # ============================================================
-    # 1. HÀM ĐỌC FILE
+    # 1. ĐỌC NỘI DUNG FILE
     # ============================================================
     def extract_text_from_file(uploaded_file):
 
@@ -29,11 +29,11 @@ def render_xd_de_kt(ai_engine):
 
                 from pypdf import PdfReader
 
-                pdf_stream = BytesIO(file_bytes)
+                reader = PdfReader(
+                    BytesIO(file_bytes)
+                )
 
-                reader = PdfReader(pdf_stream)
-
-                pages_text = []
+                pages = []
 
                 for page in reader.pages:
 
@@ -43,7 +43,7 @@ def render_xd_de_kt(ai_engine):
 
                         if text and text.strip():
 
-                            pages_text.append(
+                            pages.append(
                                 text.strip()
                             )
 
@@ -52,7 +52,7 @@ def render_xd_de_kt(ai_engine):
                         continue
 
                 return "\n\n".join(
-                    pages_text
+                    pages
                 ).strip()
 
             # ----------------------------------------------------
@@ -62,10 +62,8 @@ def render_xd_de_kt(ai_engine):
 
                 from docx import Document
 
-                doc_stream = BytesIO(file_bytes)
-
                 document = Document(
-                    doc_stream
+                    BytesIO(file_bytes)
                 )
 
                 contents = []
@@ -90,17 +88,19 @@ def render_xd_de_kt(ai_engine):
 
                         for cell in row.cells:
 
-                            cell_text = (
+                            text = (
                                 cell.text
                                 .strip()
                             )
 
                             cells.append(
-                                cell_text
+                                text
                             )
 
-                        row_text = " | ".join(
-                            cells
+                        row_text = (
+                            " | ".join(
+                                cells
+                            )
                         )
 
                         if row_text.strip():
@@ -118,25 +118,21 @@ def render_xd_de_kt(ai_engine):
             # ----------------------------------------------------
             elif file_name.endswith(".txt"):
 
-                try:
-
-                    return file_bytes.decode(
-                        "utf-8"
-                    ).strip()
-
-                except UnicodeDecodeError:
+                for encoding in [
+                    "utf-8",
+                    "cp1258",
+                    "latin-1"
+                ]:
 
                     try:
 
                         return file_bytes.decode(
-                            "cp1258"
+                            encoding
                         ).strip()
 
                     except UnicodeDecodeError:
 
-                        return file_bytes.decode(
-                            "latin-1"
-                        ).strip()
+                        continue
 
             return ""
 
@@ -149,7 +145,7 @@ def render_xd_de_kt(ai_engine):
             return ""
 
     # ============================================================
-    # 2. CHUẨN HÓA ĐỀ CƯƠNG
+    # 2. CHUẨN HÓA NỘI DUNG ĐỀ CƯƠNG
     # ============================================================
     def normalize_outline(text):
 
@@ -177,8 +173,8 @@ def render_xd_de_kt(ai_engine):
             lines
         )
 
-        # Giới hạn an toàn
-        MAX_CHARS = 60000
+        # Giới hạn để tránh prompt quá lớn
+        MAX_CHARS = 80000
 
         if len(result) > MAX_CHARS:
 
@@ -189,137 +185,428 @@ def render_xd_de_kt(ai_engine):
         return result
 
     # ============================================================
-    # 3. KIỂM TRA KẾT QUẢ AI
+    # 3. XÂY DỰNG CẤU TRÚC ĐỀ ĐỘNG
     # ============================================================
-    def validate_generated_content(
-        content
+    def build_exam_structure(
+        n_nlc,
+        d_nlc,
+        n_ds,
+        d_ds,
+        n_dk,
+        d_dk,
+        n_ngan,
+        d_ngan,
+        tl_points
     ):
 
-        if not content:
+        sections = []
 
-            return False, [
-                "Kết quả AI rỗng."
-            ]
-
-        errors = []
+        current_question = 1
 
         # --------------------------------------------------------
-        # KIỂM TRA CÂU 1 → 19
+        # HÀM THÊM NHÓM CÂU HỎI
         # --------------------------------------------------------
-        question_numbers = re.findall(
-            r"(?i)(?:^|\n)\s*(?:Câu|Cau)\s+(\d+)",
-            content
-        )
-
-        numbers = []
-
-        for number in question_numbers:
-
-            try:
-
-                number = int(
-                    number
-                )
-
-                if number not in numbers:
-
-                    numbers.append(
-                        number
-                    )
-
-            except:
-
-                pass
-
-        # Không yêu cầu AI phải xuất hiện
-        # đúng duy nhất 19 lần vì trong
-        # ma trận/đặc tả có thể lặp mã câu.
-        required_numbers = set(
-            range(1, 20)
-        )
-
-        missing = sorted(
-            required_numbers
-            - set(numbers)
-        )
-
-        if missing:
-
-            errors.append(
-                "Thiếu câu: "
-                + ", ".join(
-                    f"Câu {n}"
-                    for n in missing
-                )
-            )
-
-        # --------------------------------------------------------
-        # PHÁT HIỆN TỰ LUẬN SAI SỐ CÂU
-        # --------------------------------------------------------
-        tu_luan_match = re.search(
-            r"(?is)"
-            r"(?:PHẦN\s*II|PHAN\s*II)"
-            r".{0,3000}?"
-            r"(?:TỰ\s*LUẬN|TU\s*LUAN)"
-            r".{0,5000}",
-            content
-        )
-
-        if tu_luan_match:
-
-            tu_luan_text = (
-                tu_luan_match.group(
-                    0
-                )
-            )
-
-            # Các câu tự luận chính
-            tl_numbers = set()
-
-            for n in re.findall(
-                r"(?i)(?:Câu|Cau)\s+"
-                r"(17|18|19)\b",
-                tu_luan_text
-            ):
-
-                tl_numbers.add(
-                    int(n)
-                )
-
-            if tl_numbers != {
-                17,
-                18,
-                19
-            }:
-
-                errors.append(
-                    "Phần tự luận không đủ "
-                    "Câu 17, Câu 18, Câu 19."
-                )
-
-        # --------------------------------------------------------
-        # KIỂM TRA TỔNG ĐIỂM
-        # --------------------------------------------------------
-        if (
-            "10,0 điểm" not in content
-            and
-            "10.0 điểm" not in content
-            and
-            "10 điểm" not in content
+        def add_section(
+            section_name,
+            question_type,
+            count,
+            points_each
         ):
 
-            errors.append(
-                "Không phát hiện rõ tổng điểm 10."
+            nonlocal current_question
+
+            count = int(count)
+
+            points_each = float(
+                points_each
             )
 
-        if errors:
+            if count <= 0:
 
-            return False, errors
+                return
 
-        return True, []
+            start_question = (
+                current_question
+            )
+
+            end_question = (
+                current_question
+                + count
+                - 1
+            )
+
+            questions = list(
+                range(
+                    start_question,
+                    end_question + 1
+                )
+            )
+
+            total_points = (
+                count
+                * points_each
+            )
+
+            sections.append(
+                {
+                    "name": section_name,
+
+                    "type": question_type,
+
+                    "count": count,
+
+                    "points_each":
+                        points_each,
+
+                    "total_points":
+                        total_points,
+
+                    "start_question":
+                        start_question,
+
+                    "end_question":
+                        end_question,
+
+                    "questions":
+                        questions
+                }
+            )
+
+            current_question = (
+                end_question + 1
+            )
+
+        # --------------------------------------------------------
+        # PHẦN KHÁCH QUAN
+        # --------------------------------------------------------
+        add_section(
+            "Nhiều lựa chọn",
+            "NLC",
+            n_nlc,
+            d_nlc
+        )
+
+        add_section(
+            "Đúng/Sai",
+            "DUNG_SAI",
+            n_ds,
+            d_ds
+        )
+
+        add_section(
+            "Điền khuyết",
+            "DIEN_KHUYET",
+            n_dk,
+            d_dk
+        )
+
+        add_section(
+            "Trả lời ngắn",
+            "TRA_LOI_NGAN",
+            n_ngan,
+            d_ngan
+        )
+
+        # --------------------------------------------------------
+        # PHẦN TỰ LUẬN
+        # --------------------------------------------------------
+        for index, point in enumerate(
+            tl_points,
+            start=1
+        ):
+
+            point = float(
+                point
+            )
+
+            if point <= 0:
+
+                continue
+
+            question_number = (
+                current_question
+            )
+
+            sections.append(
+                {
+                    "name": "Tự luận",
+
+                    "type": "TU_LUAN",
+
+                    "count": 1,
+
+                    "points_each": point,
+
+                    "total_points": point,
+
+                    "start_question":
+                        question_number,
+
+                    "end_question":
+                        question_number,
+
+                    "questions": [
+                        question_number
+                    ],
+
+                    "tl_index": index
+                }
+            )
+
+            current_question += 1
+
+        total_questions = (
+            current_question - 1
+        )
+
+        total_points = sum(
+            section[
+                "total_points"
+            ]
+            for section in sections
+        )
+
+        return {
+            "sections": sections,
+
+            "total_questions":
+                total_questions,
+
+            "total_points":
+                total_points
+        }
 
     # ============================================================
-    # 4. GIAO DIỆN
+    # 4. TẠO HỢP ĐỒNG CẤU TRÚC ĐỀ ĐỘNG
+    # ============================================================
+    def build_structure_contract(
+        exam_structure
+    ):
+
+        lines = []
+
+        lines.append(
+            "============================================================"
+        )
+
+        lines.append(
+            "HỢP ĐỒNG CẤU TRÚC ĐỀ KIỂM TRA"
+        )
+
+        lines.append(
+            "============================================================"
+        )
+
+        lines.append(
+            f"TỔNG SỐ CÂU: "
+            f"{exam_structure['total_questions']}"
+        )
+
+        lines.append(
+            f"TỔNG ĐIỂM: "
+            f"{exam_structure['total_points']:.2f}"
+        )
+
+        lines.append("")
+
+        lines.append(
+            "DANH SÁCH CÁC NHÓM CÂU HỎI:"
+        )
+
+        lines.append("")
+
+        for index, section in enumerate(
+            exam_structure[
+                "sections"
+            ],
+            start=1
+        ):
+
+            start = (
+                section[
+                    "start_question"
+                ]
+            )
+
+            end = (
+                section[
+                    "end_question"
+                ]
+            )
+
+            if start == end:
+
+                question_range = (
+                    f"Câu {start}"
+                )
+
+            else:
+
+                question_range = (
+                    f"Câu {start} "
+                    f"đến Câu {end}"
+                )
+
+            lines.append(
+                f"{index}. "
+                f"{section['name']}"
+            )
+
+            lines.append(
+                f"   - Loại câu: "
+                f"{section['type']}"
+            )
+
+            lines.append(
+                f"   - Phạm vi: "
+                f"{question_range}"
+            )
+
+            lines.append(
+                f"   - Số câu: "
+                f"{section['count']}"
+            )
+
+            lines.append(
+                f"   - Điểm/câu: "
+                f"{section['points_each']:.2f}"
+            )
+
+            lines.append(
+                f"   - Tổng điểm: "
+                f"{section['total_points']:.2f}"
+            )
+
+            lines.append("")
+
+        lines.append(
+            "DANH SÁCH SỐ CÂU ĐƯỢC PHÉP:"
+        )
+
+        question_numbers = []
+
+        for section in (
+            exam_structure[
+                "sections"
+            ]
+        ):
+
+            question_numbers.extend(
+                section[
+                    "questions"
+                ]
+            )
+
+        lines.append(
+            ", ".join(
+                f"Câu {n}"
+                for n in question_numbers
+            )
+        )
+
+        lines.append("")
+
+        lines.append(
+            "QUY TẮC BẮT BUỘC:"
+        )
+
+        lines.append(
+            "1. Không được tạo thêm câu ngoài danh sách trên."
+        )
+
+        lines.append(
+            "2. Không được bỏ bớt câu trong danh sách trên."
+        )
+
+        lines.append(
+            "3. Không được tự ý thay đổi số điểm."
+        )
+
+        lines.append(
+            "4. Không được tự ý thay đổi dạng câu hỏi."
+        )
+
+        lines.append(
+            "5. Số câu trong ma trận, đặc tả, đề "
+            "và đáp án phải hoàn toàn giống nhau."
+        )
+
+        lines.append(
+            "6. Các ý a), b), c), d) bên trong một câu "
+            "không được tính thành câu hỏi mới."
+        )
+
+        lines.append(
+            "7. Mỗi câu chính chỉ có một số thứ tự duy nhất."
+        )
+
+        lines.append(
+            "8. Không được đánh số lại sau khi đã tạo đề."
+        )
+
+        return "\n".join(
+            lines
+        )
+
+    # ============================================================
+    # 5. HIỂN THỊ CẤU TRÚC ĐỀ
+    # ============================================================
+    def render_structure_summary(
+        exam_structure
+    ):
+
+        st.markdown(
+            "### 📊 Cấu trúc đề kiểm tra"
+        )
+
+        for section in (
+            exam_structure[
+                "sections"
+            ]
+        ):
+
+            start = (
+                section[
+                    "start_question"
+                ]
+            )
+
+            end = (
+                section[
+                    "end_question"
+                ]
+            )
+
+            if start == end:
+
+                question_range = (
+                    f"Câu {start}"
+                )
+
+            else:
+
+                question_range = (
+                    f"Câu {start}–{end}"
+                )
+
+            st.write(
+                f"**{section['name']}**: "
+                f"{question_range} — "
+                f"{section['count']} câu × "
+                f"{section['points_each']:.2f} điểm = "
+                f"{section['total_points']:.2f} điểm"
+            )
+
+        st.divider()
+
+        st.write(
+            f"**TỔNG: "
+            f"{exam_structure['total_questions']} câu — "
+            f"{exam_structure['total_points']:.2f} điểm**"
+        )
+
+    # ============================================================
+    # 6. GIAO DIỆN CHÍNH
     # ============================================================
     st.markdown(
         "### 📝 Soạn thảo Ma trận, Đặc tả & Đề kiểm tra"
@@ -374,7 +661,9 @@ def render_xd_de_kt(ai_engine):
         [
             "15 phút",
             "45 phút",
-            "90 phút"
+            "60 phút",
+            "90 phút",
+            "120 phút"
         ],
         index=1,
         key="de_kt_thoi_gian"
@@ -399,7 +688,7 @@ def render_xd_de_kt(ai_engine):
         )
 
     # ============================================================
-    # 5. TẢI ĐỀ CƯƠNG
+    # 7. TẢI ĐỀ CƯƠNG
     # ============================================================
     file_de = st.file_uploader(
         "📚 Tải đề cương / tài liệu bám sát",
@@ -414,15 +703,14 @@ def render_xd_de_kt(ai_engine):
     if file_de:
 
         st.info(
-            f"📄 Đã chọn: "
-            f"{file_de.name}"
+            f"📄 Đã chọn: {file_de.name}"
         )
 
     # ============================================================
-    # 6. CẤU HÌNH MỨC ĐỘ
+    # 8. CẤU HÌNH MỨC ĐỘ
     # ============================================================
     with st.expander(
-        "⚙️ Cấu hình mức độ nhận thức",
+        "⚙️ Cấu hình tỷ lệ mức độ nhận thức",
         expanded=True
     ):
 
@@ -432,28 +720,36 @@ def render_xd_de_kt(ai_engine):
             "Nhận biết (%)",
             min_value=0,
             max_value=100,
-            value=40
+            value=40,
+            step=5,
+            key="de_kt_nb"
         )
 
         th = r2.number_input(
             "Thông hiểu (%)",
             min_value=0,
             max_value=100,
-            value=30
+            value=30,
+            step=5,
+            key="de_kt_th"
         )
 
         vd = r3.number_input(
             "Vận dụng (%)",
             min_value=0,
             max_value=100,
-            value=20
+            value=20,
+            step=5,
+            key="de_kt_vd"
         )
 
         vdc = r4.number_input(
             "Vận dụng cao (%)",
             min_value=0,
             max_value=100,
-            value=10
+            value=10,
+            step=5,
+            key="de_kt_vdc"
         )
 
         total_percent = (
@@ -472,34 +768,161 @@ def render_xd_de_kt(ai_engine):
             )
 
     # ============================================================
-    # 7. CẤU HÌNH CẤU TRÚC ĐỀ
+    # 9. CẤU HÌNH CẤU TRÚC ĐỀ
     # ============================================================
     with st.expander(
-        "📊 Cấu trúc đề kiểm tra",
+        "📊 Cấu hình cấu trúc đề kiểm tra",
         expanded=True
     ):
 
         st.markdown(
-            """
-            **PHẦN I. TRẮC NGHIỆM — 16 câu — 4,0 điểm**
+            "#### PHẦN KHÁCH QUAN"
+        )
 
-            - Nhiều lựa chọn: 10 câu × 0,25 điểm
-            - Đúng/Sai: 2 câu × 0,25 điểm
-            - Điền khuyết: 2 câu × 0,25 điểm
-            - Trả lời ngắn: 2 câu × 0,25 điểm
+        c1, c2, c3, c4 = st.columns(4)
 
-            **PHẦN II. TỰ LUẬN — 3 câu — 6,0 điểm**
+        n_nlc = c1.number_input(
+            "NLC - Số câu",
+            min_value=0,
+            max_value=100,
+            value=10,
+            step=1,
+            key="de_kt_n_nlc"
+        )
 
-            - Câu 17: 2,0 điểm
-            - Câu 18: 2,0 điểm
-            - Câu 19: 2,0 điểm
+        d_nlc = c2.number_input(
+            "NLC - Điểm/câu",
+            min_value=0.0,
+            max_value=10.0,
+            value=0.25,
+            step=0.25,
+            key="de_kt_d_nlc"
+        )
 
-            **TỔNG: 19 CÂU — 10,0 ĐIỂM**
-            """
+        n_ds = c3.number_input(
+            "Đúng/Sai - Số câu",
+            min_value=0,
+            max_value=100,
+            value=2,
+            step=1,
+            key="de_kt_n_ds"
+        )
+
+        d_ds = c4.number_input(
+            "Đúng/Sai - Điểm/câu",
+            min_value=0.0,
+            max_value=10.0,
+            value=0.25,
+            step=0.25,
+            key="de_kt_d_ds"
+        )
+
+        c5, c6, c7, c8 = st.columns(4)
+
+        n_dk = c5.number_input(
+            "Điền khuyết - Số câu",
+            min_value=0,
+            max_value=100,
+            value=2,
+            step=1,
+            key="de_kt_n_dk"
+        )
+
+        d_dk = c6.number_input(
+            "Điền khuyết - Điểm/câu",
+            min_value=0.0,
+            max_value=10.0,
+            value=0.25,
+            step=0.25,
+            key="de_kt_d_dk"
+        )
+
+        n_ngan = c7.number_input(
+            "Trả lời ngắn - Số câu",
+            min_value=0,
+            max_value=100,
+            value=2,
+            step=1,
+            key="de_kt_n_ngan"
+        )
+
+        d_ngan = c8.number_input(
+            "Trả lời ngắn - Điểm/câu",
+            min_value=0.0,
+            max_value=10.0,
+            value=0.25,
+            step=0.25,
+            key="de_kt_d_ngan"
+        )
+
+        st.markdown(
+            "#### PHẦN TỰ LUẬN"
+        )
+
+        num_tl = st.number_input(
+            "Số câu tự luận",
+            min_value=0,
+            max_value=50,
+            value=3,
+            step=1,
+            key="de_kt_num_tl"
+        )
+
+        tl_points = []
+
+        if num_tl > 0:
+
+            tl_cols = st.columns(
+                min(
+                    int(num_tl),
+                    5
+                )
+            )
+
+            for i in range(
+                int(num_tl)
+            ):
+
+                col = tl_cols[
+                    i % len(tl_cols)
+                ]
+
+                point = col.number_input(
+                    f"Câu TL {i + 1} (điểm)",
+                    min_value=0.0,
+                    max_value=10.0,
+                    value=2.0,
+                    step=0.25,
+                    key=f"de_kt_tl_{i}"
+                )
+
+                tl_points.append(
+                    point
+                )
+
+        # --------------------------------------------------------
+        # TẠO CẤU TRÚC ĐỀ
+        # --------------------------------------------------------
+        exam_structure = (
+            build_exam_structure(
+                n_nlc=n_nlc,
+                d_nlc=d_nlc,
+                n_ds=n_ds,
+                d_ds=d_ds,
+                n_dk=n_dk,
+                d_dk=d_dk,
+                n_ngan=n_ngan,
+                d_ngan=d_ngan,
+                tl_points=tl_points
+            )
+        )
+
+        render_structure_summary(
+            exam_structure
         )
 
     # ============================================================
-    # 8. NÚT TẠO ĐỀ
+    # 10. NÚT TẠO ĐỀ
     # ============================================================
     if st.button(
         "🚀 TẠO MA TRẬN & ĐỀ KIỂM TRA",
@@ -513,7 +936,35 @@ def render_xd_de_kt(ai_engine):
         if total_percent != 100:
 
             st.error(
-                "❌ Tổng tỷ lệ mức độ phải bằng 100%."
+                "❌ Tổng tỷ lệ mức độ nhận thức "
+                "phải bằng 100%."
+            )
+
+            st.stop()
+
+        # --------------------------------------------------------
+        # KIỂM TRA CẤU TRÚC
+        # --------------------------------------------------------
+        if (
+            exam_structure[
+                "total_questions"
+            ] <= 0
+        ):
+
+            st.error(
+                "❌ Đề phải có ít nhất một câu hỏi."
+            )
+
+            st.stop()
+
+        if (
+            exam_structure[
+                "total_points"
+            ] <= 0
+        ):
+
+            st.error(
+                "❌ Tổng điểm đề phải lớn hơn 0."
             )
 
             st.stop()
@@ -556,7 +1007,7 @@ def render_xd_de_kt(ai_engine):
 
                     st.error(
                         "❌ Không đọc được nội dung "
-                        "văn bản từ đề cương."
+                        "đề cương."
                     )
 
                     st.info(
@@ -569,158 +1020,42 @@ def render_xd_de_kt(ai_engine):
             else:
 
                 outline_text = (
-                    "Không có đề cương."
+                    "Không sử dụng đề cương."
                 )
 
         # ========================================================
-        # 9. HỢP ĐỒNG CẤU TRÚC
+        # TẠO HỢP ĐỒNG CẤU TRÚC
         # ========================================================
-        structure_contract = """
-============================================================
-HỢP ĐỒNG CẤU TRÚC ĐỀ — BẮT BUỘC TUÂN THỦ
-============================================================
-
-TỔNG SỐ CÂU TOÀN ĐỀ: 19 CÂU
-TỔNG ĐIỂM: 10,0 ĐIỂM
-
-============================================================
-PHẦN I. TRẮC NGHIỆM — 16 CÂU — 4,0 ĐIỂM
-============================================================
-
-A. NHIỀU LỰA CHỌN
-
-Câu 1 đến Câu 10:
-10 câu × 0,25 điểm = 2,50 điểm.
-
-Mỗi câu có đúng 1 đáp án đúng.
-
-------------------------------------------------------------
-
-B. ĐÚNG / SAI
-
-Câu 11 đến Câu 12:
-2 câu × 0,25 điểm = 0,50 điểm.
-
-Đây là 2 câu hỏi chính.
-
-Các mệnh đề a), b), c), d)
-chỉ là các ý/mệnh đề bên trong câu hỏi,
-không được tính thành câu hỏi mới.
-
-------------------------------------------------------------
-
-C. ĐIỀN KHUYẾT
-
-Câu 13 đến Câu 14:
-2 câu × 0,25 điểm = 0,50 điểm.
-
-------------------------------------------------------------
-
-D. TRẢ LỜI NGẮN
-
-Câu 15 đến Câu 16:
-2 câu × 0,25 điểm = 0,50 điểm.
-
-============================================================
-PHẦN II. TỰ LUẬN — 3 CÂU — 6,0 ĐIỂM
-============================================================
-
-Câu 17: 2,0 điểm.
-
-Câu 18: 2,0 điểm.
-
-Câu 19: 2,0 điểm.
-
-Các ý a), b), c) bên trong Câu 17, 18, 19
-chỉ là các ý thành phần để chấm điểm.
-
-KHÔNG ĐƯỢC tạo thêm Câu 20, Câu 21...
-KHÔNG ĐƯỢC biến các ý a), b), c)
-thành câu hỏi độc lập.
-
-============================================================
-DANH SÁCH SỐ CÂU DUY NHẤT
-============================================================
-
-Câu 1
-Câu 2
-Câu 3
-Câu 4
-Câu 5
-Câu 6
-Câu 7
-Câu 8
-Câu 9
-Câu 10
-Câu 11
-Câu 12
-Câu 13
-Câu 14
-Câu 15
-Câu 16
-Câu 17
-Câu 18
-Câu 19
-
-Không được thiếu.
-Không được thêm.
-Không được đánh số lại.
-============================================================
-"""
+        structure_contract = (
+            build_structure_contract(
+                exam_structure
+            )
+        )
 
         # ========================================================
-        # 10. QUY TẮC CÔNG THỨC
+        # TẠO DANH SÁCH CÂU CHÍNH
         # ========================================================
-        formula_rules = """
+        question_numbers = []
 
-============================================================
-QUY TẮC TRÌNH BÀY CÔNG THỨC TOÁN
-============================================================
+        for section in (
+            exam_structure[
+                "sections"
+            ]
+        ):
 
-Đối với công thức Toán:
+            question_numbers.extend(
+                section[
+                    "questions"
+                ]
+            )
 
-- Công thức inline dùng:
-  \\( ... \\)
-
-- Công thức riêng dùng:
-  \\[
-  ...
-  \\]
-
-Ví dụ:
-
-\\(x^2 + 2x + 1\\)
-
-\\[
-x^2 + 2x + 1 = 0
-\\]
-
-Phân số:
-
-\\[
-\\frac{a}{b}
-\\]
-
-Căn:
-
-\\[
-\\sqrt{x}
-\\]
-
-Không dùng:
-
-frac{a}{b}
-
-sqrt{x}
-
-Các công thức phải giữ nguyên ký hiệu toán học.
-Không tự ý thay đổi dữ kiện hoặc công thức
-có trong đề cương.
-============================================================
-"""
+        question_list = ", ".join(
+            f"Câu {number}"
+            for number in question_numbers
+        )
 
         # ========================================================
-        # 11. QUY TẮC BÁM SÁT ĐỀ CƯƠNG
+        # PROMPT KIỂM SOÁT BÁM SÁT ĐỀ CƯƠNG
         # ========================================================
         scope_rules = f"""
 
@@ -728,7 +1063,8 @@ có trong đề cương.
 PHẠM VI KIẾN THỨC ĐƯỢC PHÉP
 ============================================================
 
-CHỈ được sử dụng kiến thức trong tài liệu sau:
+Chỉ sử dụng kiến thức có căn cứ
+trong đề cương/tài liệu dưới đây.
 
 ---------------- BẮT ĐẦU ĐỀ CƯƠNG ----------------
 
@@ -738,25 +1074,61 @@ CHỈ được sử dụng kiến thức trong tài liệu sau:
 
 QUY TẮC:
 
-1. Không đưa kiến thức ngoài đề cương.
+1. Không đưa nội dung ngoài đề cương.
 
-2. Không tự ý mở rộng sang bài học khác.
+2. Không tự ý mở rộng sang chủ đề khác.
 
 3. Không tự ý thêm công thức ngoài phạm vi.
 
-4. Mọi câu hỏi phải có căn cứ trong đề cương.
+4. Có thể yêu cầu học sinh suy luận,
+tính toán hoặc vận dụng kiến thức
+đã có trong đề cương.
 
-5. Có thể yêu cầu học sinh suy luận,
-   tính toán hoặc vận dụng kiến thức
-   đã có trong đề cương.
+5. Mỗi câu hỏi phải xác định được
+nội dung kiến thức tương ứng trong đề cương.
 
-6. Nếu một nội dung không có căn cứ
-   trong đề cương thì không sử dụng.
-============================================================
+6. Ma trận, đặc tả, đề và đáp án
+phải cùng bám một phạm vi kiến thức.
 """
 
         # ========================================================
-        # 12. MỨC ĐỘ NHẬN THỨC
+        # QUY TẮC CÔNG THỨC
+        # ========================================================
+        formula_rules = """
+
+============================================================
+QUY TẮC TRÌNH BÀY CÔNG THỨC
+============================================================
+
+Nếu có công thức Toán/Vật lý/Hóa học:
+
+- Công thức inline:
+\\( ... \\)
+
+- Công thức riêng:
+\\[
+...
+\\]
+
+Ví dụ:
+
+\\[
+v = \\frac{s}{t}
+\\]
+
+Không viết công thức dạng:
+
+frac{s}{t}
+
+sqrt{x}
+
+Không tự ý thay đổi
+ký hiệu, dữ kiện hoặc công thức
+đã có trong đề cương.
+"""
+
+        # ========================================================
+        # QUY TẮC MỨC ĐỘ
         # ========================================================
         level_rules = f"""
 
@@ -769,16 +1141,15 @@ TỶ LỆ MỨC ĐỘ NHẬN THỨC
 - Vận dụng: {vd}%
 - Vận dụng cao: {vdc}%
 
-Ma trận và đặc tả phải phản ánh đúng
-các tỷ lệ này trong phạm vi cho phép
-của tổng số câu và điểm.
-============================================================
+Ma trận và đặc tả phải phân bố
+theo các tỷ lệ trên trong phạm vi
+số câu và điểm của đề.
 """
 
         # ========================================================
-        # 13. YÊU CẦU ĐẦU RA
+        # YÊU CẦU ĐẦU RA
         # ========================================================
-        output_rules = """
+        output_rules = f"""
 
 ============================================================
 YÊU CẦU ĐẦU RA
@@ -786,134 +1157,80 @@ YÊU CẦU ĐẦU RA
 
 Tạo kết quả theo đúng thứ tự:
 
-# PHẦN I. PHẠM VI KIẾN THỨC
+1. PHẠM VI KIẾN THỨC
 
-Liệt kê các chủ đề/nội dung
-được phép sử dụng từ đề cương.
+2. MA TRẬN ĐỀ
 
-------------------------------------------------------------
+3. BẢN ĐẶC TẢ
 
-# PHẦN II. MA TRẬN ĐỀ
+4. ĐỀ KIỂM TRA
 
-Ma trận phải thể hiện:
+5. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
 
-- Nội dung/chủ đề.
-- Mức độ nhận thức.
-- Số câu.
-- Mã câu cụ thể.
-
-Mã câu phải là:
-C1, C2, ..., C19.
-
-Không dùng mã câu ngoài C1 đến C19.
-
-------------------------------------------------------------
-
-# PHẦN III. BẢN ĐẶC TẢ
-
-Mỗi yêu cầu cần đạt phải gắn với:
-
-- Nội dung.
-- Mức độ.
-- Dạng câu hỏi.
-- Mã câu cụ thể.
-
-Mã câu trong đặc tả phải khớp với ma trận.
-
-------------------------------------------------------------
-
-# PHẦN IV. ĐỀ KIỂM TRA
-
-Bắt buộc:
-
-PHẦN I. TRẮC NGHIỆM
-
-Câu 1 đến Câu 10:
-Nhiều lựa chọn.
-
-Câu 11 đến Câu 12:
-Đúng/Sai.
-
-Câu 13 đến Câu 14:
-Điền khuyết.
-
-Câu 15 đến Câu 16:
-Trả lời ngắn.
-
-PHẦN II. TỰ LUẬN
-
-Câu 17: 2 điểm.
-
-Câu 18: 2 điểm.
-
-Câu 19: 2 điểm.
-
-------------------------------------------------------------
-
-# PHẦN V. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM
-
-Đáp án phải có:
-
-Câu 1 → Câu 19.
-
-Không được thiếu câu.
-
-Điểm phải đúng:
-
-Câu 1-16:
-mỗi câu 0,25 điểm.
-
-Câu 17:
-2,0 điểm.
-
-Câu 18:
-2,0 điểm.
-
-Câu 19:
-2,0 điểm.
-
-------------------------------------------------------------
-
-# PHẦN VI. BẢNG TỰ KIỂM TRA
-
-Bắt buộc xác nhận:
-
-[✓] Có đủ Câu 1 đến Câu 19.
-
-[✓] Không có Câu 20 trở lên.
-
-[✓] Có đúng 16 câu phần trắc nghiệm.
-
-[✓] Có đúng 3 câu tự luận.
-
-[✓] Tổng điểm bằng 10,0.
-
-[✓] Câu 17 = 2,0 điểm.
-
-[✓] Câu 18 = 2,0 điểm.
-
-[✓] Câu 19 = 2,0 điểm.
-
-[✓] Ma trận khớp đặc tả.
-
-[✓] Đặc tả khớp đề.
-
-[✓] Đáp án khớp đề.
-
-[✓] Không có câu ngoài phạm vi đề cương.
+6. BẢNG TỰ KIỂM TRA
 
 ============================================================
+DANH SÁCH CÂU HỎI BẮT BUỘC
+============================================================
+
+{question_list}
+
+Chỉ được sử dụng các số câu trên.
+
+============================================================
+YÊU CẦU ĐỒNG BỘ
+============================================================
+
+Ma trận phải khớp bản đặc tả.
+
+Bản đặc tả phải khớp đề.
+
+Đề phải khớp đáp án.
+
+Số câu và điểm phải khớp
+HỢP ĐỒNG CẤU TRÚC ĐỀ.
+
+Các ý a), b), c), d)
+bên trong một câu chỉ là ý thành phần,
+không được tính thành câu hỏi mới.
+
+============================================================
+BẢNG TỰ KIỂM TRA
+============================================================
+
+[ ] Đủ toàn bộ các số câu được yêu cầu.
+
+[ ] Không có câu ngoài danh sách.
+
+[ ] Không có số câu bị trùng.
+
+[ ] Tổng số câu đúng.
+
+[ ] Tổng điểm đúng.
+
+[ ] Mỗi dạng câu hỏi đúng số lượng.
+
+[ ] Điểm từng dạng đúng.
+
+[ ] Ma trận khớp đặc tả.
+
+[ ] Đặc tả khớp đề.
+
+[ ] Đề khớp đáp án.
+
+[ ] Nội dung nằm trong phạm vi đề cương.
 """
 
         # ========================================================
-        # 14. PROMPT CUỐI
+        # PROMPT CUỐI
         # ========================================================
         final_prompt = f"""
 
-Bạn là chuyên gia xây dựng ma trận,
-bản đặc tả và đề kiểm tra.
+Bạn là chuyên gia xây dựng
+ma trận, bản đặc tả và đề kiểm tra
+theo Chương trình GDPT 2018.
 
-Môn: {mon_hoc}
+Môn học: {mon_hoc}
 
 Lớp: {lop}
 
@@ -925,49 +1242,52 @@ Thời gian: {thoi_gian}
 
 {structure_contract}
 
-{formula_rules}
-
 {scope_rules}
+
+{formula_rules}
 
 {level_rules}
 
 {output_rules}
 
 ============================================================
-YÊU CẦU QUAN TRỌNG NHẤT
+NGUYÊN TẮC QUAN TRỌNG NHẤT
 ============================================================
 
-Không được tự suy diễn lại cấu trúc đề.
+HỢP ĐỒNG CẤU TRÚC ĐỀ là ràng buộc tuyệt đối.
 
-Không được tự tính lại số câu.
+Không được tự suy diễn lại số câu.
 
-Không được thêm câu.
+Không được tự ý thêm câu.
 
-Không được bớt câu.
+Không được tự ý bớt câu.
 
-Không được đánh số lại.
+Không được tự ý thay đổi điểm.
 
-Hãy coi HỢP ĐỒNG CẤU TRÚC ĐỀ
-là ràng buộc tuyệt đối.
+Không được tự ý thay đổi dạng câu hỏi.
+
+Không được biến ý nhỏ thành câu hỏi mới.
 
 Trước khi trả kết quả,
-hãy tự kiểm tra toàn bộ cấu trúc
-theo BẢNG TỰ KIỂM TRA.
+hãy tự kiểm tra toàn bộ cấu trúc.
 
 Chỉ trả về kết quả hoàn chỉnh.
 """
 
         # ========================================================
-        # 15. GỌI AI DUY NHẤT 1 LẦN
+        # GỌI AI DUY NHẤT MỘT LẦN
         # ========================================================
         with st.spinner(
-            "🤖 AI đang xây dựng ma trận, đặc tả và đề..."
+            "🤖 AI đang xây dựng ma trận, "
+            "đặc tả, đề và đáp án..."
         ):
 
             try:
 
-                result = ai_engine.generate_text(
-                    final_prompt
+                result = (
+                    ai_engine.generate_text(
+                        final_prompt
+                    )
                 )
 
                 if not result:
@@ -979,74 +1299,57 @@ Chỉ trả về kết quả hoàn chỉnh.
                     st.stop()
 
                 # ------------------------------------------------
-                # KIỂM TRA CẤU TRÚC
-                # ------------------------------------------------
-                is_valid, errors = (
-                    validate_generated_content(
-                        result
-                    )
-                )
-
-                if not is_valid:
-
-                    st.warning(
-                        "⚠️ AI đã trả kết quả "
-                        "nhưng phát hiện vấn đề cấu trúc:"
-                    )
-
-                    for error in errors:
-
-                        st.write(
-                            f"- {error}"
-                        )
-
-                    st.info(
-                        "Thầy có thể kiểm tra "
-                        "nội dung trước khi xuất Word."
-                    )
-
-                # ------------------------------------------------
                 # LƯU KẾT QUẢ
                 # ------------------------------------------------
                 st.session_state[
                     "de_kt_content"
                 ] = result
 
+                # ------------------------------------------------
+                # LƯU CẤU HÌNH
+                # ------------------------------------------------
                 st.session_state[
                     "de_kt_config"
                 ] = {
 
-                    "mon_hoc": mon_hoc,
+                    "mon_hoc":
+                        mon_hoc,
 
-                    "lop": lop,
+                    "lop":
+                        lop,
 
-                    "ten_de": ten_de,
+                    "ten_de":
+                        ten_de,
 
-                    "hinh_thuc": hinh_thuc,
+                    "hinh_thuc":
+                        hinh_thuc,
 
-                    "thoi_gian": thoi_gian,
+                    "thoi_gian":
+                        thoi_gian,
 
-                    "total_questions": 19,
+                    "exam_structure":
+                        exam_structure,
 
-                    "total_points": 10.0,
+                    "total_questions":
+                        exam_structure[
+                            "total_questions"
+                        ],
 
-                    "trac_nghiem_questions": 16,
+                    "total_points":
+                        exam_structure[
+                            "total_points"
+                        ],
 
-                    "trac_nghiem_points": 4.0,
-
-                    "tu_luan_questions": 3,
-
-                    "tu_luan_points": 6.0,
-
-                    "file_name": (
-                        file_de.name
-                        if file_de
-                        else None
-                    )
+                    "file_name":
+                        (
+                            file_de.name
+                            if file_de
+                            else None
+                        )
                 }
 
                 st.success(
-                    "✅ Đã tạo xong kết quả."
+                    "✅ Đã tạo xong đề kiểm tra."
                 )
 
                 st.rerun()
@@ -1058,7 +1361,7 @@ Chỉ trả về kết quả hoàn chỉnh.
                 )
 
     # ============================================================
-    # 16. HIỂN THỊ KẾT QUẢ
+    # 11. HIỂN THỊ KẾT QUẢ
     # ============================================================
     if (
         "de_kt_content"
@@ -1068,34 +1371,59 @@ Chỉ trả về kết quả hoàn chỉnh.
         st.divider()
 
         st.markdown(
-            "## 📄 KẾT QUẢ"
+            "## 📄 KẾT QUẢ ĐỀ KIỂM TRA"
         )
 
-        col1, col2 = st.columns(
-            [1, 5]
+        config = (
+            st.session_state.get(
+                "de_kt_config",
+                {}
+            )
         )
 
-        with col1:
+        # --------------------------------------------------------
+        # HIỂN THỊ CẤU TRÚC ĐÃ SINH
+        # --------------------------------------------------------
+        saved_structure = (
+            config.get(
+                "exam_structure"
+            )
+        )
 
-            if st.button(
-                "🗑️ XÓA ĐỀ"
+        if saved_structure:
+
+            with st.expander(
+                "📊 Xem cấu trúc đề đã sử dụng",
+                expanded=False
             ):
 
-                del st.session_state[
-                    "de_kt_content"
-                ]
+                render_structure_summary(
+                    saved_structure
+                )
 
-                if (
-                    "de_kt_config"
-                    in st.session_state
-                ):
+        # --------------------------------------------------------
+        # NÚT XÓA
+        # --------------------------------------------------------
+        if st.button(
+            "🗑️ XÓA ĐỀ",
+            key="de_kt_delete_result"
+        ):
 
-                    del st.session_state[
-                        "de_kt_config"
-                    ]
+            st.session_state.pop(
+                "de_kt_content",
+                None
+            )
 
-                st.rerun()
+            st.session_state.pop(
+                "de_kt_config",
+                None
+            )
 
+            st.rerun()
+
+        # --------------------------------------------------------
+        # HIỂN THỊ NỘI DUNG
+        # --------------------------------------------------------
         st.markdown(
             st.session_state[
                 "de_kt_content"
@@ -1127,13 +1455,6 @@ Chỉ trả về kết quả hoàn chỉnh.
                 WordExportEngine
             )
 
-            config = (
-                st.session_state.get(
-                    "de_kt_config",
-                    {}
-                )
-            )
-
             word_bytes = (
                 WordExportEngine.export_to_word(
                     {
@@ -1142,7 +1463,8 @@ Chỉ trả về kết quả hoàn chỉnh.
                                 "de_kt_content"
                             ],
 
-                        "is_de_kt": True,
+                        "is_de_kt":
+                            True,
 
                         "title":
                             config.get(
@@ -1157,7 +1479,8 @@ Chỉ trả về kết quả hoàn chỉnh.
                 "📥 TẢI FILE WORD",
                 data=word_bytes,
                 file_name="De_Thi.docx",
-                use_container_width=True
+                use_container_width=True,
+                key="de_kt_download_word"
             )
 
         except Exception as e:
