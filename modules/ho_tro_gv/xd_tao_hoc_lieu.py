@@ -19,6 +19,7 @@ def doc_noi_dung_web(url):
         return f"Lỗi không thể đọc URL: {e}"
 
 def render_tao_hoc_lieu(ai_engine):
+    if st.session_state.tao_hoc_lieu_data:
     st.markdown("### 📚 Trợ lý Tạo học liệu Đa năng")
     st.caption("Hỗ trợ sinh tự động 9 loại học liệu khác nhau dựa trên chủ đề hoặc tài liệu cụ thể của cấp THCS.")
 
