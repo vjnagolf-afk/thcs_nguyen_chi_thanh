@@ -196,7 +196,7 @@ def render_xd_de_kt(ai_engine):
             "Lớp 8",
             "Lớp 9",
             "Lớp 10",
-            "Lớp 11"
+            "Lớp 11",
             "Lớp 12"
         ],
         index=2,
