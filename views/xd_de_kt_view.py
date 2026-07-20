@@ -194,7 +194,7 @@ def render_xd_de_kt(ai_engine):
             "Giáo dục thể chất",
             "Nghệ thuật (Âm nhạc, Mĩ thuật)",
             "Hoạt động trải nghiệm, hướng nghiệp",
-            "Nội dung giáo dục của địa phương",
+            "Nội dung giáo dục địa phương",
             "Giáo dục quốc phòng và an ninh",
             "Khác"
         ],
@@ -229,8 +229,8 @@ def render_xd_de_kt(ai_engine):
     thoi_gian = c4.selectbox(
         "Thời gian",
         [
-            "15 phút",
             "45 phút",
+            "60 phút",
             "90 phút",
             "120 phút"
         ],
@@ -329,14 +329,14 @@ def render_xd_de_kt(ai_engine):
         cols = st.columns(8)
 
         n_nlc = cols[0].number_input(
-            "NLC",
+            "Nhiều lựa chọn",
             min_value=0,
             value=10,
             key="de_kt_n_nlc"
         )
 
         d_nlc = cols[1].number_input(
-            "Đ.NLC",
+            "Điểm mỗi câu",
             min_value=0.0,
             value=0.25,
             step=0.25,
@@ -344,14 +344,14 @@ def render_xd_de_kt(ai_engine):
         )
 
         n_ds = cols[2].number_input(
-            "Đ/S",
+            "Đúng/Sai",
             min_value=0,
             value=2,
             key="de_kt_n_ds"
         )
 
         d_ds = cols[3].number_input(
-            "Đ.Đ/S",
+            "Điểm câu Đ/S",
             min_value=0.0,
             value=0.25,
             step=0.25,
@@ -359,14 +359,14 @@ def render_xd_de_kt(ai_engine):
         )
 
         n_dk = cols[4].number_input(
-            "Điền K",
+            "Điền Khuyết",
             min_value=0,
             value=2,
             key="de_kt_n_dk"
         )
 
         d_dk = cols[5].number_input(
-            "Đ.DK",
+            "Điểm câu DK",
             min_value=0.0,
             value=0.25,
             step=0.25,
@@ -374,16 +374,16 @@ def render_xd_de_kt(ai_engine):
         )
 
         n_ngan = cols[6].number_input(
-            "TL Ngắn",
+            "Trả lời Ngắn",
             min_value=0,
             value=2,
             key="de_kt_n_ngan"
         )
 
         d_ngan = cols[7].number_input(
-            "Đ.TLN",
+            "Điểm câuTLN",
             min_value=0.0,
-            value=0.50,
+            value=0.25,
             step=0.25,
             key="de_kt_d_ngan"
         )
@@ -404,7 +404,7 @@ def render_xd_de_kt(ai_engine):
             "Số câu Tự luận",
             min_value=1,
             max_value=10,
-            value=2,
+            value=6,
             key="de_kt_num_tl"
         )
 
@@ -415,7 +415,7 @@ def render_xd_de_kt(ai_engine):
             p = tl_cols[1].number_input(
                 f"Câu {i + 1} (đ)",
                 min_value=0.0,
-                value=1.0,
+                value=3.0,
                 step=0.25,
                 key=f"de_kt_tl_p_{i}"
             )
