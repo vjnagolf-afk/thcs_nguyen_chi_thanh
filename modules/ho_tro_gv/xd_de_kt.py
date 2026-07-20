@@ -194,7 +194,7 @@ def render_xd_de_kt(ai_engine):
             "Giáo dục thể chất",
             "Nghệ thuật (Âm nhạc, Mĩ thuật)",
             "Hoạt động trải nghiệm, hướng nghiệp",
-            "Nội dung giáo dục của địa phương",
+            "Giáo dục địa phương",
             "Giáo dục quốc phòng và an ninh",
             "Khác"
         ],
@@ -229,8 +229,8 @@ def render_xd_de_kt(ai_engine):
     thoi_gian = c4.selectbox(
         "Thời gian",
         [
-            "15 phút",
             "45 phút",
+            "60 phút",
             "90 phút",
             "120 phút"
         ],
