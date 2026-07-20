@@ -190,15 +190,7 @@ def render_xd_de_kt(ai_engine):
 
     lop = c2.selectbox(
         "Lớp",
-        [
-            "Lớp 6",
-            "Lớp 7",
-            "Lớp 8",
-            "Lớp 9",
-            "Lớp 10",
-            "Lớp 11",
-            "Lớp 12"
-        ],
+        ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"],
         index=2,
         key="de_kt_lop"
     )
