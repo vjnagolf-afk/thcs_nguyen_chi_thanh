@@ -255,9 +255,16 @@ PHẦN II. TỰ LUẬN ({num_tl} câu, {total_diem_tl} điểm)
 QUY TẮC NGHIÊM NGẶT (NẾU VI PHẠM SẼ BỊ LỖI HỆ THỐNG)
 ============================================================
 1. SỐ THỨ TỰ CÂU HỎI: Phải nối tiếp nhau từ Câu 1 đến Câu {idx_tl_start + num_tl - 1} theo đúng Khung Cấu Trúc ở trên. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.
-2. CÔNG THỨC TOÁN HỌC (LaTeX): Mọi số liệu, biểu thức, phương trình, ký hiệu toán học (kể cả số đơn giản) BẮT BUỘC phải được bọc trong dấu $. (Ví dụ đúng: $y = x^2 + 2$. Sai: y = x^2 + 2).
+2. CÔNG THỨC TOÁN HỌC (LaTeX): Mọi số liệu, biểu thức, phương trình, tọa độ, ký hiệu (VD: phân số, căn bậc hai, lũy thừa, v.v.) BẮT BUỘC phải được bọc trong cặp dấu $ để hiển thị đúng chuẩn LaTeX. (Ví dụ đúng: $y = x^2 + 2$, $\Delta$, $x_1, x_2$. Ví dụ SAI: y = x^2 + 2, delta, x1, x2).
 3. ĐÁP ÁN NLC: Bắt buộc cung cấp đủ 4 phương án A, B, C, D cho mỗi câu NLC.
-4. TÍNH TOÁN MA TRẬN: Trong bảng Ma trận, cột "Tổng số câu" phải bằng chính xác phép cộng của các số lượng câu Nhận biết, Thông hiểu, Vận dụng, VDC trên cùng một hàng. Tổng điểm phải đúng 10.0.
+4. TÍNH TOÁN MA TRẬN: Cột "Tổng" (số câu / số điểm) trong Ma trận phải là TỔNG ĐÚNG của các cột Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao trên cùng hàng đó. Không được cộng sai.
+
+5. XỬ LÝ HÌNH VẼ TRONG MÔN TOÁN / HÌNH HỌC (QUAN TRỌNG)
+Hệ thống không thể xuất file ảnh minh họa. Do đó, đối với các câu hỏi Hình học, BẮT BUỘC phải dùng 1 trong 2 cách sau:
+- CÁCH 1 (Ưu tiên): Ra đề bằng cách dùng lời văn mô tả CỰC KỲ CHI TIẾT giả thiết để học sinh tự vẽ hình (Ví dụ: "Cho tam giác ABC vuông tại A, có cạnh AB = 3cm, AC = 4cm. Kẻ đường cao AH...").
+- CÁCH 2: Nếu bài toán bắt buộc phải cho sẵn đồ thị hoặc hình vẽ phức tạp, hãy chèn một đoạn đánh dấu rõ ràng để Giáo viên tự bổ sung sau. Cú pháp: 
+  `[GIÁO VIÊN CHÈN HÌNH VẼ TẠI ĐÂY: <Mô tả chi tiết hình cần chèn, ví dụ: Đồ thị hàm số y = 2x - 1 đi qua trục tung tại -1 và trục hoành tại 0.5>]`.
+TUYỆT ĐỐI KHÔNG sinh mã code vẽ hình (TikZ, Python) hay chèn các link ảnh mạo danh.
 
 TRÌNH BÀY ĐẦU RA THEO THỨ TỰ:
 # PHẦN I. PHẠM VI KIẾN THỨC SỬ DỤNG
