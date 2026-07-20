@@ -3,10 +3,9 @@ from pypdf import PdfReader
 import requests
 import re
 
-# Khởi tạo bộ nhớ tạm để giữ kết quả không bị mất khi ấn nút Tải/Xóa
-if "chuyen_doi_data" not in st.session_state:
-    st.session_state.chuyen_doi_data = None
-
+def render_chuyen_doi(ai_engine):
+    if "chuyen_doi_data" not in st.session_state:
+        st.session_state.chuyen_doi_data = None
 def doc_noi_dung_web(url):
     """Hàm hỗ trợ lấy văn bản thô từ một trang Web"""
     try:
