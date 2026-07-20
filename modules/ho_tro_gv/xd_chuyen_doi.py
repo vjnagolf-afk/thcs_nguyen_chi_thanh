@@ -4,6 +4,7 @@ import requests
 import re
 
 def render_chuyen_doi(ai_engine):
+    # Khởi tạo biến (Thụt lề đúng 4 dấu cách)
     if "chuyen_doi_data" not in st.session_state:
         st.session_state.chuyen_doi_data = None
 def doc_noi_dung_web(url):
