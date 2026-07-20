@@ -177,12 +177,25 @@ def render_xd_de_kt(ai_engine):
     mon_hoc = c1.selectbox(
         "Môn",
         [
-            "Toán",
+            "Toán học",
             "Ngữ văn",
             "Ngoại ngữ",
-            "KHTN",
-            "Lịch sử & Địa lý",
+            "Khoa học Tự nhiên",
+            "Lịch sử và Địa lý",
+            "Lịch sử",
+            "Địa lý",
+            "Vật lý",
+            "Hóa học",
+            "Sinh học",
+            "Giáo dục công dân",
+            "Giáo dục kinh tế và pháp luật",
             "Tin học",
+            "Công nghệ",
+            "Giáo dục thể chất",
+            "Nghệ thuật (Âm nhạc, Mĩ thuật)",
+            "Hoạt động trải nghiệm, hướng nghiệp",
+            "Nội dung giáo dục của địa phương",
+            "Giáo dục quốc phòng và an ninh",
             "Khác"
         ],
         key="de_kt_mon_hoc"
@@ -190,7 +203,15 @@ def render_xd_de_kt(ai_engine):
 
     lop = c2.selectbox(
         "Lớp",
-        ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"],
+        [
+            "Lớp 6",
+            "Lớp 7",
+            "Lớp 8",
+            "Lớp 9",
+            "Lớp 10",
+            "Lớp 11",
+            "Lớp 12"
+        ],
         index=2,
         key="de_kt_lop"
     )
@@ -210,7 +231,8 @@ def render_xd_de_kt(ai_engine):
         [
             "15 phút",
             "45 phút",
-            "90 phút"
+            "90 phút",
+            "120 phút"
         ],
         key="de_kt_thoi_gian"
     )
