@@ -99,7 +99,7 @@ def render_chuyen_doi(ai_engine):
 
     # 3. Khu vực hiển thị kết quả & Nút tải về
     st.markdown("---")
-    if st.session_state.chuyen_doi_data:
+    if st.session_state.get("chuyen_doi_data"):
         st.success("🎉 Hoàn tất! Hệ thống đã tạo xong các học liệu liên quan.")
         
         # Nút Tải tài liệu về máy (.txt)
