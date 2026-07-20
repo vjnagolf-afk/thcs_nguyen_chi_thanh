@@ -19,9 +19,9 @@ def doc_noi_dung_web(url):
         return text[:5000] # Giới hạn 5000 ký tự để không làm quá tải AI
     except Exception as e:
         return f"Lỗi không thể đọc URL: {e}"
-
 def render_chuyen_doi(ai_engine):
-    st.markdown("### 🔄 Chuyển đổi tài liệu thành bài dạy")
+    if "chuyen_doi_data" not in st.session_state:
+        st.session_state.chuyen_doi_data = None  
     st.caption("Trợ lý AI giúp đọc hiểu các tài liệu thô (sách, bài báo, tài liệu tham khảo) và tự động thiết kế luồng bài dạy chuẩn chỉnh.")
 
     # 1. Trực quan hóa luồng xử lý
