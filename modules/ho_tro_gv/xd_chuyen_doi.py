@@ -1,12 +1,9 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 from pypdf import PdfReader
 import requests
 import re
 
-def render_chuyen_doi(ai_engine):
-    # Khởi tạo biến (Thụt lề đúng 4 dấu cách)
-    if "chuyen_doi_data" not in st.session_state:
-        st.session_state.chuyen_doi_data = None
 def doc_noi_dung_web(url):
     """Hàm hỗ trợ lấy văn bản thô từ một trang Web"""
     try:
@@ -19,8 +16,12 @@ def doc_noi_dung_web(url):
         return text[:5000] # Giới hạn 5000 ký tự để không làm quá tải AI
     except Exception as e:
         return f"Lỗi không thể đọc URL: {e}"
-if "chuyen_doi_data" not in st.session_state:
+
+def render_chuyen_doi(ai_engine):
+    # Khởi tạo biến (Thụt lề đúng 4 dấu cách)
+    if "chuyen_doi_data" not in st.session_state:
         st.session_state.chuyen_doi_data = None
+
     st.caption("Trợ lý AI giúp đọc hiểu các tài liệu thô (sách, bài báo, tài liệu tham khảo) và tự động thiết kế luồng bài dạy chuẩn chỉnh.")
 
     # 1. Trực quan hóa luồng xử lý
@@ -49,7 +50,9 @@ if "chuyen_doi_data" not in st.session_state:
                 try:
                     reader = PdfReader(uploaded_file)
                     for page in reader.pages:
-                        noidung_trich_xuat += page.extract_text() + "\n"
+                        text = page.extract_text()
+                        if text:
+                            noidung_trich_xuat += text + "\n"
                     st.success(f"✅ Đã đọc thành công PDF: {uploaded_file.name} ({len(noidung_trich_xuat)} ký tự)")
                 except Exception as e:
                     st.error(f"Lỗi đọc PDF: {e}")
