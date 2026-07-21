@@ -178,13 +178,67 @@ class MatrixCalculator:
         return parsed_data
 
 # ============================================================
-# SERVICE 3: ĐỘNG CƠ GHI DỮ LIỆU VÀO WORD (DÙNG DOCXTPL AN TOÀN)
+# SERVICE 3: ĐỘNG CƠ GHI DỮ LIỆU VÀO WORD
 # ============================================================
-class DocxTemplateEngine:
+class WordMatrixEngine:
     @staticmethod
-    def render_to_bytes(template_path, context_data):
-        doc = DocxTemplate(str(template_path))
-        doc.render(context_data)
+    def set_cell_text(cell, text):
+        cell.text = str(text if text is not None else "")
+
+    @staticmethod
+    def clear_table_body(table, start_row=1):
+        # Thuật toán an toàn để xóa các hàng mẫu cũ
+        for row in table.rows[start_row:]:
+            table._tbl.remove(row._tr)
+
+    @staticmethod
+    def render_to_bytes(template_path, data):
+        from docx import Document
+        doc = Document(str(template_path))
+        
+        if len(doc.tables) < 2:
+            raise ValueError("File mẫu Word phải có ít nhất 2 bảng (Bảng 1: Ma trận, Bảng 2: Đặc tả).")
+            
+        # --- ĐỔ DỮ LIỆU BẢNG 1: MA TRẬN ---
+        table_matrix = doc.tables[0]
+        ma_tran = data.get("ma_tran", [])
+        MATRIX_DATA_START_ROW = 5  # Bỏ qua 5 hàng tiêu đề đầu tiên
+        WordMatrixEngine.clear_table_body(table_matrix, MATRIX_DATA_START_ROW)
+        
+        for item in ma_tran:
+            row = table_matrix.add_row()
+            values = [
+                item.get("chu_de", ""), item.get("noi_dung", ""),
+                item.get("nb_tl", 0), item.get("nb_tn", 0),
+                item.get("th_tl", 0), item.get("th_tn", 0),
+                item.get("vd_tl", 0), item.get("vd_tn", 0),
+                item.get("vdc_tl", 0), item.get("vdc_tn", 0),
+                item.get("tong_cau_tl", 0), item.get("tong_cau_tn", 0),
+                item.get("tong_diem_tl", 0), item.get("tong_diem_tn", 0),
+                item.get("tong_diem", 0)
+            ]
+            for idx, value in enumerate(values):
+                if idx < len(row.cells): 
+                    WordMatrixEngine.set_cell_text(row.cells[idx], value)
+                    
+        # --- ĐỔ DỮ LIỆU BẢNG 2: ĐẶC TẢ ---
+        table_spec = doc.tables[1]
+        dac_ta = data.get("dac_ta", [])
+        SPEC_DATA_START_ROW = 4  # Bỏ qua 4 hàng tiêu đề đầu tiên
+        WordMatrixEngine.clear_table_body(table_spec, SPEC_DATA_START_ROW)
+        
+        for item in dac_ta:
+            row = table_spec.add_row()
+            values = [
+                item.get("stt", ""), item.get("chu_de", ""), item.get("noi_dung", ""), item.get("yccd", ""),
+                item.get("cau_tn_nb", 0), item.get("cau_tn_th", 0), item.get("cau_tn_vd", 0), item.get("cau_tn_vdc", 0),
+                item.get("cau_tl_nb", 0), item.get("cau_tl_th", 0), item.get("cau_tl_vd", 0), item.get("cau_tl_vdc", 0),
+                item.get("ds_cau_hoi", ""), item.get("tong_diem_dt", 0)
+            ]
+            for idx, value in enumerate(values):
+                if idx < len(row.cells):
+                    WordMatrixEngine.set_cell_text(row.cells[idx], value)
+                    
         bio = BytesIO()
         doc.save(bio)
         return bio.getvalue()
