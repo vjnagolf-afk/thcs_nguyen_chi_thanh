@@ -108,11 +108,11 @@ def render_xd_ma_tran_tu_de(ai_engine):
                 st.error("❌ Không trích xuất được văn bản từ file. Vui lòng kiểm tra lại định dạng.")
                 st.stop()
 
-            # --- PROMPT ÉP CHUẨN FORM MA TRẬN THEO YÊU CẦU ---
+            # --- PROMPT ĐÃ ĐƯỢC ÉP KIỂU LẶP LẠI THẺ HTML ---
             analysis_prompt = f"""
 BẠN LÀ CHUYÊN GIA KHẢO THÍ GDPT 2018.
-NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA ĐÃ CÓ, đếm số lượng câu, phân loại mức độ nhận thức (NB, TH, VD, VDC), tính điểm và TRẢ VỀ KẾT QUẢ ĐÚNG Y HỆT FORM BÊN DƯỚI. 
-TUYỆT ĐỐI GIỮ NGUYÊN CÁC THẺ HTML NHƯ `<td colspan=.../>` VÀ CẤU TRÚC GẠCH DỌC `|`.
+NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA ĐÃ CÓ, đếm số lượng câu, phân loại mức độ nhận thức, tính điểm và TRẢ VỀ KẾT QUẢ ĐÚNG Y HỆT FORM BÊN DƯỚI.
+TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT CÁC THẺ HTML NHƯ `<td colspan=.../>`.
 
 ============================================================
 THÔNG TIN ĐỀ THI
@@ -140,24 +140,28 @@ I. MA TRẬN ĐỀ KIỂM TRA
 TÊN CHỦ ĐỀ | TÊN BÀI HỌC | MỨC ĐỘ <td colspan=8/> | TỔNG SỐ CÂU <td colspan=2/> | TỔNG ĐIỂM
  |  | NHẬN BIẾT <td colspan=2/> | THÔNG HIỂU <td colspan=2/> | VẬN DỤNG <td colspan=2/> | VẬN DỤNG CAO <td colspan=2/> | <td colspan=2/> | 
  |  | TL | TN | TL | TN | TL | TN | TL | TN | TL | TN | 
-[VỚI MỖI CHỦ ĐỀ TRONG ĐỀ THI, AI XUẤT RA MỘT DÒNG DỮ LIỆU ĐÚNG ĐỊNH DẠNG SAU:]
+CHÚ Ý BẮT BUỘC: TRƯỚC MỖI DÒNG CHỦ ĐỀ PHẢI CÓ THẺ `<td colspan=13/>` NẰM Ở MỘT DÒNG ĐỘC LẬP NHƯ MẪU DƯỚI ĐÂY:
 <td colspan=13/>
-[Tên chủ đề] | [Tên bài học/Nội dung] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Cộng số câu TL] | [Cộng số câu TN] | [Cộng điểm chủ đề]
-[KẾT THÚC DANH SÁCH CHỦ ĐỀ, XUẤT HÀNG TỔNG:]
+[Tên chủ đề 1] | [Tên bài học 1] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Cộng câu TL] | [Cộng câu TN] | [Cộng điểm]
+<td colspan=13/>
+[Tên chủ đề 2] | [Tên bài học 2] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Cộng câu TL] | [Cộng câu TN] | [Cộng điểm]
+(Tiếp tục lặp lại cấu trúc trên (bao gồm cả thẻ td colspan) cho đến hết các chủ đề...)
 <td colspan=13/>
 Tổng câu | | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
 Tổng điểm | | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
-% điểm số | | 40% <td colspan=2/> | 30% <td colspan=2/> | 20% <td colspan=2/> | 10% <td colspan=2/> | [Tính tổng % TL] | [Tính tổng % TN] | 100%
+% điểm số | | 40% <td colspan=2/> | 30% <td colspan=2/> | 20% <td colspan=2/> | 10% <td colspan=2/> | [Tổng % TL] | [Tổng % TN] | 100%
 
 II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
 TT | Chủ đề/Chương | Nội dung/Đơn vị kiến thức | Yêu cầu cần đạt | Số câu hỏi/ý hỏi ở các mức độ đánh giá <td colspan=9/> | Tổng điểm
  |  |  |  | Trắc nghiệm khách quan <td colspan=6/> | Tự luận <td colspan=3/> | 
  |  |  |  | Nhiều lựa chọn <td colspan=3/> | Đúng/Sai <td colspan=3/> | <td colspan=3/> | 
  |  |  |  | Biết | Hiểu | Vận dụng | Biết | Hiểu | Vận dụng | Biết | Hiểu | Vận dụng | 
-[VỚI MỖI CHỦ ĐỀ, AI XUẤT RA DÒNG DỮ LIỆU TƯƠNG ỨNG Y HỆT ĐỊNH DẠNG SAU:]
+CHÚ Ý BẮT BUỘC: TRƯỚC MỖI DÒNG ĐẶC TẢ PHẢI CÓ THẺ `<td colspan=14/>` NẰM Ở MỘT DÒNG ĐỘC LẬP NHƯ MẪU DƯỚI ĐÂY:
 <td colspan=14/>
-[Số TT] | [Tên Chủ Đề] | [Tên Nội dung] | [Gạch đầu dòng các Yêu cầu cần đạt chi tiết của chủ đề này] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Cộng điểm]
-[KẾT THÚC DANH SÁCH CHỦ ĐỀ BẢN ĐẶC TẢ, XUẤT HÀNG TỔNG:]
+[Số TT 1] | [Tên Chủ Đề 1] | [Nội dung 1] | [Gạch đầu dòng YCCĐ 1] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Cộng điểm]
+<td colspan=14/>
+[Số TT 2] | [Tên Chủ Đề 2] | [Nội dung 2] | [Gạch đầu dòng YCCĐ 2] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Cộng điểm]
+(Tiếp tục lặp lại cấu trúc trên (bao gồm cả thẻ td colspan) cho đến hết các chủ đề...)
 <td colspan=14/>
 Tổng số câu <td colspan=4/> | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
 Tổng số điểm <td colspan=4/> | <td colspan=3/> | <td colspan=3/> | <td colspan=3/> | 
