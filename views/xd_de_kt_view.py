@@ -193,7 +193,7 @@ def render_xd_de_kt(ai_engine):
         for i, p in enumerate(tl_points):
             chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
             
-        # --- XÂY DỰNG RÀNG BUỘC PHẲNG (FIX LỖI MÔ TẢ HÌNH VẼ) ---
+        # --- XÂY DỰNG RÀNG BUỘC PHẲNG ---
         base_prompt = (
             "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n"
             "NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON hay Code Block).\n\n"
@@ -230,12 +230,14 @@ def render_xd_de_kt(ai_engine):
             "{outline_text}"
         )
         
+        # Đã bổ sung đẩy đủ các biến idx_ngan_start và idx_ngan_end
         strict_prompt = base_prompt.format(
             mon_hoc=mon_hoc, lop=lop, ten_de=ten_de, thoi_gian=thoi_gian, nb=nb, th=th, vd=vd, vdc=vdc,
             tong_cau_tn=tong_cau_tn, total_diem_tn=total_diem_tn, n_nlc=n_nlc, d_nlc=d_nlc,
             idx_nlc_start=idx_nlc_start, idx_nlc_end=idx_nlc_end, n_ds=n_ds, d_ds=d_ds,
             idx_ds_start=idx_ds_start, idx_ds_end=idx_ds_end, n_dk=n_dk, d_dk=d_dk,
-            idx_dk_start=idx_dk_start, idx_dk_end=idx_dk_end, n_ngan=n_ngan, d_ngan=d_ngan,
+            idx_dk_start=idx_dk_start, idx_dk_end=idx_dk_end, 
+            n_ngan=n_ngan, d_ngan=d_ngan, idx_ngan_start=idx_ngan_start, idx_ngan_end=idx_ngan_end,
             num_tl=num_tl, total_diem_tl=total_diem_tl, chi_tiet_tu_luan=chi_tiet_tu_luan.strip(),
             idx_tl_end=idx_tl_start + num_tl - 1, outline_text=outline_text
         )
