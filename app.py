@@ -174,7 +174,7 @@ try:
         with tabs[8]: render_viet_sang_kien(ai_engine_2)
         with tabs[9]: render_cham_sang_kien(ai_engine_2)
         with tabs[10]: render_tkb(db)
-    elif phanh_he == "Ứng dụng khác":
+    elif phan_he == "Ứng dụng khác":
         from modules.ung_dung_khac.main import render_ung_dung_khac
         render_ung_dung_khac(ai_engine)
 
