@@ -7,7 +7,7 @@ from pathlib import Path
 from io import BytesIO
 
 # ============================================================
-# KIỂM TRA THƯ VIỆN
+# KIỂM TRA THƯ VIỆN ĐẦU VÀO
 # ============================================================
 try:
     from docxtpl import DocxTemplate
@@ -26,7 +26,7 @@ class ExamTextExtractor:
             file_name = uploaded_file.name.lower()
             file_bytes = uploaded_file.getvalue()
             
-            # XỬ LÝ FILE PDF
+            # 1. XỬ LÝ FILE PDF
             if file_name.endswith(".pdf"):
                 from pypdf import PdfReader
                 reader = PdfReader(BytesIO(file_bytes))
@@ -36,8 +36,8 @@ class ExamTextExtractor:
                     if extracted:
                         pages_text.append(extracted.strip())
                 return "\n".join(pages_text)
-                
-            # XỬ LÝ FILE DOCX (Loại bỏ trùng lặp phần tử bảng)
+            
+            # 2. XỬ LÝ FILE DOCX (Loại bỏ trùng lặp phần tử bảng)
             elif file_name.endswith(".docx"):
                 from docx import Document
                 doc = Document(BytesIO(file_bytes))
@@ -68,7 +68,7 @@ class ExamTextExtractor:
                 
                 return "\n".join(result)
             
-            # XỬ LÝ FILE TXT
+            # 3. XỬ LÝ FILE TXT
             elif file_name.endswith(".txt"):
                 for encoding in ["utf-8", "utf-8-sig", "cp1258"]:
                     try:
@@ -147,7 +147,7 @@ class MatrixCalculator:
                            MatrixCalculator.to_number(item.get("th_tn", 0)) +
                            MatrixCalculator.to_number(item.get("vd_tn", 0)) +
                            MatrixCalculator.to_number(item.get("vdc_tn", 0)))
-            
+                           
             item["tong_cau_tl"] = tong_cau_tl
             item["tong_cau_tn"] = tong_cau_tn
             
@@ -189,10 +189,10 @@ class DocxTemplateEngine:
         doc.save(bio)
         return bio.getvalue()
 # ============================================================
-# 4. VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN (PHẦN 4a)
+# 4. VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN HỢP NHẤT KHÔNG LỖI LỀ
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
-    st.markdown("### 🧩 Sinh Ma trận & Đặc tả Đề kiểm tra")
+    st.markdown("### Sinh Ma trận & Đặc tả Đề kiểm tra")
     
     c1, c2 = st.columns(2)
     mon_hoc = c1.selectbox("Môn học", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon")
@@ -250,36 +250,25 @@ def render_xd_ma_tran_tu_de(ai_engine):
                 prompt = f"""
 BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
 NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức độ nhận thức (NB, TH, VD, VDC), tính điểm và trả về JSON chuẩn. TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
-
 THÔNG TIN: Môn {mon_hoc} | Lớp {lop}
 NỘI DUNG ĐỀ THI:
 {exam_text}
-
 QUY TẮC LOGIC ĐIỂM SỐ (BẮT BUỘC):
 1. Tính điểm thật chính xác (Trắc nghiệm thường 0.25đ/câu).
 2. tong_diem = tong_diem_tl + tong_diem_tn.
 3. Hãy đảm bảo tính toán khớp 100% số liệu giữa mảng 'ma_tran' và mảng 'dac_ta'.
-
 CẤU TRÚC JSON YÊU CẦU:
 ```json
 {json_schema}
+```
 """
----
-
-### ĐOẠN 4b: Gọi AI, Tính toán và Giao diện kết quả
-*(Thầy copy đoạn này dán nối tiếp ngay phía dưới Đoạn 4a - chú ý lề của chữ `# Sử dụng...` đang lùi vào vừa đúng khối `with st.spinner`)*
-
-```python
-                # ============================================================
-                # 4. VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN (PHẦN 4b - Nối tiếp)
-                # ============================================================
-                # Sử dụng hàm generate_text chuẩn
+                # Sử dụng hàm generate_text chuẩn từ Engine của bạn
                 result = ai_engine.generate_text(prompt)
                 
                 parsed_data = MatrixCalculator.parse_ai_json(result)
                 final_data = MatrixCalculator.calculate_totals(parsed_data)
                 
-                # Dùng DocxTemplateEngine thay vì WordMatrixEngine can thiệp thủ công
+                # Dùng DocxTemplateEngine render tự động và an toàn
                 word_bytes = DocxTemplateEngine.render_to_bytes(template_path, final_data)
                 
                 st.session_state["processed_matrix_data"] = final_data
@@ -287,7 +276,7 @@ CẤU TRÚC JSON YÊU CẦU:
                 st.session_state["mt_mon_hoc_file"] = mon_hoc
                 st.session_state["mt_lop_file"] = lop
                 st.success("🎉 Phân tích đề bài và tự động thiết lập ma trận thành công!")
-
+                
         except json.JSONDecodeError:
             st.error("❌ AI trả về dữ liệu không đúng chuẩn JSON. Vui lòng thử lại.")
         except Exception as err:
@@ -309,7 +298,7 @@ CẤU TRÚC JSON YÊU CẦU:
             st.markdown("**2. BẢN ĐẶC TẢ**")
             df_dt = pd.DataFrame(data["dac_ta"])
             st.dataframe(df_dt, use_container_width=True)
-
+            
         st.markdown("<br>", unsafe_allow_html=True)
         
         safe_mon = st.session_state.get('mt_mon_hoc_file', 'Mon')
@@ -324,7 +313,7 @@ CẤU TRÚC JSON YÊU CẦU:
             use_container_width=True,
             type="primary"
         )
-        if c_btn2.button("🗑️ ĐÓNG & LÀM LẠI", use_container_width=True):
+        if c_btn2.button("🔄 ĐÓNG & LÀM LẠI", use_container_width=True):
             st.session_state.pop("processed_matrix_data", None)
             st.session_state.pop("download_word_bytes", None)
             st.rerun()
