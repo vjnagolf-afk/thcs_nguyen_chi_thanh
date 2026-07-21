@@ -27,7 +27,7 @@ from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_gv.xd_live import render_xd_live
 from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
-
+from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
 # --- PHÂN HỆ HỖ TRỢ GIẢNG DẠY ---
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
@@ -125,10 +125,11 @@ try:
     # --- PHÂN HỆ 1: HỖ TRỢ GIÁO VIÊN ---
     if phan_he == "Hỗ trợ Giáo viên":
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
+        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "DỊCH ĐỀ SANG MA TRẬN", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
         
         with tabs[0]: render_xd_khbd(ai_engine)
         with tabs[1]: render_xd_de_kt(ai_engine)
+        with tabs[1]:  render_xd_ma_tran_tu_de(ai_engine)
         with tabs[2]: render_xd_stem(ai_engine)
         with tabs[3]: render_xd_rubric(ai_engine)
         with tabs[4]: render_xd_chu_nhiem(ai_engine)
@@ -157,7 +158,7 @@ try:
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
         with tabs[10]: render_phan_tich_bh(ai_engine)
         with tabs[11]: render_kiem_tra_nhanh(ai_engine)
-
+       
     # --- PHÂN HỆ 3: QUẢN LÝ TỔ CHUYÊN MÔN ---
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
