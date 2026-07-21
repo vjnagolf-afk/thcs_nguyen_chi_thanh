@@ -208,53 +208,101 @@ CẤU TRÚC JSON YÊU CẦU:
     }}
   ]
 }}
-        try:
-            # ============================================================
-            # FLOW 1: AI GENERATE
-            # ============================================================
-            result = ai_engine.generate_text(prompt)
+# ============================================================
+# LƯU Ý:
+# TÍNH ĐIỂM THẬT CHÍNH XÁC
+# VÀ ĐẢM BẢO DỮ LIỆU JSON HỢP LỆ
+# ============================================================
 
-            if not result or not result.strip():
-                st.error("❌ AI không trả về dữ liệu.")
-                st.stop()
+try:
 
-            # ============================================================
-            # FLOW 2: PARSE & CALCULATE LOGIC
-            # ============================================================
-            parsed_data = MatrixCalculator.parse_ai_json(result)
+    # ========================================================
+    # FLOW 1: AI GENERATE
+    # ========================================================
 
-            final_data = MatrixCalculator.calculate_totals(parsed_data)
+    result = ai_engine.generate_text(prompt)
 
-            # ============================================================
-            # FLOW 3: TEMPLATE RENDER
-            # ============================================================
-            word_bytes = DocxTemplateEngine.render_to_bytes(
-                template_path,
-                final_data
-            )
+    if not result or not result.strip():
+        st.error("❌ AI không trả về dữ liệu.")
+        st.stop()
 
-            # ============================================================
-            # CẬP NHẬT SESSION STATE
-            # ============================================================
-            st.session_state["mt_word_bytes"] = word_bytes
-            st.session_state["mt_filename"] = file_de.name
-            st.session_state["mt_parsed_data"] = final_data
 
-            st.success(
-                "✅ Hệ thống đã phân tích và đối khớp dữ liệu "
-                "vào File Word mẫu thành công!"
-            )
+    # ========================================================
+    # FLOW 2: PARSE JSON & TÍNH TOÁN LOGIC
+    # ========================================================
 
-            st.rerun()
+    # Bước 1:
+    # Bóc tách JSON thuần túy từ kết quả AI
+    parsed_data = MatrixCalculator.parse_ai_json(result)
 
-        except json.JSONDecodeError:
-            st.error(
-                "❌ AI không trả về đúng định dạng JSON. "
-                "Vui lòng thử lại."
-            )
 
-        except Exception as e:
-            st.error(f"❌ Lỗi xử lý: {e}")
+    # Bước 2:
+    # Tính lại toàn bộ số câu, điểm số và tỷ lệ
+    # bằng Python.
+    #
+    # KHÔNG sử dụng trực tiếp tổng điểm do AI tự tính.
+    final_data = MatrixCalculator.calculate_totals(
+        parsed_data
+    )
+
+
+    # ========================================================
+    # FLOW 3: RENDER FILE WORD TEMPLATE
+    # ========================================================
+
+    word_bytes = DocxTemplateEngine.render_to_bytes(
+        template_path,
+        final_data
+    )
+
+
+    # ========================================================
+    # CẬP NHẬT SESSION STATE
+    # ========================================================
+
+    st.session_state["mt_word_bytes"] = word_bytes
+
+    st.session_state["mt_filename"] = file_de.name
+
+    st.session_state["mt_parsed_data"] = final_data
+
+
+    # ========================================================
+    # THÔNG BÁO THÀNH CÔNG
+    # ========================================================
+
+    st.success(
+        "✅ Hệ thống đã phân tích đề, "
+        "tính toán lại dữ liệu và đối khớp "
+        "vào File Word mẫu thành công!"
+    )
+
+    st.rerun()
+
+
+# ============================================================
+# LỖI JSON
+# ============================================================
+
+except json.JSONDecodeError:
+
+    st.error(
+        "❌ AI không trả về đúng định dạng JSON hợp lệ. "
+        "Vui lòng thử lại."
+    )
+
+
+# ============================================================
+# LỖI HỆ THỐNG KHÁC
+# ============================================================
+
+except Exception as e:
+
+    st.error(
+        f"❌ Lỗi xử lý: {e}"
+    )
+
+
 # ============================================================
 # 3. KHU VỰC HIỂN THỊ KẾT QUẢ
 # ============================================================
@@ -263,21 +311,51 @@ if "mt_word_bytes" in st.session_state:
 
     st.divider()
 
-    st.markdown("### 🎉 KẾT QUẢ XỬ LÝ")
+    st.markdown(
+        "### 🎉 KẾT QUẢ XỬ LÝ"
+    )
+
+
+    # ========================================================
+    # HAI NÚT CHỨC NĂNG
+    # ========================================================
 
     c_btn1, c_btn2 = st.columns(2)
 
-    # ------------------------------------------------------------
-    # NÚT TẢI FILE WORD
-    # ------------------------------------------------------------
+
+    # ========================================================
+    # TẠO TÊN FILE AN TOÀN
+    # ========================================================
+
+    safe_filename = st.session_state.get(
+        "mt_filename",
+        "HoanChinh"
+    )
+
+
+    # Loại bỏ các ký tự đặc biệt không phù hợp với tên file
+    safe_filename = re.sub(
+        r'[\\/*?:"<>|]',
+        "_",
+        safe_filename
+    )
+
+
+    # ========================================================
+    # TẢI FILE WORD
+    # ========================================================
+
     c_btn1.download_button(
+
         "📥 TẢI MA TRẬN & ĐẶC TẢ (.DOCX)",
 
-        data=st.session_state["mt_word_bytes"],
+        data=st.session_state[
+            "mt_word_bytes"
+        ],
 
         file_name=(
             f"MaTran_DacTa_"
-            f"{st.session_state.get('mt_filename', 'HoanChinh')}.docx"
+            f"{safe_filename}.docx"
         ),
 
         use_container_width=True,
@@ -285,23 +363,39 @@ if "mt_word_bytes" in st.session_state:
         type="primary"
     )
 
-    # ------------------------------------------------------------
-    # NÚT XÓA KẾT QUẢ
-    # ------------------------------------------------------------
+
+    # ========================================================
+    # XÓA KẾT QUẢ
+    # ========================================================
+
     if c_btn2.button(
+
         "🗑️ ĐÓNG & LÀM LẠI",
+
         use_container_width=True
     ):
 
-        st.session_state.pop("mt_word_bytes", None)
-        st.session_state.pop("mt_filename", None)
-        st.session_state.pop("mt_parsed_data", None)
+        st.session_state.pop(
+            "mt_word_bytes",
+            None
+        )
+
+        st.session_state.pop(
+            "mt_filename",
+            None
+        )
+
+        st.session_state.pop(
+            "mt_parsed_data",
+            None
+        )
 
         st.rerun()
 
-    # ============================================================
-    # HIỂN THỊ JSON ĐỂ GIÁO VIÊN KIỂM TRA
-    # ============================================================
+
+    # ========================================================
+    # KIỂM TRA DỮ LIỆU JSON
+    # ========================================================
 
     with st.expander(
         "👁️ KIỂM TRA DỮ LIỆU JSON "
@@ -309,8 +403,7 @@ if "mt_word_bytes" in st.session_state:
     ):
 
         st.json(
-            st.session_state.get(
-                "mt_parsed_data",
-                {}
-            )
+            st.session_state[
+                "mt_parsed_data"
+            ]
         )
