@@ -72,7 +72,7 @@ def normalize_outline(text):
 def render_xd_ma_tran_tu_de(ai_engine):
     st.markdown("### 🧩 Sinh Ma trận & Đặc tả từ Đề đã có (Dịch ngược)")
     
-    st.info("Tính năng này giúp thầy/cô tải lên một đề thi đã soạn sẵn. AI sẽ đọc, phân tích từng câu hỏi, gán nhãn mức độ nhận thức và tự động lập Ma trận, Đặc tả chuẩn 5512 tương ứng hoàn hảo với đề thi đó.")
+    st.info("Tính năng này giúp thầy/cô tải lên một đề thi đã soạn sẵn. AI sẽ phân tích và lập Ma trận, Đặc tả đúng chuẩn form đã cấu hình.")
 
     # --- KHỐI NHẬP LIỆU GIAO DIỆN ---
     c1, c2 = st.columns([1, 1])
@@ -108,58 +108,60 @@ def render_xd_ma_tran_tu_de(ai_engine):
                 st.error("❌ Không trích xuất được văn bản từ file. Vui lòng kiểm tra lại định dạng.")
                 st.stop()
 
-            # --- PROMPT CHUYÊN BIỆT CHO PHÂN TÍCH ĐỀ THI ---
+            # --- PROMPT ÉP CHUẨN FORM MA TRẬN THEO YÊU CẦU ---
             analysis_prompt = f"""
 BẠN LÀ CHUYÊN GIA KHẢO THÍ GDPT 2018.
-NHIỆM VỤ: Bạn sẽ nhận được nội dung một ĐỀ KIỂM TRA ĐÃ SOẠN SẴN. Bạn phải đọc thật kỹ, dịch ngược nội dung đó để lập MA TRẬN và BẢN ĐẶC TẢ chuẩn xác 100% khớp với đề. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON hay Code Block).
+NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA ĐÃ CÓ, đếm số lượng câu, phân loại mức độ nhận thức (NB, TH, VD, VDC), tính điểm và TRẢ VỀ KẾT QUẢ ĐÚNG Y HỆT FORM BÊN DƯỚI. 
+TUYỆT ĐỐI GIỮ NGUYÊN CÁC THẺ HTML NHƯ `<td colspan=.../>` VÀ CẤU TRÚC GẠCH DỌC `|`.
 
 ============================================================
-THÔNG TIN HỆ THỐNG
+THÔNG TIN ĐỀ THI
 ============================================================
-- Môn: {mon_hoc}
-- Lớp: {lop}
-- Có đáp án đính kèm: {"Có" if has_answer else "Không"}
-- Có hình vẽ: {"Có" if has_image else "Không"}
-
-============================================================
-NỘI DUNG ĐỀ THI CẦN PHÂN TÍCH
-============================================================
+- Môn: {mon_hoc} | Lớp: {lop}
+- NỘI DUNG ĐỀ:
 {exam_text}
 
 ============================================================
-YÊU CẦU XỬ LÝ (BẮT BUỘC TUÂN THỦ)
+YÊU CẦU ĐẦU RA (BẮT BUỘC COPY ĐÚNG FORM NÀY VÀ ĐIỀN KẾT QUẢ):
 ============================================================
-BƯỚC 1: PHÂN TÍCH TỪNG CÂU HỎI
-Hãy quét từ Câu 1 đến câu cuối cùng trong đề. Tự động xác định:
-- Nội dung/Chủ đề câu hỏi.
-- Dạng câu hỏi (Trắc nghiệm nhiều lựa chọn, Đúng/Sai, Điền khuyết, hay Tự luận).
-- Mức độ nhận thức:
-  + Nhận biết (Nhớ lại khái niệm, công thức, nhận diện).
-  + Thông hiểu (Giải thích, so sánh, phân biệt, tính toán cơ bản).
-  + Vận dụng (Tính toán nhiều bước, giải quyết tình huống thực tế).
-  + Vận dụng cao (Bài toán khó, tư duy tổng hợp).
-- Điểm số dự kiến: Nếu đề không ghi điểm, hãy tự quy định chuẩn (Trắc nghiệm thường 0.25đ/câu, Tự luận chia đều để tổng là 10đ).
 
-BƯỚC 2: LẬP MA TRẬN
-Tổng hợp kết quả từ BƯỚC 1 để lập thành bảng Ma trận đề thi. Cột tổng số câu và tổng điểm phải khớp chính xác tuyệt đối với những gì đã phân tích. 
+MA TRẬN ĐỀ KIỂM TRA, ĐÁNH GIÁ
+CUỐI HỌC KÌ I
+MÔN {mon_hoc.upper()}
+- Thời điểm kiểm tra: Kiểm tra cuối kỳ (Kiến thức từ tuần 01 đến tuần 18)
+- Thời gian làm bài: 90 phút.
+- Hình thức kiểm tra: Kết hợp giữa trắc nghiệm và tự luận 
+- Cấu trúc:
++ Mức độ đề: 40% Nhận biết; 30% Thông hiểu; 20% Vận dụng; 10% Vận dụng cao.
++ Phần trắc nghiệm: [ĐIỀN TỔNG ĐIỂM TRẮC NGHIỆM] điểm
++ Phần tự luận: [ĐIỀN TỔNG ĐIỂM TỰ LUẬN] điểm
 
-BƯỚC 3: LẬP BẢN ĐẶC TẢ
-Từ Ma trận ở BƯỚC 2, trình bày chi tiết Yêu cầu cần đạt cho từng câu hỏi ứng với từng mức độ nhận thức.
+I. MA TRẬN ĐỀ KIỂM TRA
+TÊN CHỦ ĐỀ | TÊN BÀI HỌC | MỨC ĐỘ <td colspan=8/> | TỔNG SỐ CÂU <td colspan=2/> | TỔNG ĐIỂM
+ |  | NHẬN BIẾT <td colspan=2/> | THÔNG HIỂU <td colspan=2/> | VẬN DỤNG <td colspan=2/> | VẬN DỤNG CAO <td colspan=2/> | <td colspan=2/> | 
+ |  | TL | TN | TL | TN | TL | TN | TL | TN | TL | TN | 
+[VỚI MỖI CHỦ ĐỀ TRONG ĐỀ THI, AI XUẤT RA MỘT DÒNG DỮ LIỆU ĐÚNG ĐỊNH DẠNG SAU:]
+<td colspan=13/>
+[Tên chủ đề] | [Tên bài học/Nội dung] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Cộng số câu TL] | [Cộng số câu TN] | [Cộng điểm chủ đề]
+[KẾT THÚC DANH SÁCH CHỦ ĐỀ, XUẤT HÀNG TỔNG:]
+<td colspan=13/>
+Tổng câu | | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
+Tổng điểm | | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
+% điểm số | | 40% <td colspan=2/> | 30% <td colspan=2/> | 20% <td colspan=2/> | 10% <td colspan=2/> | [Tính tổng % TL] | [Tính tổng % TN] | 100%
 
-QUY TẮC TRÌNH BÀY ĐẦU RA (MARKDOWN THUẦN TÚY):
-- KHÔNG bọc trong JSON.
-- Công thức toán học, biểu thức, ký hiệu (nếu có trích dẫn) BẮT BUỘC bọc trong cặp dấu $. (VD: $x^2 + 1$, $AB // CD$).
-
-TRÌNH BÀY CHÍNH XÁC THEO CẤU TRÚC BÊN DƯỚI VÀ KHÔNG THÊM BỚT TIÊU ĐỀ KHÁC:
-
-# PHẦN I. PHÂN TÍCH CẤU TRÚC ĐỀ THI
-(Liệt kê ngắn gọn: Câu X - [Dạng câu] - [Chủ đề] - [Mức độ] - [Điểm])
-
-# PHẦN II. MA TRẬN ĐỀ KIỂM TRA
-(Vẽ bảng ma trận với các cột: Chủ đề | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng)
-
-# PHẦN III. BẢN ĐẶC TẢ CHI TIẾT
-(Vẽ bảng đặc tả với các cột: Chủ đề | Mức độ | Yêu cầu cần đạt | Số câu hỏi | Câu hỏi số)
+II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
+TT | Chủ đề/Chương | Nội dung/Đơn vị kiến thức | Yêu cầu cần đạt | Số câu hỏi/ý hỏi ở các mức độ đánh giá <td colspan=9/> | Tổng điểm
+ |  |  |  | Trắc nghiệm khách quan <td colspan=6/> | Tự luận <td colspan=3/> | 
+ |  |  |  | Nhiều lựa chọn <td colspan=3/> | Đúng/Sai <td colspan=3/> | <td colspan=3/> | 
+ |  |  |  | Biết | Hiểu | Vận dụng | Biết | Hiểu | Vận dụng | Biết | Hiểu | Vận dụng | 
+[VỚI MỖI CHỦ ĐỀ, AI XUẤT RA DÒNG DỮ LIỆU TƯƠNG ỨNG Y HỆT ĐỊNH DẠNG SAU:]
+<td colspan=14/>
+[Số TT] | [Tên Chủ Đề] | [Tên Nội dung] | [Gạch đầu dòng các Yêu cầu cần đạt chi tiết của chủ đề này] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Đếm số câu] | [Cộng điểm]
+[KẾT THÚC DANH SÁCH CHỦ ĐỀ BẢN ĐẶC TẢ, XUẤT HÀNG TỔNG:]
+<td colspan=14/>
+Tổng số câu <td colspan=4/> | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
+Tổng số điểm <td colspan=4/> | <td colspan=3/> | <td colspan=3/> | <td colspan=3/> | 
+Tỷ lệ % <td colspan=4/> | <td colspan=3/> | <td colspan=3/> | <td colspan=3/> | 
 """
             try:
                 result = ai_engine.generate_text(analysis_prompt)
@@ -169,7 +171,7 @@ TRÌNH BÀY CHÍNH XÁC THEO CẤU TRÚC BÊN DƯỚI VÀ KHÔNG THÊM BỚT TI�
                     
                 st.session_state["mt_content"] = result
                 st.session_state["mt_filename"] = file_de.name
-                st.success("✅ Phân tích hoàn tất! Dữ liệu khớp 100% với đề bài gốc.")
+                st.success("✅ Phân tích hoàn tất! Dữ liệu đã được định dạng chuẩn theo mẫu.")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Lỗi xử lý AI: {e}")
@@ -184,7 +186,7 @@ TRÌNH BÀY CHÍNH XÁC THEO CẤU TRÚC BÊN DƯỚI VÀ KHÔNG THÊM BỚT TI�
             st.session_state.pop("mt_filename", None)
             st.rerun()
             
-        st.markdown(st.session_state["mt_content"])
+        st.markdown(st.session_state["mt_content"], unsafe_allow_html=True)
         
         # Xuất Word
         try:
