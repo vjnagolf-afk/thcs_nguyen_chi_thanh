@@ -34,8 +34,9 @@ def render_tkb(db):
                 else:
                     with st.spinner("Đang đọc file và lưu dữ liệu..."):
                         try:
-                            # Đọc file Excel
-                            df = pd.read_excel(uploaded_file, header=None)
+                            # Đọc file Excel chính xác theo sheet đầu tiên
+                            xls = pd.ExcelFile(uploaded_file)
+                            df = pd.read_excel(xls, sheet_name=0, header=None)
                             
                             # Lưu đợt vào bảng tkb_batches
                             batch_res = supabase.table("tkb_batches").insert({"batch_name": batch_name_input}).execute()
@@ -44,10 +45,10 @@ def render_tkb(db):
                                 return
                             batch_id = batch_res.data[0]["id"]
 
-                            # Phân tích dữ liệu từ hàng thứ 5 (index 4)
+                            # Phân tích dữ liệu từ hàng thứ 5 (index 4) giống cấu trúc mẫu
                             headers = df.iloc[4].tolist() if len(df) > 4 else []
                             rows_to_insert = []
-                            current_thu = "Sáng"
+                            current_thu = "2"
 
                             for i in range(5, len(df)):
                                 row = df.iloc[i].tolist()
@@ -66,7 +67,6 @@ def render_tkb(db):
                                     if pd.isna(raw_header):
                                         continue
                                     
-                                    # Lấy tên lớp từ header (dòng 5)
                                     lop = str(raw_header).split('\n')[0].strip()
                                     cell_value = row[col_index] if col_index < len(row) else None
 
@@ -90,7 +90,6 @@ def render_tkb(db):
                                             "giao_vien": giao_vien
                                         })
 
-                            # Thực hiện chèn dữ liệu theo lô (chunk) lên Supabase
                             if rows_to_insert:
                                 chunk_size = 500
                                 for j in range(0, len(rows_to_insert), chunk_size):
@@ -134,24 +133,53 @@ def render_tkb(db):
 
             tab_chung, tab_gv = st.tabs(["📚 TKB Chung Toàn Trường", "👩‍🏫 Xem Theo Giáo Viên"])
 
+            # GIAO DIỆN TKB CHUNG TOÀN TRƯỜNG (Giống Hình 2)
             with tab_chung:
-                st.markdown(f"**Tổng số tiết học:** {len(df_tkb)}")
-                display_df = df_tkb[["thu", "tiet", "lop", "mon_hoc", "giao_vien"]].rename(
-                    columns={"thu": "Thứ", "tiet": "Tiết", "lop": "Lớp", "mon_hoc": "Môn học", "giao_vien": "Giáo viên"}
-                )
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.markdown("### 🏫 Bảng Thời Khóa Biểu Chung Toàn Trường")
+                try:
+                    # Tạo bảng pivot với hàng là (Thứ, Tiết) và cột là Lớp
+                    pivot_chung = df_tkb.pivot_table(
+                        index=["thu", "tiet"], 
+                        columns="lop", 
+                        values="mon_hoc", 
+                        aggfunc=lambda x: ' / '.join(x)
+                    ).fillna("")
+                    st.dataframe(pivot_chung, use_container_width=True)
+                except Exception as e:
+                    # Fallback hiển thị bảng chi tiết nếu cấu trúc pivot gặp lỗi
+                    st.dataframe(df_tkb[["thu", "tiet", "lop", "mon_hoc", "giao_vien"]], use_container_width=True, hide_index=True)
 
+            # GIAO DIỆN XEM THEO GIÁO VIÊN (Giống Hình 1)
             with tab_gv:
+                st.markdown("### 👩‍🏫 Lịch Giảng Dạy Chi Tiết Theo Giáo Viên")
                 danh_sach_gv = sorted(list(df_tkb["giao_vien"].dropna().unique()))
-                selected_teacher = st.selectbox("Chọn giáo viên xem lịch dạy:", danh_sach_gv)
+                selected_teacher = st.selectbox("Chọn giáo viên:", danh_sach_gv)
 
                 if selected_teacher:
                     df_gv = df_tkb[df_tkb["giao_vien"] == selected_teacher]
-                    st.markdown(f"**Lịch dạy của giáo viên: {selected_teacher}** (Tổng số tiết: {len(df_gv)})")
+                    st.markdown(f"**Giáo viên: {selected_teacher}** (Tổng số tiết: {len(df_gv)})")
                     
-                    display_gv_df = df_gv[["thu", "tiet", "lop", "mon_hoc"]].rename(
-                        columns={"thu": "Thứ", "tiet": "Tiết", "lop": "Lớp giảng dạy", "mon_hoc": "Môn học"}
-                    )
-                    st.dataframe(display_gv_df, use_container_width=True, hide_index=True)
+                    try:
+                        # Ghép Môn học và Lớp để hiển thị trong ô dạng 'Môn - Lớp' giống ảnh mẫu
+                        df_gv["noi_dung"] = df_gv["mon_hoc"] + " - " + df_gv["lop"]
+                        
+                        # Pivot table: Hàng là Tiết (1 đến 5), Cột là Thứ (2 đến 7)
+                        pivot_gv = df_gv.pivot_table(
+                            index="tiet", 
+                            columns="thu", 
+                            values="noi_dung", 
+                            aggfunc=lambda x: ' / '.join(x)
+                        ).fillna("")
+                        
+                        # Đảm bảo các cột thứ sắp xếp đúng thứ tự nếu có
+                        standard_days = ["2", "3", "4", "5", "6", "7"]
+                        existing_cols = [c for c in standard_days if c in pivot_gv.columns]
+                        other_cols = [c for c in pivot_gv.columns if c not in standard_days]
+                        pivot_gv = pivot_gv[existing_cols + other_cols]
+                        
+                        st.dataframe(pivot_gv, use_container_width=True)
+                    except Exception as e:
+                        # Fallback bảng danh sách chi tiết nếu không pivot được
+                        st.dataframe(df_gv[["thu", "tiet", "lop", "mon_hoc"]], use_container_width=True, hide_index=True)
         else:
             st.warning("⚠️ Đợt TKB này chưa có dữ liệu chi tiết.")
