@@ -210,7 +210,177 @@ NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức đ�
 THÔNG TIN: Môn {mon_hoc} | Lớp {lop}
 NỘI DUNG ĐỀ THI:
 {exam_text}
+        try:
+            # ============================================================
+            # FLOW 1: GỌI AI SINH JSON
+            # ============================================================
+            result = ai_engine.generate_text(prompt)
 
+            if not result or not result.strip():
+                st.error("❌ AI không trả về dữ liệu.")
+                st.stop()
+
+            # ============================================================
+            # FLOW 2: BÓC TÁCH JSON VÀ TÍNH TOÁN BẰNG PYTHON
+            # ============================================================
+            parsed_data = MatrixCalculator.parse_ai_json(result)
+
+            # Kiểm tra JSON bắt buộc
+            if not isinstance(parsed_data, dict):
+                raise ValueError("Dữ liệu AI trả về không phải là JSON Object.")
+
+            if "ma_tran" not in parsed_data:
+                raise ValueError("JSON không có trường bắt buộc: ma_tran.")
+
+            if "dac_ta" not in parsed_data:
+                raise ValueError("JSON không có trường bắt buộc: dac_ta.")
+
+            if not isinstance(parsed_data["ma_tran"], list):
+                raise ValueError("Trường ma_tran phải là một mảng JSON.")
+
+            if not isinstance(parsed_data["dac_ta"], list):
+                raise ValueError("Trường dac_ta phải là một mảng JSON.")
+
+            # ============================================================
+            # TÍNH LẠI TOÀN BỘ TỔNG BẰNG PYTHON
+            # AI KHÔNG ĐƯỢC QUYẾT ĐỊNH TỔNG CUỐI CÙNG
+            # ============================================================
+            final_data = MatrixCalculator.calculate_totals(
+                parsed_data
+            )
+
+            # ============================================================
+            # KIỂM TRA TÍNH HỢP LỆ CỦA DỮ LIỆU
+            # ============================================================
+            tong = final_data.get("tong", {})
+
+            tong_cau_tl = tong.get("cau_tl", 0)
+            tong_cau_tn = tong.get("cau_tn", 0)
+
+            tong_diem_tl = tong.get("diem_tl", 0.0)
+            tong_diem_tn = tong.get("diem_tn", 0.0)
+
+            tong_diem = tong.get("diem", 0.0)
+
+            if tong_diem <= 0:
+                raise ValueError(
+                    "Tổng điểm của đề phải lớn hơn 0."
+                )
+
+            # ============================================================
+            # FLOW 3: ĐẨY DỮ LIỆU VÀO WORD TEMPLATE
+            # ============================================================
+            word_bytes = DocxTemplateEngine.render_to_bytes(
+                template_path,
+                final_data
+            )
+
+            # ============================================================
+            # CẬP NHẬT SESSION STATE
+            # ============================================================
+            st.session_state["mt_word_bytes"] = word_bytes
+
+            st.session_state["mt_filename"] = (
+                Path(file_de.name).stem
+            )
+
+            st.session_state["mt_parsed_data"] = final_data
+
+            st.success(
+                "✅ Hệ thống đã phân tích, tính toán và "
+                "đối khớp dữ liệu vào File Word mẫu thành công!"
+            )
+
+            st.rerun()
+
+        except json.JSONDecodeError:
+            st.error(
+                "❌ AI không trả về đúng định dạng JSON hợp lệ. "
+                "Vui lòng thử lại."
+            )
+
+        except ValueError as e:
+            st.error(
+                f"❌ Dữ liệu JSON không hợp lệ: {e}"
+            )
+
+        except Exception as e:
+            st.error(
+                f"❌ Lỗi xử lý: {e}"
+            )
+
+
+# ============================================================
+# 3. KHU VỰC HIỂN THỊ KẾT QUẢ
+# ============================================================
+if "mt_word_bytes" in st.session_state:
+
+    st.divider()
+
+    st.markdown(
+        "### 🎉 KẾT QUẢ XỬ LÝ"
+    )
+
+    c_btn1, c_btn2 = st.columns(2)
+
+    safe_filename = st.session_state.get(
+        "mt_filename",
+        "HoanChinh"
+    )
+
+    # ------------------------------------------------------------
+    # NÚT TẢI FILE WORD
+    # ------------------------------------------------------------
+    c_btn1.download_button(
+        "📥 TẢI MA TRẬN & ĐẶC TẢ (.DOCX)",
+
+        data=st.session_state["mt_word_bytes"],
+
+        file_name=(
+            f"MaTran_DacTa_{safe_filename}.docx"
+        ),
+
+        use_container_width=True,
+
+        type="primary"
+    )
+
+    # ------------------------------------------------------------
+    # NÚT XÓA KẾT QUẢ
+    # ------------------------------------------------------------
+    if c_btn2.button(
+        "🗑️ ĐÓNG & LÀM LẠI",
+        use_container_width=True
+    ):
+
+        st.session_state.pop(
+            "mt_word_bytes",
+            None
+        )
+
+        st.session_state.pop(
+            "mt_filename",
+            None
+        )
+
+        st.session_state.pop(
+            "mt_parsed_data",
+            None
+        )
+
+        st.rerun()
+
+    # ------------------------------------------------------------
+    # KIỂM TRA DỮ LIỆU JSON
+    # ------------------------------------------------------------
+    with st.expander(
+        "👁️ KIỂM TRA DỮ LIỆU JSON "
+        "(GIÁO VIÊN SOÁT LỖI AI)"
+    ):
+
+        st.json(
+            st.session_state["mt_parsed_data"]
+        )
 CẤU TRÚC JSON YÊU CẦU:
 ```json
 {json_schema}
