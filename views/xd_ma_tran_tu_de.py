@@ -111,7 +111,7 @@ def render_xd_ma_tran_tu_de(ai_engine):
             # --- PROMPT CHUYÊN BIỆT CHO PHÂN TÍCH ĐỀ THI ---
             analysis_prompt = f"""
 BẠN LÀ CHUYÊN GIA KHẢO THÍ GDPT 2018.
-NHIỆM VỤ: Bạn sẽ nhận được nội dung một ĐỀ KIỂM TRA ĐÃ SOẠN SẴN. Bạn phải đọc thật kỹ, dịch ngược nội dung đó để lập MA TRẬN và BẢN ĐẶC TẢ chuẩn xác 100% khớp với đề.
+NHIỆM VỤ: Bạn sẽ nhận được nội dung một ĐỀ KIỂM TRA ĐÃ SOẠN SẴN. Bạn phải đọc thật kỹ, dịch ngược nội dung đó để lập MA TRẬN và BẢN ĐẶC TẢ chuẩn xác 100% khớp với đề. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON hay Code Block).
 
 ============================================================
 THÔNG TIN HỆ THỐNG
@@ -147,10 +147,10 @@ BƯỚC 3: LẬP BẢN ĐẶC TẢ
 Từ Ma trận ở BƯỚC 2, trình bày chi tiết Yêu cầu cần đạt cho từng câu hỏi ứng với từng mức độ nhận thức.
 
 QUY TẮC TRÌNH BÀY ĐẦU RA (MARKDOWN THUẦN TÚY):
-- Không bọc trong JSON.
-- Công thức toán học (nếu có trích dẫn) BẮT BUỘC bọc trong $. (VD: $x^2 + 1$).
+- KHÔNG bọc trong JSON.
+- Công thức toán học, biểu thức, ký hiệu (nếu có trích dẫn) BẮT BUỘC bọc trong cặp dấu $. (VD: $x^2 + 1$, $AB // CD$).
 
-TRÌNH BÀY CHÍNH XÁC THEO CẤU TRÚC SAU:
+TRÌNH BÀY CHÍNH XÁC THEO CẤU TRÚC BÊN DƯỚI VÀ KHÔNG THÊM BỚT TIÊU ĐỀ KHÁC:
 
 # PHẦN I. PHÂN TÍCH CẤU TRÚC ĐỀ THI
 (Liệt kê ngắn gọn: Câu X - [Dạng câu] - [Chủ đề] - [Mức độ] - [Điểm])
@@ -196,14 +196,14 @@ TRÌNH BÀY CHÍNH XÁC THEO CẤU TRÚC SAU:
             word_bytes = WordExportEngine.export_to_word({
                 "ai_generated_content": st.session_state["mt_content"],
                 "is_de_kt": False, 
-                "title": f"Ma_Tran_Phan_Tich_Tu_De"
+                "title": "Ma_Tran_Phan_Tich_Tu_De"
             })
             st.download_button(
                 "📥 TẢI XUỐNG FILE WORD (.DOCX)", 
                 data=word_bytes, 
-                file_name=f"Ma_Tran_Dac_Ta.docx", 
+                file_name="Ma_Tran_Dac_Ta.docx", 
                 use_container_width=True, 
-                type="primary"
+                key="mt_download_word"
             )
         except Exception as e:
             st.warning(f"⚠️ Chưa thể kết xuất Word do lỗi thư viện: {e}")
