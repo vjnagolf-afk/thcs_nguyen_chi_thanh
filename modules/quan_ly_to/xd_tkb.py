@@ -1,6 +1,6 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 def render_tkb(db):
     st.subheader("📅 Quản lý Thời Khóa Biểu Toàn Trường")
@@ -136,7 +136,6 @@ def render_tkb(db):
 
             with tab_chung:
                 st.markdown(f"**Tổng số tiết học:** {len(df_tkb)}")
-                # Hiển thị dạng bảng trực quan
                 display_df = df_tkb[["thu", "tiet", "lop", "mon_hoc", "giao_vien"]].rename(
                     columns={"thu": "Thứ", "tiet": "Tiết", "lop": "Lớp", "mon_hoc": "Môn học", "giao_vien": "Giáo viên"}
                 )
