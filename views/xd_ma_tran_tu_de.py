@@ -6,18 +6,20 @@ import re
 from pathlib import Path
 from io import BytesIO
 
+# Kiểm tra thư viện template
 try:
     from docxtpl import DocxTemplate
 except ImportError:
-    st.error("⚠️ Thư viện docxtpl chưa được cài đặt. Lệnh: pip install docxtpl")
+    st.error("⚠️ Thư viện docxtpl chưa được cài đặt. Vui lòng chạy lệnh: pip install docxtpl")
 
 # ============================================================
-# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN (exam_text_extractor)
+# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN (ExamTextExtractor)
 # ============================================================
 class ExamTextExtractor:
     @staticmethod
     def extract(uploaded_file):
-        if not uploaded_file: return ""
+        if not uploaded_file:
+            return ""
         try:
             file_name = uploaded_file.name.lower()
             file_bytes = uploaded_file.getvalue()
@@ -25,50 +27,69 @@ class ExamTextExtractor:
             if file_name.endswith(".pdf"):
                 from pypdf import PdfReader
                 reader = PdfReader(BytesIO(file_bytes))
-                return "\n".join([page.extract_text().strip() for page in reader.pages if page.extract_text()])
+                pages_text = []
+                for page in reader.pages:
+                    extracted = page.extract_text()
+                    if extracted:
+                        pages_text.append(extracted.strip())
+                return "\n".join(pages_text)
                 
             elif file_name.endswith(".docx"):
                 from docx import Document
                 doc = Document(BytesIO(file_bytes))
                 contents = set()
                 result = []
+                
                 for p in doc.paragraphs:
                     text = p.text.strip()
                     if text and text not in contents:
-                        result.append(text); contents.add(text)
+                        result.append(text)
+                        contents.add(text)
+                        
                 for table in doc.tables:
                     for row in table.rows:
-                        row_text = " | ".join(filter(None, [cell.text.strip().replace("\n", " ") for cell in row.cells]))
+                        row_data = []
+                        for cell in row.cells:
+                            row_data.append(cell.text.strip().replace("\n", " "))
+                        row_text = " | ".join(filter(None, row_data))
                         if row_text.strip() and row_text not in contents:
-                            result.append(row_text); contents.add(row_text)
+                            result.append(row_text)
+                            contents.add(row_text)
                 return "\n".join(result)
                 
             elif file_name.endswith(".txt"):
                 for enc in ["utf-8", "utf-8-sig", "cp1258"]:
-                    try: return file_bytes.decode(enc).strip()
-                    except: continue
+                    try:
+                        return file_bytes.decode(enc).strip()
+                    except Exception:
+                        continue
         except Exception as e:
             st.error(f"❌ Lỗi đọc file: {e}")
         return ""
 
     @staticmethod
     def normalize(text):
-        if not text: return ""
-        return " ".join(re.sub(r"\s+", " ", text).strip().split(" ")[:6000])
+        if not text:
+            return ""
+        clean_text = re.sub(r"\s+", " ", text).strip()
+        words = clean_text.split(" ")
+        return " ".join(words[:6000])
 
 # ============================================================
-# SERVICE 2: BỘ XỬ LÝ LOGIC MA TRẬN (matrix_calculator)
+# SERVICE 2: BỘ XỬ LÝ LOGIC MA TRẬN (MatrixCalculator)
 # ============================================================
 class MatrixCalculator:
     @staticmethod
     def parse_ai_json(result_text):
         json_match = re.search(r'```json\n(.*?)\n```', result_text, re.DOTALL)
-        json_str = json_match.group(1) if json_match else result_text.strip()
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_str = result_text.strip()
         return json.loads(json_str)
 
     @staticmethod
     def calculate_totals(parsed_data):
-        """Tính toán tổng điểm, tổng câu và tỷ lệ phần trăm chuẩn xác."""
         total = {
             "nb_tl": 0, "nb_tn": 0, "th_tl": 0, "th_tn": 0,
             "vd_tl": 0, "vd_tn": 0, "vdc_tl": 0, "vdc_tn": 0,
@@ -90,13 +111,14 @@ class MatrixCalculator:
             total["phan_tram_tl"] = round((total["diem_tl"] / total["diem"]) * 100, 1)
             total["phan_tram_tn"] = round((total["diem_tn"] / total["diem"]) * 100, 1)
         else:
-            total["phan_tram_tl"] = total["phan_tram_tn"] = 0
+            total["phan_tram_tl"] = 0
+            total["phan_tram_tn"] = 0
 
         parsed_data["tong"] = total
         return parsed_data
 
 # ============================================================
-# SERVICE 3: ĐỘNG CƠ XUẤT WORD (docx_template_engine)
+# SERVICE 3: ĐỘNG CƠ XUẤT WORD (DocxTemplateEngine)
 # ============================================================
 class DocxTemplateEngine:
     @staticmethod
@@ -108,7 +130,7 @@ class DocxTemplateEngine:
         return bio.getvalue()
 
 # ============================================================
-# 4. VIEW: GIAO DIỆN CHÍNH (xd_ma_tran_tu_de_view)
+# 4. VIEW: GIAO DIỆN CHÍNH (render_xd_ma_tran_tu_de)
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
     st.markdown("### 🧩 Sinh Ma trận & Đặc tả (Kiến trúc Chuẩn)")
@@ -152,10 +174,14 @@ CẤU TRÚC JSON YÊU CẦU:
     {{
       "chu_de": "Tên chủ đề",
       "noi_dung": "Đơn vị kiến thức",
-      "nb_tl": 0, "nb_tn": 8,
-      "th_tl": 0, "th_tn": 4,
-      "vd_tl": 0, "vd_tn": 0,
-      "vdc_tl": 0, "vdc_tn": 0,
+      "nb_tl": 0,
+      "nb_tn": 8,
+      "th_tl": 0,
+      "th_tn": 4,
+      "vd_tl": 0,
+      "vd_tn": 0,
+      "vdc_tl": 0,
+      "vdc_tn": 0,
       "tong_cau_tl": 0,
       "tong_cau_tn": 12,
       "tong_diem_tl": 0.0,
@@ -168,11 +194,123 @@ CẤU TRÚC JSON YÊU CẦU:
       "stt": 1,
       "chu_de": "Tên chủ đề",
       "noi_dung": "Đơn vị kiến thức",
-      "yccd": "- Gạch đầu dòng YCCĐ 1.\\n- Gạch đầu dòng YCCĐ 2.",
-      "cau_tn_nb": 8, "cau_tn_th": 4, "cau_tn_vd": 0, "cau_tn_vdc": 0,
-      "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0, "cau_tl_vdc": 0,
-      "ds_cau_hoi": "Câu 1, 2, 3, 4, 5, 6, 7, 8 (NB); Câu 9, 10, 11, 12 (TH)",
+      "yccd": "- YCCĐ 1.\\n- YCCĐ 2.",
+      "cau_tn_nb": 8,
+      "cau_tn_th": 4,
+      "cau_tn_vd": 0,
+      "cau_tn_vdc": 0,
+      "cau_tl_nb": 0,
+      "cau_tl_th": 0,
+      "cau_tl_vd": 0,
+      "cau_tl_vdc": 0,
+      "ds_cau_hoi": "Câu 1, 2, 3 (NB); Câu 4, 5 (TH)",
       "tong_diem_dt": 3.0
     }}
   ]
 }}
+        try:
+            # ============================================================
+            # FLOW 1: AI GENERATE
+            # ============================================================
+            result = ai_engine.generate_text(prompt)
+
+            if not result or not result.strip():
+                st.error("❌ AI không trả về dữ liệu.")
+                st.stop()
+
+            # ============================================================
+            # FLOW 2: PARSE & CALCULATE LOGIC
+            # ============================================================
+            parsed_data = MatrixCalculator.parse_ai_json(result)
+
+            final_data = MatrixCalculator.calculate_totals(parsed_data)
+
+            # ============================================================
+            # FLOW 3: TEMPLATE RENDER
+            # ============================================================
+            word_bytes = DocxTemplateEngine.render_to_bytes(
+                template_path,
+                final_data
+            )
+
+            # ============================================================
+            # CẬP NHẬT SESSION STATE
+            # ============================================================
+            st.session_state["mt_word_bytes"] = word_bytes
+            st.session_state["mt_filename"] = file_de.name
+            st.session_state["mt_parsed_data"] = final_data
+
+            st.success(
+                "✅ Hệ thống đã phân tích và đối khớp dữ liệu "
+                "vào File Word mẫu thành công!"
+            )
+
+            st.rerun()
+
+        except json.JSONDecodeError:
+            st.error(
+                "❌ AI không trả về đúng định dạng JSON. "
+                "Vui lòng thử lại."
+            )
+
+        except Exception as e:
+            st.error(f"❌ Lỗi xử lý: {e}")
+# ============================================================
+# 3. KHU VỰC HIỂN THỊ KẾT QUẢ
+# ============================================================
+
+if "mt_word_bytes" in st.session_state:
+
+    st.divider()
+
+    st.markdown("### 🎉 KẾT QUẢ XỬ LÝ")
+
+    c_btn1, c_btn2 = st.columns(2)
+
+    # ------------------------------------------------------------
+    # NÚT TẢI FILE WORD
+    # ------------------------------------------------------------
+    c_btn1.download_button(
+        "📥 TẢI MA TRẬN & ĐẶC TẢ (.DOCX)",
+
+        data=st.session_state["mt_word_bytes"],
+
+        file_name=(
+            f"MaTran_DacTa_"
+            f"{st.session_state.get('mt_filename', 'HoanChinh')}.docx"
+        ),
+
+        use_container_width=True,
+
+        type="primary"
+    )
+
+    # ------------------------------------------------------------
+    # NÚT XÓA KẾT QUẢ
+    # ------------------------------------------------------------
+    if c_btn2.button(
+        "🗑️ ĐÓNG & LÀM LẠI",
+        use_container_width=True
+    ):
+
+        st.session_state.pop("mt_word_bytes", None)
+        st.session_state.pop("mt_filename", None)
+        st.session_state.pop("mt_parsed_data", None)
+
+        st.rerun()
+
+    # ============================================================
+    # HIỂN THỊ JSON ĐỂ GIÁO VIÊN KIỂM TRA
+    # ============================================================
+
+    with st.expander(
+        "👁️ KIỂM TRA DỮ LIỆU JSON "
+        "(Giáo viên soát lỗi AI)"
+    ):
+
+        st.json(
+            st.session_state.get(
+                "mt_parsed_data",
+                {}
+            )
+        )
