@@ -122,7 +122,7 @@ def render_xd_ma_tran_tu_de(ai_engine):
             st.warning("⚠️ Vui lòng tải lên file đề kiểm tra.")
             st.stop()
             
-        template_path = Path(__file__).resolve().parents[2] / "templates" / "ma_tran_mau.docx"
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_mau.docx"
         if not template_path.exists():
             st.error(f"❌ Không tìm thấy file mẫu Word tại: {template_path}.")
             st.stop()
