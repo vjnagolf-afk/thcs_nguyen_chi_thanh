@@ -260,12 +260,16 @@ class WordMatrixEngine:
         doc.save(bio)
         return bio.getvalue()
 # ============================================================
-# VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN
+# VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN (TƯƠNG THÍCH EXAMAIENGINE)
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
+    """
+    ai_engine: là một thực thể (instance) của lớp ExamAIEngine đã được khởi tạo
+               ví dụ: ai_engine = ExamAIEngine(gemini_api_key="...")
+    """
     st.markdown("### Sinh Ma trận & Đặc tả Đề kiểm tra")
     
-    # Cấu hình thanh chọn thông tin đề bài
+    # Cấu hình thanh chọn thông tin đề bài từ giáo viên
     c1, c2 = st.columns(2)
     mon_hoc = c1.selectbox("Môn học", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon")
     lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], index=2, key="mt_lop")
@@ -277,7 +281,7 @@ def render_xd_ma_tran_tu_de(ai_engine):
             st.warning("Vui lòng đính kèm và tải lên file đề kiểm tra trước khi thực hiện phân tích.")
             return
             
-        # Tìm đường dẫn file mẫu trong thư mục templates
+        # Tìm đường dẫn file mẫu Word trong thư mục templates
         template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_dac_ta_mau.docx"
         if not template_path.exists():
             st.error(f"Hệ thống thiếu file cấu trúc mẫu tại đường dẫn: {template_path}")
@@ -286,7 +290,7 @@ def render_xd_ma_tran_tu_de(ai_engine):
         # --- BẮT ĐẦU VÒNG XỬ LÝ AN TOÀN CHỐNG SẬP (CRASH-PROOF) ---
         try:
             with st.spinner("Hệ thống AI đang đọc dữ liệu tệp và phân tích cấu trúc đề..."):
-                # 1. Đọc và chuẩn hóa nội dung văn bản đề bài
+                # 1. Đọc và chuẩn hóa nội dung văn bản đề bài từ File gửi lên
                 raw_text = ExamTextExtractor.extract(file_de)
                 exam_text = ExamTextExtractor.normalize(raw_text)
                 
@@ -294,78 +298,53 @@ def render_xd_ma_tran_tu_de(ai_engine):
                     st.error("Không thể đọc được dữ liệu chữ từ tệp tin này. Hãy thử kiểm tra lại tệp tin.")
                     return
                 
-                # 2. Xây dựng cấu trúc định dạng đầu ra (JSON Schema)
-                json_schema = {
-                    "mon_hoc": mon_hoc, "lop": lop,
-                    "ma_tran": [{
-                        "chu_de": "Tên chủ đề", "noi_dung": "Đơn vị kiến thức",
-                        "nb_tl": 0, "nb_tn": 0, "th_tl": 0, "th_tn": 0, "vd_tl": 0, "vd_tn": 0, "vdc_tl": 0, "vdc_tn": 0,
-                        "tong_cau_tl": 0, "tong_cau_tn": 0, "tong_diem_tl": 0.0, "tong_diem_tn": 0.0, "tong_diem": 0.0
-                    }],
-                    "dac_ta": [{
-                        "stt": 1, "chu_de": "Tên chủ đề", "noi_dung": "Đơn vị kiến thức", "yccd": "- YCCĐ 1.\n- YCCĐ 2.",
-                        "cau_tn_nb": 0, "cau_tn_th": 0, "cau_tn_vd": 0, "cau_tn_vdc": 0,
-                        "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0, "cau_tl_vdc": 0,
-                        "ds_cau_hoi": "", "tong_diem_dt": 0.0
-                    }]
+                # 2. Xây dựng cấu trúc Exam Contract theo đúng định dạng nghiệp vụ yêu cầu (Trang 7)
+                # Hệ thống yêu cầu: subject, grade, duration, total_score, question_blueprint
+                # Lưu ý: Cần điều chỉnh blueprint động dựa theo đề, đoạn này tạo khung hợp đồng mẫu
+                exam_contract = {
+                    "subject": mon_hoc,
+                    "grade": lop,
+                    "duration": 90,  # Thời gian làm bài mặc định (phút)
+                    "total_score": 10.0,  # Tổng điểm bắt buộc bằng 10.0 theo luật thẩm định hệ thống
+                    "question_blueprint": [
+                        # Khung blueprint mẫu để AI bám theo sinh và ánh xạ số câu
+                        {"question_no": 1, "question_type": "NLC", "points": 0.25},
+                        {"question_no": 2, "question_type": "NLC", "points": 0.25},
+                        {"question_no": 3, "question_type": "TL", "points": 1.0}
+                    ]
                 }
-                schema_text = json.dumps(json_schema, ensure_ascii=False, indent=2)
                 
-                # 3. Biên soạn lại đầy đủ 100% Prompt hệ thống
-                prompt = f"""
-BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ CHUYÊN NGHIỆP.
-NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA đã cho để bóc tách thông tin và tự động phân loại từng câu hỏi theo cấp độ tư duy:
-- NB: Nhận biết | TH: Thông hiểu | VD: Vận dụng | VDC: Vận dụng cao.
-Xác định chuẩn xác tên chủ đề, đơn vị kiến thức tương ứng và tính toán điểm số tối đa.
-
-YÊU CẦU ĐẦU RA: CHỈ TRẢ VỀ DUY NHẤT CHUỖI JSON HỢP LỆ THEO CONFIG. KHÔNG ĐƯỢC BỌC TRONG KHỐI MARKDOWN (KHÔNG ĐÙNG ```json), KHÔNG ĐƯỢC GIẢI THÍCH THÊM.
-
-==================================================
-THÔNG TIN CHUNG
-MÔN: {mon_hoc} | LỚP: {lop}
-==================================================
-NỘI DUNG VĂN BẢN ĐỀ KIỂM TRA ĐỂ PHÂN TÍCH:
-{exam_text}
-==================================================
-CẤU TRÚC SCHEMA JSON BẮT BUỘC KHÔNG ĐƯỢC THAY ĐỔI TÊN TRƯỜNG:
-{schema_text}
-==================================================
-QUY TẮC TOÁN HỌC VÀ LOGIC TÍNH ĐIỂM (BẮT BUỘC KHỚP 100%):
-1. Không được tự ý thêm thắt các câu hỏi không có trong đề bài gốc.
-2. Mỗi một câu hỏi đơn lẻ trong đề bài chỉ được tính phân bổ duy nhất một lần.
-3. Tổng số lượng câu hỏi tổng hợp trong 'ma_tran' bắt buộc phải trùng khớp với tổng câu hỏi thực tế của đề bài.
-4. Tổng số điểm của bảng ma trận phải đúng với thang điểm quy định của đề bài (Ví dụ: Thang điểm 10).
-5. Công thức: tong_cau_tl = nb_tl + th_tl + vd_tl + vdc_tl
-6. Công thức: tong_cau_tn = nb_tn + th_tn + vd_tn + vdc_tn
-7. Công thức: tong_diem = tong_diem_tl + tong_diem_tn
-8. Toàn bộ các chỉ số đếm phân bổ số lượng câu ở bảng 'ma_tran' và bảng đặc tả 'dac_ta' phải trùng khớp nhau tuyệt đối.
-"""
+                # 3. GỌI CHÍNH XÁC HÀM ĐIỀU PHỐI CỦA EXAMAIENGINE (Đã sửa lỗi attribute)
+                # Truyền exam_contract và nội dung văn bản đề bài (đóng vai trò outline_text)
+                validated_data = ai_engine.generate_exam(
+                    exam_contract=exam_contract,
+                    outline_text=exam_text,
+                    additional_materials="Yêu cầu trích xuất cấu trúc ma trận và đặc tả từ đề bài trên."
+                )
                 
-                # 4. Gửi yêu cầu phân tích tới AI Engine bên ngoài
-                # (Giả định hàm sinh văn bản của đối tượng ai_engine của bạn là sinh ra text thông qua hàm generate)
-                ai_response = ai_engine.generate(prompt)
-                
-                # 5. Phân tách cú pháp JSON & Chuẩn hóa tính toán lại số liệu đầu ra
-                parsed_json = MatrixCalculator.parse_ai_json(ai_response)
-                validated_data = MatrixCalculator.calculate_totals(parsed_json)
-                
-                # 6. Đổ trực tiếp dữ liệu chuẩn vào file Word mẫu
+                # 4. Đổ dữ liệu đã được AI xử lý và hậu kiểm xong xuôi vào file Word template
                 word_bytes = WordMatrixEngine.render_to_bytes(template_path, validated_data)
                 
-                # Lưu thông tin tạm vào session_state để hiển thị bản trực quan
+                # Lưu thông tin tạm vào session_state để hiển thị bản trực quan lên giao diện
                 st.session_state["processed_matrix_data"] = validated_data
                 st.session_state["download_word_bytes"] = word_bytes
                 st.success("🎉 Phân tích đề bài và tự động thiết lập ma trận thành công!")
 
         except Exception as err:
-            # Bọc giữ lỗi an toàn cho Streamlit, hiển thị thông báo trực diện thay vì sập giao diện màu đỏ
+            # Bọc giữ lỗi an toàn, hiển thị thông báo nghiệp vụ rõ ràng (ExamContractError, ExamOutputError,...)
             st.error(f"❌ Quá trình phân tích thất bại do lỗi hệ thống: {str(err)}")
             
     # --- PHẦN TỐI ƯU UX: HIỂN THỊ XEM TRƯỚC VÀ NÚT TẢI XUỐNG ---
     if "processed_matrix_data" in st.session_state:
         st.markdown("#### Đã phân tích - Xem trước bảng dữ liệu ma trận sơ bộ")
-        df_preview = pd.DataFrame(st.session_state["processed_matrix_data"]["ma_tran"])
-        st.dataframe(df_preview, use_container_width=True)
+        
+        # Nếu AI trả về cấu trúc gồm trường 'matrix', hiển thị trực quan lên Streamlit
+        matrix_data = st.session_state["processed_matrix_data"].get("matrix", [])
+        if matrix_data:
+            df_preview = pd.DataFrame(matrix_data)
+            st.dataframe(df_preview, use_container_width=True)
+        else:
+            st.info("Hệ thống đã lưu tệp dữ liệu, sẵn sàng tải xuống.")
         
         st.download_button(
             label="📥 TẢI XUỐNG FILE WORD MA TRẬN & ĐẶC TẢ (.DOCX)",
@@ -374,3 +353,4 @@ QUY TẮC TOÁN HỌC VÀ LOGIC TÍNH ĐIỂM (BẮT BUỘC KHỚP 100%):
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
+
