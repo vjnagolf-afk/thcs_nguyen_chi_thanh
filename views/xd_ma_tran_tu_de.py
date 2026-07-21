@@ -323,8 +323,7 @@ CẤU TRÚC JSON YÊU CẦU:
                 final_data = MatrixCalculator.calculate_totals(parsed_data)
                 
                 # Dùng DocxTemplateEngine render tự động và an toàn
-                word_bytes = DocxTemplateEngine.render_to_bytes(template_path, final_data)
-                
+                word_bytes = WordMatrixEngine.render_to_bytes(template_path, final_data)
                 st.session_state["processed_matrix_data"] = final_data
                 st.session_state["download_word_bytes"] = word_bytes
                 st.session_state["mt_mon_hoc_file"] = mon_hoc
