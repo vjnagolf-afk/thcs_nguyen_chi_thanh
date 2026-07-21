@@ -125,7 +125,7 @@ try:
     # --- PHÂN HỆ 1: HỖ TRỢ GIÁO VIÊN ---
     if phan_he == "Hỗ trợ Giáo viên":
         st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "DỊCH ĐỀ SANG MA TRẬN", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU"])
+        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU", "DỊCH ĐỀ SANG MA TRẬN"])
         
         with tabs[0]: render_xd_khbd(ai_engine)
         with tabs[1]: render_xd_de_kt(ai_engine)
