@@ -200,201 +200,157 @@ CẤU TRÚC JSON YÊU CẦU (Trả về Y HỆT cấu trúc key này):
   ]
 }
 # ============================================================
-# LƯU Ý:
-# TÍNH ĐIỂM THẬT CHÍNH XÁC
-# VÀ ĐẢM BẢO DỮ LIỆU JSON HỢP LỆ
+# XÂY DỰNG PROMPT - KHÔNG DÙNG F-STRING
 # ============================================================
 
-try:
+base_prompt = """
+BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
 
-    # ========================================================
-    # FLOW 1: AI GENERATE
-    # ========================================================
+NHIỆM VỤ:
+Phân tích ĐỀ KIỂM TRA đã được cung cấp, xác định:
+1. Các chủ đề/nội dung kiến thức.
+2. Số lượng câu hỏi theo từng chủ đề.
+3. Mức độ nhận thức:
+   - Nhận biết (NB)
+   - Thông hiểu (TH)
+   - Vận dụng (VD)
+   - Vận dụng cao (VDC)
+4. Phân loại hình thức:
+   - Trắc nghiệm (TN)
+   - Tự luận (TL)
+5. Tính điểm chính xác tuyệt đối.
 
-    result = ai_engine.generate_text(prompt)
+Môn học: [MON_HOC]
+Lớp: [LOP]
 
-    if not result or not result.strip():
-        st.error("❌ AI không trả về dữ liệu.")
-        st.stop()
+============================================================
+NỘI DUNG ĐỀ KIỂM TRA
+============================================================
 
+[EXAM_TEXT]
 
-    # ========================================================
-    # FLOW 2: PARSE JSON & TÍNH TOÁN LOGIC
-    # ========================================================
+============================================================
+YÊU CẦU TRẢ VỀ JSON
+============================================================
 
-    # Bước 1:
-    # Bóc tách JSON thuần túy từ kết quả AI
-    parsed_data = MatrixCalculator.parse_ai_json(result)
+CHỈ ĐƯỢC TRẢ VỀ MỘT JSON OBJECT HỢP LỆ.
+TUYỆT ĐỐI KHÔNG:
+- Viết ```json
+- Viết ```
+- Viết lời giải thích bên ngoài JSON.
+- Thêm nhận xét ngoài JSON.
 
+CẤU TRÚC JSON BẮT BUỘC:
 
-    # Bước 2:
-    # Tính lại toàn bộ số câu, điểm số và tỷ lệ
-    # bằng Python.
-    #
-    # KHÔNG sử dụng trực tiếp tổng điểm do AI tự tính.
-    final_data = MatrixCalculator.calculate_totals(
-        parsed_data
-    )
+{
+  "mon_hoc": "[MON_HOC]",
+  "lop": "[LOP]",
 
+  "ma_tran": [
+    {
+      "chu_de": "Tên chủ đề",
+      "noi_dung": "Nội dung kiến thức",
 
-    # ========================================================
-    # FLOW 3: RENDER FILE WORD TEMPLATE
-    # ========================================================
+      "nb_tl": 0,
+      "nb_tn": 0,
 
-    word_bytes = DocxTemplateEngine.render_to_bytes(
-        template_path,
-        final_data
-    )
+      "th_tl": 0,
+      "th_tn": 0,
 
+      "vd_tl": 0,
+      "vd_tn": 0,
 
-    # ========================================================
-    # CẬP NHẬT SESSION STATE
-    # ========================================================
+      "vdc_tl": 0,
+      "vdc_tn": 0,
 
-    st.session_state["mt_word_bytes"] = word_bytes
+      "tong_cau_tl": 0,
+      "tong_cau_tn": 0,
 
-    st.session_state["mt_filename"] = file_de.name
+      "tong_diem": 0.0
+    }
+  ],
 
-    st.session_state["mt_parsed_data"] = final_data
+  "dac_ta": [
+    {
+      "stt": 1,
+      "chu_de": "Tên chủ đề",
+      "noi_dung": "Nội dung kiến thức",
 
+      "yccd": [
+        "Yêu cầu cần đạt 1",
+        "Yêu cầu cần đạt 2"
+      ],
 
-    # ========================================================
-    # THÔNG BÁO THÀNH CÔNG
-    # ========================================================
+      "cau_tn_nb": 0,
+      "cau_tn_th": 0,
+      "cau_tn_vd": 0,
+      "cau_tn_vdc": 0,
 
-    st.success(
-        "✅ Hệ thống đã phân tích đề, "
-        "tính toán lại dữ liệu và đối khớp "
-        "vào File Word mẫu thành công!"
-    )
+      "cau_tl_nb": 0,
+      "cau_tl_th": 0,
+      "cau_tl_vd": 0,
+      "cau_tl_vdc": 0,
 
-    st.rerun()
+      "tong_diem_dt": 0.0
+    }
+  ]
+}
 
+============================================================
+QUY TẮC TÍNH ĐIỂM BẮT BUỘC
+============================================================
+
+1. Không được tự ý làm tròn sai số liệu.
+
+2. Mỗi câu hỏi phải được tính điểm đúng theo cấu trúc thực tế của đề.
+
+3. Với mỗi chủ đề:
+
+tong_cau_tl =
+nb_tl + th_tl + vd_tl + vdc_tl
+
+tong_cau_tn =
+nb_tn + th_tn + vd_tn + vdc_tn
+
+4. Tổng điểm của từng chủ đề phải bằng tổng điểm thực tế của các câu hỏi thuộc chủ đề đó.
+
+5. Không được tính trùng câu hỏi.
+
+6. Không được bỏ sót câu hỏi.
+
+7. Tổng số câu trong ma_tran phải khớp với tổng số câu thực tế trong đề.
+
+8. Tổng điểm trong ma_tran phải khớp với tổng điểm thực tế của đề.
+
+9. Các số lượng câu phải là số nguyên.
+
+10. Các giá trị điểm phải là số thực hợp lệ.
+
+11. Nếu không xác định chắc chắn chủ đề của một câu hỏi, phải phân loại theo nội dung kiến thức trực tiếp của câu hỏi, không được tự tạo chủ đề không có trong đề.
+
+12. Dữ liệu trong "dac_ta" phải thống nhất với "ma_tran".
+
+13. Tất cả tổng số liệu phải được tính lại trước khi trả JSON.
+
+============================================================
+KIỂM TRA CUỐI CÙNG TRƯỚC KHI TRẢ JSON
+============================================================
+
+- JSON phải hợp lệ.
+- Tất cả dấu ngoặc { } phải cân bằng.
+- Tất cả chuỗi phải nằm trong dấu ngoặc kép.
+- Không có dấu phẩy thừa.
+- Không có Markdown.
+- Không có văn bản ngoài JSON.
+"""
 
 # ============================================================
-# LỖI JSON
+# THAY BIẾN AN TOÀN - KHÔNG DÙNG F-STRING
 # ============================================================
 
-except json.JSONDecodeError:
-
-    st.error(
-        "❌ AI không trả về đúng định dạng JSON hợp lệ. "
-        "Vui lòng thử lại."
-    )
-
-
-# ============================================================
-# LỖI HỆ THỐNG KHÁC
-# ============================================================
-
-except Exception as e:
-
-    st.error(
-        f"❌ Lỗi xử lý: {e}"
-    )
-
-
-# ============================================================
-# 3. KHU VỰC HIỂN THỊ KẾT QUẢ
-# ============================================================
-
-if "mt_word_bytes" in st.session_state:
-
-    st.divider()
-
-    st.markdown(
-        "### 🎉 KẾT QUẢ XỬ LÝ"
-    )
-
-
-    # ========================================================
-    # HAI NÚT CHỨC NĂNG
-    # ========================================================
-
-    c_btn1, c_btn2 = st.columns(2)
-
-
-    # ========================================================
-    # TẠO TÊN FILE AN TOÀN
-    # ========================================================
-
-    safe_filename = st.session_state.get(
-        "mt_filename",
-        "HoanChinh"
-    )
-
-
-    # Loại bỏ các ký tự đặc biệt không phù hợp với tên file
-    safe_filename = re.sub(
-        r'[\\/*?:"<>|]',
-        "_",
-        safe_filename
-    )
-
-
-    # ========================================================
-    # TẢI FILE WORD
-    # ========================================================
-
-    c_btn1.download_button(
-
-        "📥 TẢI MA TRẬN & ĐẶC TẢ (.DOCX)",
-
-        data=st.session_state[
-            "mt_word_bytes"
-        ],
-
-        file_name=(
-            f"MaTran_DacTa_"
-            f"{safe_filename}.docx"
-        ),
-
-        use_container_width=True,
-
-        type="primary"
-    )
-
-
-    # ========================================================
-    # XÓA KẾT QUẢ
-    # ========================================================
-
-    if c_btn2.button(
-
-        "🗑️ ĐÓNG & LÀM LẠI",
-
-        use_container_width=True
-    ):
-
-        st.session_state.pop(
-            "mt_word_bytes",
-            None
-        )
-
-        st.session_state.pop(
-            "mt_filename",
-            None
-        )
-
-        st.session_state.pop(
-            "mt_parsed_data",
-            None
-        )
-
-        st.rerun()
-
-
-    # ========================================================
-    # KIỂM TRA DỮ LIỆU JSON
-    # ========================================================
-
-    with st.expander(
-        "👁️ KIỂM TRA DỮ LIỆU JSON "
-        "(Giáo viên soát lỗi AI)"
-    ):
-
-        st.json(
-            st.session_state[
-                "mt_parsed_data"
-            ]
-        )
+prompt = (
+    base_prompt
+    .replace("[MON_HOC]", str(mon_hoc))
+    .replace("[LOP]", str(lop))
+    .replace("[EXAM_TEXT]", exam_text)
+)
