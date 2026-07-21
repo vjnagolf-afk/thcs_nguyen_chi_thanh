@@ -82,7 +82,7 @@ if "is_admin_mode" not in st.session_state: st.session_state.is_admin_mode = Fal
 with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: #E63946;'>HỆ SINH THÁI SỐ</h2>", unsafe_allow_html=True)
     if st.session_state.user_api_key or st.session_state.is_admin_mode:
-        phan_he = st.radio("Chọn phân hệ:", ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn"])
+        phan_he = st.radio("Chọn phân hệ:", ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn", "Ứng dụng khác"])
         if st.button("🚪 Đăng xuất", use_container_width=True):
             st.session_state.clear()
             st.rerun()
@@ -174,6 +174,9 @@ try:
         with tabs[8]: render_viet_sang_kien(ai_engine_2)
         with tabs[9]: render_cham_sang_kien(ai_engine_2)
         with tabs[10]: render_tkb(db)
+    elif phanh_he == "Ứng dụng khác":
+        from views.ung_dung_khac import render_ung_dung_khac
+        render_ung_dung_khac()
 except Exception as e:
     st.error("🚨 Lỗi hệ thống trong quá trình tạo giao diện!")
     st.exception(e)
