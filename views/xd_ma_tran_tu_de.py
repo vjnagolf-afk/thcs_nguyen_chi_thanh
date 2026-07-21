@@ -180,13 +180,12 @@ Trả về 1 chuỗi JSON chứa 2 mảng chính: "ma_tran" và "dac_ta".
             )
 
             # 4. Lưu trạng thái
-            st.session_state["mt_word_bytes"] = word_bytes
-            st.session_state["mt_filename"] = file_de.name
-
-            st.success(
-                "✅ AI phân tích JSON và chèn vào file Word mẫu thành công!"
-            )
-            st.rerun()
+                st.session_state["mt_word_bytes"] = word_bytes
+                st.session_state["mt_filename"] = file_de.name
+                st.session_state["mt_parsed_data"] = final_data # LƯU THÊM DỮ LIỆU ĐỂ XEM TRƯỚC
+                
+                st.success("✅ AI phân tích JSON và chèn vào file Word mẫu thành công tuyệt đối!")
+                st.rerun()
 
         except json.JSONDecodeError:
             st.error(
