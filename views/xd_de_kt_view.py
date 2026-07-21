@@ -166,7 +166,6 @@ def render_xd_de_kt(ai_engine):
         
         tl_points = []
         for i in range(num_tl):
-            # Giới hạn hiển thị cột để giao diện không bị tràn
             p = tl_cols[(i % 5) + 1].number_input(f"Câu {i + 1} (đ)", min_value=0.0, value=2.0, step=0.25, key=f"de_kt_tl_p_{i}")
             tl_points.append(p)
 
