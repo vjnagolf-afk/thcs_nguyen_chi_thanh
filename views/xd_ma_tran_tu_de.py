@@ -6,215 +6,173 @@ import re
 from pathlib import Path
 from io import BytesIO
 
-# Import thư viện xử lý Template Word
 try:
     from docxtpl import DocxTemplate
 except ImportError:
-    st.error("⚠️ Thư viện docxtpl chưa được cài đặt. Vui lòng chạy lệnh: pip install docxtpl")
+    st.error("⚠️ Thư viện docxtpl chưa được cài đặt. Lệnh: pip install docxtpl")
 
 # ============================================================
-# 1. BỘ CÔNG CỤ ĐỌC TÀI LIỆU
+# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN (exam_text_extractor)
 # ============================================================
-def extract_text_from_file(uploaded_file):
-    if uploaded_file is None:
+class ExamTextExtractor:
+    @staticmethod
+    def extract(uploaded_file):
+        if not uploaded_file: return ""
+        try:
+            file_name = uploaded_file.name.lower()
+            file_bytes = uploaded_file.getvalue()
+            
+            if file_name.endswith(".pdf"):
+                from pypdf import PdfReader
+                reader = PdfReader(BytesIO(file_bytes))
+                return "\n".join([page.extract_text().strip() for page in reader.pages if page.extract_text()])
+                
+            elif file_name.endswith(".docx"):
+                from docx import Document
+                doc = Document(BytesIO(file_bytes))
+                contents = set()
+                result = []
+                for p in doc.paragraphs:
+                    text = p.text.strip()
+                    if text and text not in contents:
+                        result.append(text); contents.add(text)
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = " | ".join(filter(None, [cell.text.strip().replace("\n", " ") for cell in row.cells]))
+                        if row_text.strip() and row_text not in contents:
+                            result.append(row_text); contents.add(row_text)
+                return "\n".join(result)
+                
+            elif file_name.endswith(".txt"):
+                for enc in ["utf-8", "utf-8-sig", "cp1258"]:
+                    try: return file_bytes.decode(enc).strip()
+                    except: continue
+        except Exception as e:
+            st.error(f"❌ Lỗi đọc file: {e}")
         return ""
-    try:
-        file_name = uploaded_file.name.lower()
-        file_bytes = uploaded_file.getvalue()
-        if not file_bytes:
-            return ""
-            
-        if file_name.endswith(".pdf"):
-            from pypdf import PdfReader
-            reader = PdfReader(BytesIO(file_bytes))
-            pages = [page.extract_text().strip() for page in reader.pages if page.extract_text()]
-            return "\n\n".join(pages).strip()
-            
-        elif file_name.endswith(".docx"):
-            from docx import Document
-            document = Document(BytesIO(file_bytes))
-            contents = []
-            seen_texts = set()
-            for paragraph in document.paragraphs:
-                text = paragraph.text.strip()
-                if text and text not in seen_texts:
-                    contents.append(text)
-                    seen_texts.add(text)
-            for table in document.tables:
-                for row in table.rows:
-                    row_data = [cell.text.strip().replace("\n", " ") for cell in row.cells]
-                    row_text = " | ".join(filter(None, row_data))
-                    if row_text.strip() and row_text not in seen_texts:
-                        contents.append(row_text)
-                        seen_texts.add(row_text)
-            return "\n".join(contents).strip()
-            
-        elif file_name.endswith(".txt"):
-            for encoding in ["utf-8", "utf-8-sig", "cp1258"]:
-                try: return file_bytes.decode(encoding).strip()
-                except: continue
-    except Exception as e:
-        st.error(f"❌ Lỗi đọc tài liệu: {e}")
-    return ""
 
-def normalize_outline(text):
-    if not text: return ""
-    clean_text = re.sub(r"\s+", " ", text).strip()
-    return " ".join(clean_text.split(" ")[:6000]) # Tránh tràn Token
-# ============================================================
-# 2. BỘ CÔNG CỤ XỬ LÝ LOGIC (JSON & TÍNH TOÁN)
-# ============================================================
-def extract_json_from_ai(result_text):
-    """Bóc tách chuỗi JSON thuần túy từ câu trả lời của AI."""
-    json_match = re.search(r'```json\n(.*?)\n```', result_text, re.DOTALL)
-    if json_match:
-        json_str = json_match.group(1)
-    else:
-        json_str = result_text.strip()
-    return json.loads(json_str)
+    @staticmethod
+    def normalize(text):
+        if not text: return ""
+        return " ".join(re.sub(r"\s+", " ", text).strip().split(" ")[:6000])
 
-def calculate_matrix_totals(parsed_data):
-    """Tính toán lại tổng điểm và tổng số câu để đảm bảo chính xác tuyệt đối."""
-    t_nb_tl = t_nb_tn = t_th_tl = t_th_tn = t_vd_tl = t_vd_tn = t_vdc_tl = t_vdc_tn = 0
-    t_cau_tl = t_cau_tn = t_diem = 0.0
-    
-    for item in parsed_data.get("ma_tran", []):
-        t_nb_tl += item.get("nb_tl", 0); t_nb_tn += item.get("nb_tn", 0)
-        t_th_tl += item.get("th_tl", 0); t_th_tn += item.get("th_tn", 0)
-        t_vd_tl += item.get("vd_tl", 0); t_vd_tn += item.get("vd_tn", 0)
-        t_vdc_tl += item.get("vdc_tl", 0); t_vdc_tn += item.get("vdc_tn", 0)
-        t_cau_tl += item.get("tong_cau_tl", 0); t_cau_tn += item.get("tong_cau_tn", 0)
-        t_diem += item.get("tong_diem", 0.0)
+# ============================================================
+# SERVICE 2: BỘ XỬ LÝ LOGIC MA TRẬN (matrix_calculator)
+# ============================================================
+class MatrixCalculator:
+    @staticmethod
+    def parse_ai_json(result_text):
+        json_match = re.search(r'```json\n(.*?)\n```', result_text, re.DOTALL)
+        json_str = json_match.group(1) if json_match else result_text.strip()
+        return json.loads(json_str)
 
-    total_cau = t_cau_tl + t_cau_tn
-    parsed_data["tong"] = {
-        "nb_tl": t_nb_tl, "nb_tn": t_nb_tn, "th_tl": t_th_tl, "th_tn": t_th_tn,
-        "vd_tl": t_vd_tl, "vd_tn": t_vd_tn, "vdc_tl": t_vdc_tl, "vdc_tn": t_vdc_tn,
-        "cau_tl": t_cau_tl, "cau_tn": t_cau_tn, "diem": t_diem,
-        "phan_tram_tl": (t_cau_tl / total_cau * 100) if total_cau > 0 else 0,
-        "phan_tram_tn": (t_cau_tn / total_cau * 100) if total_cau > 0 else 0
-    }
-    return parsed_data
+    @staticmethod
+    def calculate_totals(parsed_data):
+        """Tính toán tổng điểm, tổng câu và tỷ lệ phần trăm chuẩn xác."""
+        total = {
+            "nb_tl": 0, "nb_tn": 0, "th_tl": 0, "th_tn": 0,
+            "vd_tl": 0, "vd_tn": 0, "vdc_tl": 0, "vdc_tn": 0,
+            "cau_tl": 0, "cau_tn": 0, "diem_tl": 0.0, "diem_tn": 0.0
+        }
+
+        for item in parsed_data.get("ma_tran", []):
+            for key in ["nb_tl", "nb_tn", "th_tl", "th_tn", "vd_tl", "vd_tn", "vdc_tl", "vdc_tn"]:
+                total[key] += item.get(key, 0)
+            
+            total["cau_tl"] += item.get("tong_cau_tl", 0)
+            total["cau_tn"] += item.get("tong_cau_tn", 0)
+            total["diem_tl"] += item.get("tong_diem_tl", 0.0)
+            total["diem_tn"] += item.get("tong_diem_tn", 0.0)
+
+        total["diem"] = total["diem_tl"] + total["diem_tn"]
+
+        if total["diem"] > 0:
+            total["phan_tram_tl"] = round((total["diem_tl"] / total["diem"]) * 100, 1)
+            total["phan_tram_tn"] = round((total["diem_tn"] / total["diem"]) * 100, 1)
+        else:
+            total["phan_tram_tl"] = total["phan_tram_tn"] = 0
+
+        parsed_data["tong"] = total
+        return parsed_data
+
 # ============================================================
-# 3. BỘ CÔNG CỤ KẾT XUẤT WORD
+# SERVICE 3: ĐỘNG CƠ XUẤT WORD (docx_template_engine)
 # ============================================================
-def generate_word_from_template(template_path, context_data):
-    """Đổ dữ liệu Dictionary vào file Word Template và trả về định dạng Bytes."""
-    doc = DocxTemplate(str(template_path))
-    doc.render(context_data)
-    bio = BytesIO()
-    doc.save(bio)
-    return bio.getvalue()
+class DocxTemplateEngine:
+    @staticmethod
+    def render_to_bytes(template_path, context_data):
+        doc = DocxTemplate(str(template_path))
+        doc.render(context_data)
+        bio = BytesIO()
+        doc.save(bio)
+        return bio.getvalue()
+
 # ============================================================
-# 4. GIAO DIỆN HIỂN THỊ CHÍNH
+# 4. VIEW: GIAO DIỆN CHÍNH (xd_ma_tran_tu_de_view)
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
-    st.markdown("### 🧩 Sinh Ma trận & Đặc tả (Kiến trúc JSON -> Template)")
+    st.markdown("### 🧩 Sinh Ma trận & Đặc tả (Kiến trúc Chuẩn)")
     
+    # 1. Thu thập cấu hình
     c1, c2 = st.columns([1, 1])
-    mon_hoc = c1.selectbox("Môn", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon_hoc")
+    mon_hoc = c1.selectbox("Môn", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon")
     lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], index=2, key="mt_lop")
+    file_de = st.file_uploader("📥 Tải lên đề kiểm tra", type=["pdf", "docx", "txt"], key="mt_file")
 
-    file_de = st.file_uploader("📥 Tải lên đề kiểm tra (Hỗ trợ PDF, DOCX, TXT)", type=["pdf", "docx", "txt"], key="mt_file_upload")
-
+    # 2. Xử lý luồng chính
     if st.button("🔍 PHÂN TÍCH ĐỀ & LẬP MA TRẬN", type="primary", use_container_width=True):
         if not file_de:
             st.warning("⚠️ Vui lòng tải lên file đề kiểm tra.")
             st.stop()
             
-        template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_mau.docx"
+        # Thư mục templates nằm ngang hàng với thư mục chứa file app.py
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_dac_ta_mau.docx"
         if not template_path.exists():
-            st.error(f"❌ Không tìm thấy file mẫu Word tại: {template_path}.")
+            st.error(f"❌ Không tìm thấy file mẫu tại: {template_path}. Vui lòng tạo thư mục 'templates' và bỏ file mẫu vào.")
             st.stop()
 
-        with st.spinner("⏳ AI đang bóc tách câu hỏi và xuất dữ liệu JSON..."):
-            raw_text = extract_text_from_file(file_de)
-            exam_text = normalize_outline(raw_text)
+        with st.spinner("⏳ AI đang phân tích từng câu hỏi và gán nhãn nhận thức..."):
+            raw_text = ExamTextExtractor.extract(file_de)
+            exam_text = ExamTextExtractor.normalize(raw_text)
 
-            json_prompt = f"""
+            prompt = f"""
 BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
-NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA ĐÃ CÓ, đếm số lượng câu, phân loại mức độ nhận thức và TRẢ VỀ ĐỊNH DẠNG JSON CHUẨN (MÁY ĐỌC). TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
+NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức độ nhận thức (NB, TH, VD, VDC), tính điểm và trả về JSON chuẩn. TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
 
-THÔNG TIN ĐỀ THI: Môn: {mon_hoc} | Lớp: {lop}
-NỘI DUNG ĐỀ:
+THÔNG TIN: Môn {mon_hoc} | Lớp {lop}
+NỘI DUNG ĐỀ THI:
 {exam_text}
 
-YÊU CẦU JSON BẮT BUỘC:
-Trả về 1 chuỗi JSON chứa 2 mảng chính: "ma_tran" và "dac_ta".
-Định dạng mẫu (Tuân thủ tuyệt đối key):
+CẤU TRÚC JSON YÊU CẦU:
 ```json
 {{
   "mon_hoc": "{mon_hoc}",
   "lop": "{lop}",
   "ma_tran": [
     {{
-      "chu_de": "Tên chủ đề 1", "noi_dung": "Nội dung bài học",
-      "nb_tl": 0, "nb_tn": 8, "th_tl": 0, "th_tn": 4,
-      "vd_tl": 0, "vd_tn": 0, "vdc_tl": 0, "vdc_tn": 0,
-      "tong_cau_tl": 0, "tong_cau_tn": 12, "tong_diem": 4.0
+      "chu_de": "Tên chủ đề",
+      "noi_dung": "Đơn vị kiến thức",
+      "nb_tl": 0, "nb_tn": 8,
+      "th_tl": 0, "th_tn": 4,
+      "vd_tl": 0, "vd_tn": 0,
+      "vdc_tl": 0, "vdc_tn": 0,
+      "tong_cau_tl": 0,
+      "tong_cau_tn": 12,
+      "tong_diem_tl": 0.0,
+      "tong_diem_tn": 3.0,
+      "tong_diem": 3.0
     }}
   ],
   "dac_ta": [
     {{
-      "stt": 1, "chu_de": "Tên chủ đề 1", "noi_dung": "Nội dung bài học",
-      "yccd": "- Biết khái niệm...\\n- Hiểu cách tính...",
-      "cau_tn_nb": 8, "cau_tn_th": 4, "cau_tn_vd": 0,
-      "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0,
-      "tong_diem_dt": 4.0
+      "stt": 1,
+      "chu_de": "Tên chủ đề",
+      "noi_dung": "Đơn vị kiến thức",
+      "yccd": "- Gạch đầu dòng YCCĐ 1.\\n- Gạch đầu dòng YCCĐ 2.",
+      "cau_tn_nb": 8, "cau_tn_th": 4, "cau_tn_vd": 0, "cau_tn_vdc": 0,
+      "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0, "cau_tl_vdc": 0,
+      "ds_cau_hoi": "Câu 1, 2, 3, 4, 5, 6, 7, 8 (NB); Câu 9, 10, 11, 12 (TH)",
+      "tong_diem_dt": 3.0
     }}
   ]
 }}
-"""
-        try:
-            # 1. Gọi AI
-            result = ai_engine.generate_text(json_prompt)
-
-            # 2. Xử lý dữ liệu
-            parsed_data = extract_json_from_ai(result)
-            final_data = calculate_matrix_totals(parsed_data)
-
-            # 3. Đổ vào Word
-            word_bytes = generate_word_from_template(
-                template_path,
-                final_data
-            )
-
-            # 4. Lưu trạng thái
-                st.session_state["mt_word_bytes"] = word_bytes
-                st.session_state["mt_filename"] = file_de.name
-                st.session_state["mt_parsed_data"] = final_data # LƯU THÊM DỮ LIỆU ĐỂ XEM TRƯỚC
-                
-                st.success("✅ AI phân tích JSON và chèn vào file Word mẫu thành công tuyệt đối!")
-                st.rerun()
-
-        except json.JSONDecodeError:
-            st.error(
-                "❌ AI không trả về đúng chuẩn JSON. Vui lòng thử lại."
-            )
-
-        except Exception as e:
-            st.error(f"❌ Lỗi hệ thống: {e}")
-
-# --- KHỐI HIỂN THỊ KẾT QUẢ TẢI XUỐNG & XEM TRƯỚC ---
-    if "mt_word_bytes" in st.session_state:
-        st.divider()
-        st.success("🎉 Dữ liệu đã được liên kết với file Word mẫu của trường.")
-        
-        c_btn1, c_btn2 = st.columns(2)
-        c_btn1.download_button(
-            "📥 TẢI XUỐNG MA TRẬN ĐẶC TẢ (.DOCX)", 
-            data=st.session_state["mt_word_bytes"], 
-            file_name=f"MaTran_DacTa_{st.session_state.get('mt_filename', 'HoanChinh')}.docx", 
-            use_container_width=True, 
-            type="primary"
-        )
-        if c_btn2.button("🗑️ XÓA VÀ LÀM LẠI", use_container_width=True):
-            st.session_state.pop("mt_word_bytes", None)
-            st.session_state.pop("mt_filename", None)
-            st.session_state.pop("mt_parsed_data", None)
-            st.rerun()
-            
-        # Hiển thị dữ liệu JSON thô để giáo viên kiểm tra trước
-        if "mt_parsed_data" in st.session_state:
-            with st.expander("👁️ Bấm vào đây để xem trước Dữ liệu AI đã phân tích", expanded=True):
-                st.json(st.session_state["mt_parsed_data"])
