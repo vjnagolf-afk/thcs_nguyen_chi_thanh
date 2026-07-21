@@ -157,57 +157,48 @@ def render_xd_ma_tran_tu_de(ai_engine):
             raw_text = ExamTextExtractor.extract(file_de)
             exam_text = ExamTextExtractor.normalize(raw_text)
 
-            prompt = f"""
+            # SỬ DỤNG REPLACE THUẦN TÚY ĐỂ TRÁNH LỖI CÚ PHÁP F-STRING KHI VIẾT JSON
+            base_prompt = """
 BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
 NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức độ nhận thức (NB, TH, VD, VDC), tính điểm và trả về JSON chuẩn. TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
 
-THÔNG TIN: Môn {mon_hoc} | Lớp {lop}
+THÔNG TIN: Môn [MON_HOC] | Lớp [LOP]
 NỘI DUNG ĐỀ THI:
-{exam_text}
+[EXAM_TEXT]
 
-CẤU TRÚC JSON YÊU CẦU:
+CẤU TRÚC JSON YÊU CẦU (Trả về Y HỆT cấu trúc key này):
 ```json
-{{
-  "mon_hoc": "{mon_hoc}",
-  "lop": "{lop}",
+{
+  "mon_hoc": "[MON_HOC]",
+  "lop": "[LOP]",
   "ma_tran": [
-    {{
+    {
       "chu_de": "Tên chủ đề",
       "noi_dung": "Đơn vị kiến thức",
-      "nb_tl": 0,
-      "nb_tn": 8,
-      "th_tl": 0,
-      "th_tn": 4,
-      "vd_tl": 0,
-      "vd_tn": 0,
-      "vdc_tl": 0,
-      "vdc_tn": 0,
+      "nb_tl": 0, "nb_tn": 8,
+      "th_tl": 0, "th_tn": 4,
+      "vd_tl": 0, "vd_tn": 0,
+      "vdc_tl": 0, "vdc_tn": 0,
       "tong_cau_tl": 0,
       "tong_cau_tn": 12,
       "tong_diem_tl": 0.0,
       "tong_diem_tn": 3.0,
       "tong_diem": 3.0
-    }}
+    }
   ],
   "dac_ta": [
-    {{
+    {
       "stt": 1,
       "chu_de": "Tên chủ đề",
       "noi_dung": "Đơn vị kiến thức",
       "yccd": "- YCCĐ 1.\\n- YCCĐ 2.",
-      "cau_tn_nb": 8,
-      "cau_tn_th": 4,
-      "cau_tn_vd": 0,
-      "cau_tn_vdc": 0,
-      "cau_tl_nb": 0,
-      "cau_tl_th": 0,
-      "cau_tl_vd": 0,
-      "cau_tl_vdc": 0,
+      "cau_tn_nb": 8, "cau_tn_th": 4, "cau_tn_vd": 0, "cau_tn_vdc": 0,
+      "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0, "cau_tl_vdc": 0,
       "ds_cau_hoi": "Câu 1, 2, 3 (NB); Câu 4, 5 (TH)",
       "tong_diem_dt": 3.0
-    }}
+    }
   ]
-}}
+}
 # ============================================================
 # LƯU Ý:
 # TÍNH ĐIỂM THẬT CHÍNH XÁC
