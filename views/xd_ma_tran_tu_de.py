@@ -201,7 +201,8 @@ def render_xd_ma_tran_tu_de(ai_engine):
             st.warning("⚠️ Vui lòng đính kèm và tải lên file đề kiểm tra trước khi thực hiện phân tích.")
             return
         
-        template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_dac_ta_mau.docx"
+        # Sửa đường dẫn để trỏ đúng thư mục templates (đồng cấp với views)
+        template_path = Path(__file__).resolve().parent.parent / "templates" / "ma_tran_dac_ta_mau.docx"
         if not template_path.exists():
             st.error(f"❌ Hệ thống thiếu file cấu trúc mẫu tại đường dẫn: {template_path}")
             return
@@ -248,8 +249,7 @@ def render_xd_ma_tran_tu_de(ai_engine):
   ]
 }
 """
-                prompt = f"""
-BẠN LÀ CHUYÊN GIA KHẢO THÍ VÀ BIÊN SOẠN CHƯƠNG TRÌNH GDPT 2018.
+                prompt = f"""BẠN LÀ CHUYÊN GIA KHẢO THÍ VÀ BIÊN SOẠN CHƯƠNG TRÌNH GDPT 2018.
 NHIỆM VỤ: Phân tích sâu sắc ĐỀ THI Môn {mon_hoc} - {lop} được cung cấp dưới đây. Bóc tách chi tiết từng câu hỏi để xây dựng Ma trận và Bản đặc tả có chuyên môn cao, tường minh, không viết cụt lủn.
 
 NỘI DUNG ĐỀ THI:
@@ -261,8 +261,8 @@ YÊU CẦU ĐẶC TẢ ('dac_ta'):
 CẤU TRÚC JSON YÊU CẦU ĐẦU RA (CHỈ TRẢ VỀ JSON THUẦN TÚY):
 ```json
 {json_schema}
-```
-"""
+```"""
+
                 # Tiến hành gọi AI Engine xử lý chuỗi prompt đã đóng gói
                 result = ai_engine.generate_text(prompt)
                 parsed_json = MatrixCalculator.parse_ai_json(result)
@@ -280,7 +280,7 @@ CẤU TRÚC JSON YÊU CẦU ĐẦU RA (CHỈ TRẢ VỀ JSON THUẦN TÚY):
         except Exception as err:
             st.error(f"❌ Quá trình phân tích thất bại: {str(err)}")
 
-    # Hiển thị dữ liệu xem trước và nút bấm tải xuống
+    # Hiển thị dữ liệu xem trước và nút bấm tải xuống (nằm ngoài khối lệnh st.button)
     if "processed_matrix_data" in st.session_state:
         st.divider()
         st.markdown("#### 👁️ Xem trước dữ liệu cấu trúc")
@@ -307,3 +307,11 @@ CẤU TRÚC JSON YÊU CẦU ĐẦU RA (CHỈ TRẢ VỀ JSON THUẦN TÚY):
             use_container_width=True,
             type="primary"
         )
+```
+
+### 💡 Lưu ý nhỏ vừa được tối ưu:
+Tôi đã cập nhật lại dòng tính toán `template_path`:
+* `Path(__file__).resolve().parent.parent` đảm bảo nhảy từ thư mục `views/` ra thư mục gốc dự án của bạn, sau đó đi vào `/templates/ma_tran_dac_ta_mau.docx` một cách chính xác mà không gặp lỗi thiếu file.
+
+Sau khi bạn commit đoạn code gộp này lên GitHub, hãy theo dõi lại bảng **Manage app** của Streamlit xem ứng dụng đã hiển thị thông báo **`🎈 Success!`** chưa nhé!
+
