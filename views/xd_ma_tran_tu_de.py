@@ -320,16 +320,23 @@ def render_xd_ma_tran_tu_de(ai_engine):
 }
 """
                 prompt = f"""
-BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
-NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức độ nhận thức (NB, TH, VD, VDC), tính điểm và trả về JSON chuẩn. TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
-THÔNG TIN: Môn {mon_hoc} | Lớp {lop}
-NỘI DUNG ĐỀ THI:
+BẠN LÀ CHUYÊN GIA KHẢO THÍ VÀ BIÊN SOẠN CHƯƠNG TRÌNH GIÁO DỤC PHỔ THÔNG 2018.
+NHIỆM VỤ: Phân tích sâu sắc ĐỀ THI Môn {mon_hoc} - {lop} được cung cấp dưới đây. Bạn phải bóc tách chi tiết từng câu hỏi để xây dựng Ma trận và Bản đặc tả có chuyên môn cao, TUYỆT ĐỐI KHÔNG ĐƯỢC VIẾT CHUNG CHUNG HAY CỤT LỦN.
+
+NỘI DUNG ĐỀ THI CẦN PHÂN TÍCH:
 {exam_text}
-QUY TẮC LOGIC ĐIỂM SỐ (BẮT BUỘC):
-1. Tính điểm thật chính xác (Trắc nghiệm thường 0.25đ/câu).
-2. tong_diem = tong_diem_tl + tong_diem_tn.
-3. Hãy đảm bảo tính toán khớp 100% số liệu giữa mảng 'ma_tran' và mảng 'dac_ta'.
-CẤU TRÚC JSON YÊU CẦU:
+
+QUY TẮC BÓC TÁCH BẮT BUỘC CHO BẢN ĐẶC TẢ ('dac_ta'):
+1. Cột 'noi_dung' (Đơn vị kiến thức): Phải ghi rõ tên chủ đề và nội dung cụ thể bám sát đề (Ví dụ: "Dòng điện cảm ứng, định luật Ohm, công suất điện", không được ghi chung chung).
+2. Cột 'yccd' (Yêu cầu cần đạt): Phải viết tường minh, chi tiết hành động theo đúng chuẩn 3 mức độ:
+   - Nhận biết: Nêu được/Phát biểu được/Nhận ra được định nghĩa/hiện tượng...
+   - Thông hiểu: Giải thích được/So sánh được/Hiểu được bản chất...
+   - Vận dụng / VDC: Tính toán được công thức/Giải quyết được bài toán thực tế...
+   *(Mỗi ý phải gạch đầu dòng rõ ràng, gắn liền với nội dung câu hỏi thực tế có trong đề).*
+3. Cột 'ds_cau_hoi': Phải liệt kê tường minh câu nào thuộc mức độ nào (Ví dụ: "Câu 1, 2, 3 (NB); Câu 4 (TH); Câu 6 (VD)").
+4. Quy tắc tính điểm: tong_diem = tong_diem_tl + tong_diem_tn. Đảm bảo số lượng câu hỏi phân bổ ở ma trận và đặc tả phải khớp nhau 100%.
+
+CẤU TRÚC JSON YÊU CẦU ĐẦU RA (CHỈ TRẢ VỀ JSON THUẦN TÚY, KHÔNG KÈM VĂN BẢN KHÁC):
 ```json
 {json_schema}
 ```
