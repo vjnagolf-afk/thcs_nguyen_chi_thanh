@@ -195,20 +195,26 @@ Trả về 1 chuỗi JSON chứa 2 mảng chính: "ma_tran" và "dac_ta".
         except Exception as e:
             st.error(f"❌ Lỗi hệ thống: {e}")
 
-# --- KHỐI HIỂN THỊ KẾT QUẢ TẢI XUỐNG ---
-if "mt_word_bytes" in st.session_state:
-    st.divider()
-    st.success("🎉 Dữ liệu đã được liên kết với file Word mẫu của trường. Bảng biểu và Gộp ô được giữ nguyên 100%.")
-    
-    c_btn1, c_btn2 = st.columns(2)
-    c_btn1.download_button(
-        "📥 TẢI XUỐNG MA TRẬN ĐẶC TẢ (.DOCX)", 
-        data=st.session_state["mt_word_bytes"], 
-        file_name=f"MaTran_DacTa_{st.session_state.get('mt_filename', 'HoanChinh')}.docx", 
-        use_container_width=True, 
-        type="primary"
-    )
-    if c_btn2.button("🗑️ XÓA VÀ LÀM LẠI", use_container_width=True):
-        st.session_state.pop("mt_word_bytes", None)
-        st.session_state.pop("mt_filename", None)
-        st.rerun()
+# --- KHỐI HIỂN THỊ KẾT QUẢ TẢI XUỐNG & XEM TRƯỚC ---
+    if "mt_word_bytes" in st.session_state:
+        st.divider()
+        st.success("🎉 Dữ liệu đã được liên kết với file Word mẫu của trường.")
+        
+        c_btn1, c_btn2 = st.columns(2)
+        c_btn1.download_button(
+            "📥 TẢI XUỐNG MA TRẬN ĐẶC TẢ (.DOCX)", 
+            data=st.session_state["mt_word_bytes"], 
+            file_name=f"MaTran_DacTa_{st.session_state.get('mt_filename', 'HoanChinh')}.docx", 
+            use_container_width=True, 
+            type="primary"
+        )
+        if c_btn2.button("🗑️ XÓA VÀ LÀM LẠI", use_container_width=True):
+            st.session_state.pop("mt_word_bytes", None)
+            st.session_state.pop("mt_filename", None)
+            st.session_state.pop("mt_parsed_data", None)
+            st.rerun()
+            
+        # Hiển thị dữ liệu JSON thô để giáo viên kiểm tra trước
+        if "mt_parsed_data" in st.session_state:
+            with st.expander("👁️ Bấm vào đây để xem trước Dữ liệu AI đã phân tích", expanded=True):
+                st.json(st.session_state["mt_parsed_data"])
