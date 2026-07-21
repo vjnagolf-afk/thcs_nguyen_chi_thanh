@@ -157,28 +157,23 @@ def render_xd_ma_tran_tu_de(ai_engine):
             raw_text = ExamTextExtractor.extract(file_de)
             exam_text = ExamTextExtractor.normalize(raw_text)
 
-            # SỬ DỤNG REPLACE THUẦN TÚY ĐỂ TRÁNH LỖI CÚ PHÁP F-STRING KHI VIẾT JSON
-            base_prompt = """
-BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
-NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức độ nhận thức (NB, TH, VD, VDC), tính điểm và trả về JSON chuẩn. TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
-
-THÔNG TIN: Môn [MON_HOC] | Lớp [LOP]
-NỘI DUNG ĐỀ THI:
-[EXAM_TEXT]
-
-CẤU TRÚC JSON YÊU CẦU (Trả về Y HỆT cấu trúc key này):
-```json
+            # TÁCH ĐỘC LẬP SCHEMA JSON (Theo đề xuất siêu an toàn của thầy)
+            json_schema = """
 {
-  "mon_hoc": "[MON_HOC]",
-  "lop": "[LOP]",
+  "mon_hoc": "[Điền Môn]",
+  "lop": "[Điền Lớp]",
   "ma_tran": [
     {
       "chu_de": "Tên chủ đề",
       "noi_dung": "Đơn vị kiến thức",
-      "nb_tl": 0, "nb_tn": 8,
-      "th_tl": 0, "th_tn": 4,
-      "vd_tl": 0, "vd_tn": 0,
-      "vdc_tl": 0, "vdc_tn": 0,
+      "nb_tl": 0,
+      "nb_tn": 8,
+      "th_tl": 0,
+      "th_tn": 4,
+      "vd_tl": 0,
+      "vd_tn": 0,
+      "vdc_tl": 0,
+      "vdc_tn": 0,
       "tong_cau_tl": 0,
       "tong_cau_tn": 12,
       "tong_diem_tl": 0.0,
@@ -192,165 +187,30 @@ CẤU TRÚC JSON YÊU CẦU (Trả về Y HỆT cấu trúc key này):
       "chu_de": "Tên chủ đề",
       "noi_dung": "Đơn vị kiến thức",
       "yccd": "- YCCĐ 1.\\n- YCCĐ 2.",
-      "cau_tn_nb": 8, "cau_tn_th": 4, "cau_tn_vd": 0, "cau_tn_vdc": 0,
-      "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0, "cau_tl_vdc": 0,
+      "cau_tn_nb": 8,
+      "cau_tn_th": 4,
+      "cau_tn_vd": 0,
+      "cau_tn_vdc": 0,
+      "cau_tl_nb": 0,
+      "cau_tl_th": 0,
+      "cau_tl_vd": 0,
+      "cau_tl_vdc": 0,
       "ds_cau_hoi": "Câu 1, 2, 3 (NB); Câu 4, 5 (TH)",
       "tong_diem_dt": 3.0
     }
   ]
 }
-# ============================================================
-# XÂY DỰNG PROMPT - KHÔNG DÙNG F-STRING
-# ============================================================
-
-base_prompt = """
-BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
-
-NHIỆM VỤ:
-Phân tích ĐỀ KIỂM TRA đã được cung cấp, xác định:
-1. Các chủ đề/nội dung kiến thức.
-2. Số lượng câu hỏi theo từng chủ đề.
-3. Mức độ nhận thức:
-   - Nhận biết (NB)
-   - Thông hiểu (TH)
-   - Vận dụng (VD)
-   - Vận dụng cao (VDC)
-4. Phân loại hình thức:
-   - Trắc nghiệm (TN)
-   - Tự luận (TL)
-5. Tính điểm chính xác tuyệt đối.
-
-Môn học: [MON_HOC]
-Lớp: [LOP]
-
-============================================================
-NỘI DUNG ĐỀ KIỂM TRA
-============================================================
-
-[EXAM_TEXT]
-
-============================================================
-YÊU CẦU TRẢ VỀ JSON
-============================================================
-
-CHỈ ĐƯỢC TRẢ VỀ MỘT JSON OBJECT HỢP LỆ.
-TUYỆT ĐỐI KHÔNG:
-- Viết ```json
-- Viết ```
-- Viết lời giải thích bên ngoài JSON.
-- Thêm nhận xét ngoài JSON.
-
-CẤU TRÚC JSON BẮT BUỘC:
-
-{
-  "mon_hoc": "[MON_HOC]",
-  "lop": "[LOP]",
-
-  "ma_tran": [
-    {
-      "chu_de": "Tên chủ đề",
-      "noi_dung": "Nội dung kiến thức",
-
-      "nb_tl": 0,
-      "nb_tn": 0,
-
-      "th_tl": 0,
-      "th_tn": 0,
-
-      "vd_tl": 0,
-      "vd_tn": 0,
-
-      "vdc_tl": 0,
-      "vdc_tn": 0,
-
-      "tong_cau_tl": 0,
-      "tong_cau_tn": 0,
-
-      "tong_diem": 0.0
-    }
-  ],
-
-  "dac_ta": [
-    {
-      "stt": 1,
-      "chu_de": "Tên chủ đề",
-      "noi_dung": "Nội dung kiến thức",
-
-      "yccd": [
-        "Yêu cầu cần đạt 1",
-        "Yêu cầu cần đạt 2"
-      ],
-
-      "cau_tn_nb": 0,
-      "cau_tn_th": 0,
-      "cau_tn_vd": 0,
-      "cau_tn_vdc": 0,
-
-      "cau_tl_nb": 0,
-      "cau_tl_th": 0,
-      "cau_tl_vd": 0,
-      "cau_tl_vdc": 0,
-
-      "tong_diem_dt": 0.0
-    }
-  ]
-}
-
-============================================================
-QUY TẮC TÍNH ĐIỂM BẮT BUỘC
-============================================================
-
-1. Không được tự ý làm tròn sai số liệu.
-
-2. Mỗi câu hỏi phải được tính điểm đúng theo cấu trúc thực tế của đề.
-
-3. Với mỗi chủ đề:
-
-tong_cau_tl =
-nb_tl + th_tl + vd_tl + vdc_tl
-
-tong_cau_tn =
-nb_tn + th_tn + vd_tn + vdc_tn
-
-4. Tổng điểm của từng chủ đề phải bằng tổng điểm thực tế của các câu hỏi thuộc chủ đề đó.
-
-5. Không được tính trùng câu hỏi.
-
-6. Không được bỏ sót câu hỏi.
-
-7. Tổng số câu trong ma_tran phải khớp với tổng số câu thực tế trong đề.
-
-8. Tổng điểm trong ma_tran phải khớp với tổng điểm thực tế của đề.
-
-9. Các số lượng câu phải là số nguyên.
-
-10. Các giá trị điểm phải là số thực hợp lệ.
-
-11. Nếu không xác định chắc chắn chủ đề của một câu hỏi, phải phân loại theo nội dung kiến thức trực tiếp của câu hỏi, không được tự tạo chủ đề không có trong đề.
-
-12. Dữ liệu trong "dac_ta" phải thống nhất với "ma_tran".
-
-13. Tất cả tổng số liệu phải được tính lại trước khi trả JSON.
-
-============================================================
-KIỂM TRA CUỐI CÙNG TRƯỚC KHI TRẢ JSON
-============================================================
-
-- JSON phải hợp lệ.
-- Tất cả dấu ngoặc { } phải cân bằng.
-- Tất cả chuỗi phải nằm trong dấu ngoặc kép.
-- Không có dấu phẩy thừa.
-- Không có Markdown.
-- Không có văn bản ngoài JSON.
 """
 
-# ============================================================
-# THAY BIẾN AN TOÀN - KHÔNG DÙNG F-STRING
-# ============================================================
+            # NHÚNG SCHEMA VÀO PROMPT
+            prompt = f"""
+BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
+NHIỆM VỤ: Đọc đề kiểm tra, tách từng câu, xác định mức độ nhận thức (NB, TH, VD, VDC), tính điểm và trả về JSON chuẩn. TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
 
-prompt = (
-    base_prompt
-    .replace("[MON_HOC]", str(mon_hoc))
-    .replace("[LOP]", str(lop))
-    .replace("[EXAM_TEXT]", exam_text)
-)
+THÔNG TIN: Môn {mon_hoc} | Lớp {lop}
+NỘI DUNG ĐỀ THI:
+{exam_text}
+
+CẤU TRÚC JSON YÊU CẦU:
+```json
+{json_schema}
