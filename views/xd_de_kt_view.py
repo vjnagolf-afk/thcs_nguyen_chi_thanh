@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Bộ công cụ đọc tệp, xử lý dữ liệu đề cương và cấu hình đề kiểm tra chuẩn 5512.
+app.py - Bộ công cụ đọc tệp và xử lý dữ liệu đề cương.
 """
 import streamlit as st
 import sys
@@ -62,7 +62,7 @@ def extract_text_from_file(uploaded_file):
                     continue
             return ""
     except Exception as e:
-        st.error(f"❌ Lỗi đọc tài liệu: {e}")
+        st.error(f"❌ Lỗi đọc tài liệu {uploaded_file.name}: {e}")
         return ""
     return ""
 
@@ -75,15 +75,12 @@ def normalize_outline(text):
     safe_text = " ".join(words[:6000])
     
     if len(words) > 6000:
-        st.warning(f"⚠️ Đề cương gốc rất dài ({len(words):,} từ). AI đã tự động lọc 6,000 từ để bảo vệ hệ thống.")
+        st.warning(f"⚠️ Dữ liệu tải lên rất dài ({len(words):,} từ). AI đã tự động lọc 6,000 từ để bảo vệ hệ thống.")
     return safe_text
 
-# ============================================================
-# GIAO DIỆN CHÍNH
-# ============================================================
 def render_xd_de_kt(ai_engine):
     """Hiển thị giao diện soạn thảo cấu hình đề kiểm tra chuẩn 5512."""
-    st.markdown("### 📝 Soạn thảo Ma trận, Đặc tả & Đề KT (Chuẩn 5512)")
+    st.markdown("### Soạn thảo Ma trận, Đặc tả & Đề KT (Chuẩn 5512)")
     
     # --- KHỐI THÔNG TIN CHUNG ---
     c1, c2, c3, c4, c5, c6 = st.columns([1, 0.8, 1.2, 1, 2, 0.8])
@@ -94,37 +91,19 @@ def render_xd_de_kt(ai_engine):
             "Lịch sử và Địa lý", "Lịch sử", "Địa lý", "Vật lý", "Hóa học", 
             "Sinh học", "Giáo dục công dân", "Giáo dục kinh tế và pháp luật", 
             "Tin học", "Công nghệ", "Giáo dục thể chất", "Khác"
-        ],
+        ], 
         key="de_kt_mon_hoc"
     )
-    lop = c2.selectbox(
-        "Lớp", 
-        ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], 
-        index=2, 
-        key="de_kt_lop"
-    )
-    hinh_thuc = c3.selectbox(
-        "Hình thức", 
-        ["Trắc nghiệm & Tự luận", "100% Trắc nghiệm", "100% Tự luận"],
-        key="de_kt_hinh_thuc"
-    )
-    thoi_gian = c4.selectbox(
-        "Thời gian", 
-        ["15 phút", "45 phút", "60 phút", "90 phút", "120 phút"], 
-        index=3,
-        key="de_kt_thoi_gian"
-    )
+    lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], index=2, key="de_kt_lop")
+    hinh_thuc = c3.selectbox("Hình thức", ["Trắc nghiệm & Tự luận", "100% Trắc nghiệm", "100% Tự luận"], key="de_kt_hinh_thuc")
+    thoi_gian = c4.selectbox("Thời gian", ["15 phút", "45 phút", "60 phút", "90 phút", "120 phút"], index=3, key="de_kt_thoi_gian")
     ten_de = c5.text_input("Tên bài kiểm tra", key="de_kt_ten_de")
     with c6:
         st.markdown("<div style='margin-top: 25px;'></div>", unsafe_allow_html=True)
         bam_sat = st.checkbox("Bám sát đề cương", value=True, key="de_kt_bam_sat")
         
-    # --- KHỐI TẢI TÀI LIỆU ---
-    file_de = st.file_uploader(
-        "📥 Tải đề cương / tài liệu làm căn cứ sinh đề", 
-        type=["pdf", "docx", "txt"], 
-        key="de_kt_file_de_cuong"
-    )
+    # --- KHỐI TẢI NHIỀU TÀI LIỆU CÙNG LÚC ---
+    files_de = st.file_uploader("📥 Tải đề cương / tài liệu (Có thể chọn nhiều file cùng lúc)", type=["pdf", "docx", "txt"], accept_multiple_files=True, key="de_kt_file_de_cuong")
     
     # --- KHỐI THIẾT LẬP TỶ LỆ NHẬN THỨC ---
     with st.expander("📊 Cấu hình Tỷ lệ & Số câu", expanded=True):
@@ -152,7 +131,7 @@ def render_xd_de_kt(ai_engine):
         
         total_diem_tn = (n_nlc * d_nlc) + (n_ds * d_ds) + (n_dk * d_dk) + (n_ngan * d_ngan)
         
-        # --- CẤU TRÚC ĐỀ TỰ LUẬN (GIẢI QUYẾT LỖI TRÀN HÀNG UI) ---
+        # --- CẤU TRÚC ĐỀ TỰ LUẬN ---
         st.markdown("#### PHẦN TỰ LUẬN")
         num_tl = st.number_input("Số câu Tự luận", min_value=0, max_value=10, value=3, key="de_kt_num_tl")
         
@@ -164,13 +143,7 @@ def render_xd_de_kt(ai_engine):
                 for c in range(4):
                     idx = r * 4 + c
                     if idx < num_tl:
-                        p = tl_cols[c].number_input(
-                            f"Câu {idx + 1} (đ)", 
-                            min_value=0.0, 
-                            value=2.0, 
-                            step=0.25, 
-                            key=f"de_kt_tl_p_{idx}"
-                        )
+                        p = tl_cols[c].number_input(f"Câu {idx + 1} (đ)", min_value=0.0, value=2.0, step=0.25, key=f"de_kt_tl_p_{idx}")
                         tl_points.append(p)
                         
         total_diem_tl = sum(tl_points)
@@ -187,106 +160,109 @@ def render_xd_de_kt(ai_engine):
         if tong_ty_le != 100:
             st.error("❌ Tổng tỷ lệ Nhận biết + Thông hiểu + Vận dụng + Vận dụng cao phải bằng 100%.")
             st.stop()
-            
-        if bam_sat and file_de is None:
-            st.error("❌ Thầy/Cô đã tích chọn 'Bám sát đề cương' nhưng chưa tải lên tệp căn cứ.")
+        if bam_sat and not files_de:
+            st.error("❌ Thầy/Cô đã tích chọn 'Bám sát đề cương' nhưng chưa tải lên tệp căn cứ nào.")
             st.stop()
-            
         if abs(total_diem - 10.0) > 0.01:
             st.error(f"❌ Tổng điểm thiết lập hiện tại là {total_diem:.2f}/10. Vui lòng điều chỉnh lại cấu hình số câu/điểm.")
             st.stop()
             
-        with st.spinner("⏳ Hệ thống đang bóc tách và xử lý dữ liệu tài liệu..."):
-            if bam_sat and file_de:
-                raw_outline = extract_text_from_file(file_de)
+        with st.spinner("⏳ Hệ thống đang bóc tách và xử lý dữ liệu từ (các) tài liệu tải lên..."):
+            if bam_sat and files_de:
+                raw_outline = ""
+                for f in files_de:
+                    raw_outline += f"\n--- TÀI LIỆU: {f.name} ---\n"
+                    raw_outline += extract_text_from_file(f)
+                    
                 outline_text = normalize_outline(raw_outline)
                 if not outline_text:
-                    st.error("❌ Không đọc được nội dung từ file đề cương đã tải lên.")
+                    st.error("❌ Không trích xuất được nội dung chữ từ các file đã tải lên.")
                     st.stop()
             else:
                 outline_text = "Không cung cấp đề cương. AI tự động bám sát chương trình GDPT 2018 theo Môn học và Lớp."
+        
+        # --- ĐỊNH VỊ SỐ THỨ TỰ CÂU BẰNG PYTHON ---
+        tong_cau_tn = n_nlc + n_ds + n_dk + n_ngan
+        idx_nlc_start, idx_nlc_end = 1, n_nlc
+        idx_ds_start, idx_ds_end = idx_nlc_end + 1, idx_nlc_end + n_ds
+        idx_dk_start, idx_dk_end = idx_ds_end + 1, idx_ds_end + n_dk
+        idx_ngan_start, idx_ngan_end = idx_dk_end + 1, idx_dk_end + n_ngan
+        idx_tl_start = tong_cau_tn + 1
+        
+        chi_tiet_tu_luan = ""
+        for i, p in enumerate(tl_points):
+            chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
             
-            # --- ĐỊNH VỊ SỐ THỨ TỰ CÂU BẰNG PYTHON ---
-            tong_cau_tn = n_nlc + n_ds + n_dk + n_ngan
-            idx_nlc_start, idx_nlc_end = 1, n_nlc
-            idx_ds_start, idx_ds_end = idx_nlc_end + 1, idx_nlc_end + n_ds
-            idx_dk_start, idx_dk_end = idx_ds_end + 1, idx_ds_end + n_dk
-            idx_ngan_start, idx_ngan_end = idx_dk_end + 1, idx_dk_end + n_ngan
-            idx_tl_start = tong_cau_tn + 1
-            
-            chi_tiet_tu_luan = ""
-            for i, p in enumerate(tl_points):
-                chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
-                
-            # --- XÂY DỰNG RÀNG BUỘC PHẲNG (SỬ DỤNG .FORMAT CHỐNG LỖI NGOẶC NHỌN F-STRING) ---
-            base_prompt = (
-                "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n"
-                "NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON).\n\n"
-                "============================================================\n"
-                "KHUNG CẤU TRÚC ĐỀ BÀI VÀ TỶ LỆ ĐIỂM (KHÔNG THAY ĐỔI)\n"
-                "============================================================\n"
-                "Môn: {mon_hoc} | Lớp: {lop} | Tên bài: {ten_de} | Thời gian: {thoi_gian}\n"
-                "TỶ LỆ: Nhận biết: {nb}% | Thông hiểu: {th}% | Vận dụng: {vd}% | Vận dụng cao: {vdc}%\n\n"
-                "PHẦN I. TRẮC NGHIỆM ({tong_cau_tn} câu, {total_diem_tn} điểm)\n"
-                "- Nhiều lựa chọn (NLC): {n_nlc} câu ({d_nlc}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_nlc_start} đến Câu {idx_nlc_end}\n"
-                "- Đúng/Sai: {n_ds} câu ({d_ds}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_ds_start} đến Câu {idx_ds_end}\n"
-                "- Điền khuyết: {n_dk} câu ({d_dk}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_dk_start} đến Câu {idx_dk_end}\n"
-                "- Trả lời ngắn: {n_ngan} câu ({d_ngan}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_ngan_start} đến Câu {idx_ngan_end}\n\n"
-                "PHẦN II. TỰ LUẬN ({num_tl} câu, {total_diem_tl} điểm)\n"
-                "{chi_tiet_tu_luan}\n\n"
-                "============================================================\n"
-                "QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)\n"
-                "============================================================\n"
-                "1. SỐ THỨ TỰ CÂU HỎI: Phải liên tục từ Câu 1 đến Câu {idx_tl_end}. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.\n"
-                "2. CÔNG THỨC TOÁN HỌC (LaTeX): BẮT BUỘC bọc biểu thức trong cặp dấu $. (Ví dụ: $y = x^2 + 2$). Không bao giờ dùng định dạng mã thô.\n"
-                "3. XỬ LÝ HÌNH VẼ (ĐẶC BIỆT TOÁN/HÌNH HỌC/VẬT LÝ): Hệ thống không thể xuất file ảnh. TUYỆT ĐỐI KHÔNG sử dụng các cụm từ như 'Cho hình vẽ bên'. BẮT BUỘC mô tả toàn bộ giả thiết hình học bằng lời văn chi tiết để học sinh tự vẽ. NẾU câu hỏi bắt buộc phải có đồ thị/mạch điện phức tạp, BẮT BUỘC chèn dòng chữ sau ngay dưới câu hỏi: \n"
-                "`[GIÁO VIÊN CHÈN HÌNH VẼ TẠI ĐÂY: <MÔ TẢ CHI TIẾT ĐỂ GIÁO VIÊN VẼ CHÍNH XÁC HÌNH ĐÓ>]`.\n\n"
-                "TRÌNH BÀY ĐẦU RA BẰNG VĂN BẢN THEO ĐÚNG CÁC TIÊU ĐỀ SAU:\n"
-                "# PHẦN I. PHẠM VI KIẾN THỨC SỬ DỤNG\n"
-                "# PHẦN II. MA TRẬN ĐỀ KIỂM TRA\n"
-                "# PHẦN III. BẢN ĐẶC TẢ\n"
-                "# PHẦN IV. ĐỀ KIỂM TRA\n"
-                "# PHẦN V. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM\n\n"
-                "============================================================\n"
-                "ĐỀ CƯƠNG KIẾN THỨC DUY NHẤT ĐƯỢC DÙNG\n"
-                "============================================================\n"
-                "{outline_text}"
-            )
-            
-            strict_prompt = base_prompt.format(
-                mon_hoc=mon_hoc, lop=lop, ten_de=ten_de, thoi_gian=thoi_gian, nb=nb, th=th, vd=vd, vdc=vdc,
-                tong_cau_tn=tong_cau_tn, total_diem_tn=total_diem_tn, n_nlc=n_nlc, d_nlc=d_nlc,
-                idx_nlc_start=idx_nlc_start, idx_nlc_end=idx_nlc_end, n_ds=n_ds, d_ds=d_ds,
-                idx_ds_start=idx_ds_start, idx_ds_end=idx_ds_end, n_dk=n_dk, d_dk=d_dk,
-                idx_dk_start=idx_dk_start, idx_dk_end=idx_dk_end, n_ngan=n_ngan, d_ngan=d_ngan,
-                num_tl=num_tl, total_diem_tl=total_diem_tl, chi_tiet_tu_luan=chi_tiet_tu_luan.strip(),
-                idx_tl_end=idx_tl_start + num_tl - 1, outline_text=outline_text
-            )
-            
-            with st.spinner("🤖 AI đang soạn thảo ma trận, đặc tả và đề thi chuẩn hóa..."):
-                try:
-                    # Gọi đến hàm xử lý văn bản thuần túy của Engine
-                    result = ai_engine.generate_text(strict_prompt)
-                    if not result or not result.strip():
-                        st.error("❌ AI trả về kết quả rỗng.")
-                        st.stop()
-                        
-                    st.session_state["de_kt_content"] = result
-                    st.session_state["de_kt_config"] = {
-                        "mon_hoc": mon_hoc, "lop": lop, "ten_de": ten_de,
-                        "hinh_thuc": hinh_thuc, "thoi_gian": thoi_gian,
-                        "tong_diem": total_diem, "bam_sat": bam_sat
-                    }
-                    st.success("✅ Đã biên soạn đề thi thành công!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Lỗi sinh đề: {e}")
+        # --- XÂY DỰNG RÀNG BUỘC PHẲNG (FIX LỖI MÔ TẢ HÌNH VẼ) ---
+        base_prompt = (
+            "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n"
+            "NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON hay Code Block).\n\n"
+            "============================================================\n"
+            "KHUNG CẤU TRÚC ĐỀ BÀI VÀ TỶ LỆ ĐIỂM (KHÔNG THAY ĐỔI)\n"
+            "============================================================\n"
+            "Môn: {mon_hoc} | Lớp: {lop} | Tên bài: {ten_de} | Thời gian: {thoi_gian}\n"
+            "TỶ LỆ: Nhận biết: {nb}% | Thông hiểu: {th}% | Vận dụng: {vd}% | Vận dụng cao: {vdc}%\n\n"
+            "PHẦN I. TRẮC NGHIỆM ({tong_cau_tn} câu, {total_diem_tn} điểm)\n"
+            "- Nhiều lựa chọn (NLC): {n_nlc} câu ({d_nlc}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_nlc_start} đến Câu {idx_nlc_end}\n"
+            "- Đúng/Sai: {n_ds} câu ({d_ds}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_ds_start} đến Câu {idx_ds_end}\n"
+            "- Điền khuyết: {n_dk} câu ({d_dk}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_dk_start} đến Câu {idx_dk_end}\n"
+            "- Trả lời ngắn: {n_ngan} câu ({d_ngan}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_ngan_start} đến Câu {idx_ngan_end}\n\n"
+            "PHẦN II. TỰ LUẬN ({num_tl} câu, {total_diem_tl} điểm)\n"
+            "{chi_tiet_tu_luan}\n\n"
+            "============================================================\n"
+            "QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)\n"
+            "============================================================\n"
+            "1. SỐ THỨ TỰ CÂU HỎI: Phải liên tục từ Câu 1 đến Câu {idx_tl_end}. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.\n"
+            "2. CÔNG THỨC TOÁN HỌC (LaTeX): BẮT BUỘC bọc biểu thức trong cặp dấu $. (Ví dụ: $y = x^2 + 2$, $\\Delta$).\n"
+            "3. XỬ LÝ HÌNH HỌC VÀ HÌNH VẼ (ĐẶC BIỆT LƯU Ý):\n"
+            "   - HỆ THỐNG KHÔNG THỂ XUẤT ẢNH. Tuyệt đối KHÔNG dùng các cụm từ như 'Cho hình vẽ bên', 'Theo hình vẽ' trong Đề thi.\n"
+            "   - Nếu trong ĐỀ CƯƠNG có câu hỏi dạng 'Cho hình vẽ', BẠN PHẢI TỰ ĐỘNG CHUYỂN ĐỔI nó thành một bài toán mô tả hoàn toàn bằng chữ (Ví dụ: Cho tam giác ABC vuông tại A, có đường cao AH...).\n"
+            "   - NẾU BẮT BUỘC phải cần hình minh họa để giải bài, hãy chèn DÒNG MÃ SAU dưới câu hỏi để giáo viên tự chèn hình: `[GIÁO VIÊN CHÈN HÌNH VẼ TẠI ĐÂY: <Mô tả chi tiết bằng chữ để giáo viên dễ vẽ>]`.\n\n"
+            "TRÌNH BÀY ĐẦU RA BẰNG VĂN BẢN THEO ĐÚNG CÁC TIÊU ĐỀ SAU:\n"
+            "# PHẦN I. PHẠM VI KIẾN THỨC SỬ DỤNG\n"
+            "# PHẦN II. MA TRẬN ĐỀ KIỂM TRA\n"
+            "# PHẦN III. BẢN ĐẶC TẢ\n"
+            "# PHẦN IV. ĐỀ KIỂM TRA\n"
+            "# PHẦN V. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM\n\n"
+            "============================================================\n"
+            "TẬP HỢP TÀI LIỆU VÀ ĐỀ CƯƠNG KIẾN THỨC ĐƯỢC PHÉP DÙNG\n"
+            "============================================================\n"
+            "{outline_text}"
+        )
+        
+        strict_prompt = base_prompt.format(
+            mon_hoc=mon_hoc, lop=lop, ten_de=ten_de, thoi_gian=thoi_gian, nb=nb, th=th, vd=vd, vdc=vdc,
+            tong_cau_tn=tong_cau_tn, total_diem_tn=total_diem_tn, n_nlc=n_nlc, d_nlc=d_nlc,
+            idx_nlc_start=idx_nlc_start, idx_nlc_end=idx_nlc_end, n_ds=n_ds, d_ds=d_ds,
+            idx_ds_start=idx_ds_start, idx_ds_end=idx_ds_end, n_dk=n_dk, d_dk=d_dk,
+            idx_dk_start=idx_dk_start, idx_dk_end=idx_dk_end, n_ngan=n_ngan, d_ngan=d_ngan,
+            num_tl=num_tl, total_diem_tl=total_diem_tl, chi_tiet_tu_luan=chi_tiet_tu_luan.strip(),
+            idx_tl_end=idx_tl_start + num_tl - 1, outline_text=outline_text
+        )
+        
+        with st.spinner("🤖 AI đang phân tích dữ liệu đa luồng, soạn thảo ma trận và định dạng đề thi..."):
+            try:
+                # Gọi đến hàm xử lý văn bản thuần túy của Engine
+                result = ai_engine.generate_text(strict_prompt)
+                if not result or not result.strip():
+                    st.error("❌ AI trả về kết quả rỗng.")
+                    st.stop()
+                    
+                st.session_state["de_kt_content"] = result
+                st.session_state["de_kt_config"] = {
+                    "mon_hoc": mon_hoc, "lop": lop, "ten_de": ten_de,
+                    "hinh_thuc": hinh_thuc, "thoi_gian": thoi_gian,
+                    "tong_diem": total_diem, "bam_sat": bam_sat
+                }
+                st.success("✅ Đã xử lý xong toàn bộ tài liệu! Đề kiểm tra đã được tối ưu hóa.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Lỗi sinh đề: {e}")
 
     # --- KHỐI HIỂN THỊ KẾT QUẢ VÀ KẾT XUẤT TÀI LIỆU WORD ---
     if "de_kt_content" in st.session_state:
         st.divider()
         st.markdown("## KẾT QUẢ ĐỀ KIỂM TRA")
-        
         if st.button("🗑️ XÓA ĐỀ HIỆN TẠI", key="de_kt_delete"):
             st.session_state.pop("de_kt_content", None)
             st.session_state.pop("de_kt_config", None)
@@ -306,13 +282,6 @@ def render_xd_de_kt(ai_engine):
                 "is_de_kt": True,
                 "title": config.get("ten_de", "Đề kiểm tra")
             })
-            
-            st.download_button(
-                "📥 TẢI XUỐNG FILE WORD (.DOCX)", 
-                data=word_bytes, 
-                file_name="De_Thi_5512.docx", 
-                use_container_width=True, 
-                key="de_kt_download_word"
-            )
+            st.download_button("📥 TẢI XUỐNG FILE WORD (.DOCX)", data=word_bytes, file_name="De_Thi_5512.docx", use_container_width=True, key="de_kt_download_word")
         except Exception as e:
             st.warning(f"⚠️ Tính năng xuất bản Word gặp sự cố hoặc chưa cấu hình thư viện export_word: {e}")
