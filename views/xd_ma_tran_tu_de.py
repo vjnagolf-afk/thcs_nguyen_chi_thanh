@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 import sys
+import json
+import re
 from pathlib import Path
 from io import BytesIO
-import re
+
+# Import thư viện xử lý Template Word
+try:
+    from docxtpl import DocxTemplate
+except ImportError:
+    st.error("⚠️ Thư viện docxtpl chưa được cài đặt. Vui lòng chạy lệnh: pip install docxtpl")
 
 # ============================================================
 # 1. BỘ CÔNG CỤ ĐỌC TÀI LIỆU
@@ -20,11 +27,7 @@ def extract_text_from_file(uploaded_file):
         if file_name.endswith(".pdf"):
             from pypdf import PdfReader
             reader = PdfReader(BytesIO(file_bytes))
-            pages = []
-            for page_number, page in enumerate(reader.pages, start=1):
-                text = page.extract_text()
-                if text and text.strip():
-                    pages.append(f"\n--- TRANG {page_number} ---\n{text.strip()}")
+            pages = [page.extract_text().strip() for page in reader.pages if page.extract_text()]
             return "\n\n".join(pages).strip()
             
         elif file_name.endswith(".docx"):
@@ -47,169 +50,83 @@ def extract_text_from_file(uploaded_file):
             return "\n".join(contents).strip()
             
         elif file_name.endswith(".txt"):
-            for encoding in ["utf-8", "utf-8-sig", "cp1258", "latin-1"]:
-                try:
-                    return file_bytes.decode(encoding).strip()
-                except Exception:
-                    continue
-            return ""
+            for encoding in ["utf-8", "utf-8-sig", "cp1258"]:
+                try: return file_bytes.decode(encoding).strip()
+                except: continue
     except Exception as e:
         st.error(f"❌ Lỗi đọc tài liệu: {e}")
-        return ""
     return ""
 
 def normalize_outline(text):
-    if not text:
-        return ""
+    if not text: return ""
     clean_text = re.sub(r"\s+", " ", text).strip()
-    words = clean_text.split(" ")
-    safe_text = " ".join(words[:6000]) # Tránh tràn Token
-    return safe_text
+    return " ".join(clean_text.split(" ")[:6000]) # Tránh tràn Token
 
 # ============================================================
-# 2. GIAO DIỆN CHÍNH (THẺ PHÂN TÍCH ĐỀ)
+# 2. GIAO DIỆN CHÍNH
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
-    st.markdown("### 🧩 Sinh Ma trận & Đặc tả từ Đề đã có (Dịch ngược)")
+    st.markdown("### 🧩 Sinh Ma trận & Đặc tả (Kiến trúc JSON -> Template)")
     
-    st.info("Tính năng này giúp thầy/cô tải lên một đề thi đã soạn sẵn. AI sẽ phân tích và lập Ma trận, Đặc tả đúng chuẩn form đã cấu hình.")
-
-    # --- KHỐI NHẬP LIỆU GIAO DIỆN ---
     c1, c2 = st.columns([1, 1])
-    mon_hoc = c1.selectbox(
-        "Môn", 
-        [
-            "Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", 
-            "Lịch sử và Địa lý", "Lịch sử", "Địa lý", "Vật lý", "Hóa học", 
-            "Sinh học", "Tin học", "Công nghệ", "Khác"
-        ], 
-        key="mt_mon_hoc"
-    )
+    mon_hoc = c1.selectbox("Môn", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon_hoc")
     lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], index=2, key="mt_lop")
 
-    st.markdown("<br>", unsafe_allow_html=True)
     file_de = st.file_uploader("📥 Tải lên đề kiểm tra (Hỗ trợ PDF, DOCX, TXT)", type=["pdf", "docx", "txt"], key="mt_file_upload")
 
-    col_chk1, col_chk2 = st.columns(2)
-    has_answer = col_chk1.checkbox("☑️ Đề đã có sẵn đáp án ở cuối", value=False)
-    has_image = col_chk2.checkbox("🖼️ Đề có chứa hình ảnh minh họa", value=False)
-
-    # --- NÚT KÍCH HOẠT ---
     if st.button("🔍 PHÂN TÍCH ĐỀ & LẬP MA TRẬN", type="primary", use_container_width=True):
         if not file_de:
-            st.warning("⚠️ Thầy/Cô vui lòng tải lên file đề kiểm tra trước khi phân tích.")
+            st.warning("⚠️ Vui lòng tải lên file đề kiểm tra.")
+            st.stop()
+            
+        # Kiểm tra template có tồn tại không
+        template_path = Path(__file__).resolve().parents[2] / "templates" / "ma_tran_mau.docx"
+        if not template_path.exists():
+            st.error(f"❌ Không tìm thấy file mẫu Word tại: {template_path}. Thầy cần tạo thư mục 'templates' và đặt file 'ma_tran_mau.docx' vào đó.")
             st.stop()
 
-        with st.spinner("⏳ AI đang quét dữ liệu, phân loại nhận thức và xây dựng ma trận..."):
+        with st.spinner("⏳ AI đang bóc tách câu hỏi và xuất dữ liệu JSON..."):
             raw_text = extract_text_from_file(file_de)
             exam_text = normalize_outline(raw_text)
 
-            if not exam_text:
-                st.error("❌ Không trích xuất được văn bản từ file. Vui lòng kiểm tra lại định dạng.")
-                st.stop()
+            # --- PROMPT ÉP TRẢ VỀ JSON THUẦN TÚY ---
+            json_prompt = f"""
+BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
+NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA ĐÃ CÓ, đếm số lượng câu, phân loại mức độ nhận thức và TRẢ VỀ ĐỊNH DẠNG JSON CHUẨN (MÁY ĐỌC). TUYỆT ĐỐI KHÔNG XUẤT VĂN BẢN NÀO KHÁC NGOÀI JSON.
 
-            # --- PROMPT ĐÃ ĐƯỢC ÉP KIỂU LẶP LẠI THẺ HTML ---
-            analysis_prompt = f"""
-BẠN LÀ CHUYÊN GIA KHẢO THÍ GDPT 2018.
-NHIỆM VỤ: Phân tích ĐỀ KIỂM TRA ĐÃ CÓ, đếm số lượng câu, phân loại mức độ nhận thức, tính điểm và TRẢ VỀ KẾT QUẢ ĐÚNG Y HỆT FORM BÊN DƯỚI.
-TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT CÁC THẺ HTML NHƯ `<td colspan=.../>`.
-
-============================================================
-THÔNG TIN ĐỀ THI
-============================================================
-- Môn: {mon_hoc} | Lớp: {lop}
-- NỘI DUNG ĐỀ:
+THÔNG TIN ĐỀ THI: Môn: {mon_hoc} | Lớp: {lop}
+NỘI DUNG ĐỀ:
 {exam_text}
 
-============================================================
-YÊU CẦU ĐẦU RA (BẮT BUỘC COPY ĐÚNG FORM NÀY VÀ ĐIỀN KẾT QUẢ):
-============================================================
-
-MA TRẬN ĐỀ KIỂM TRA, ĐÁNH GIÁ
-CUỐI HỌC KÌ I
-MÔN {mon_hoc.upper()}
-- Thời điểm kiểm tra: Kiểm tra cuối kỳ (Kiến thức từ tuần 01 đến tuần 18)
-- Thời gian làm bài: 90 phút.
-- Hình thức kiểm tra: Kết hợp giữa trắc nghiệm và tự luận 
-- Cấu trúc:
-+ Mức độ đề: 40% Nhận biết; 30% Thông hiểu; 20% Vận dụng; 10% Vận dụng cao.
-+ Phần trắc nghiệm: [ĐIỀN TỔNG ĐIỂM TRẮC NGHIỆM] điểm
-+ Phần tự luận: [ĐIỀN TỔNG ĐIỂM TỰ LUẬN] điểm
-
-I. MA TRẬN ĐỀ KIỂM TRA
-TÊN CHỦ ĐỀ | TÊN BÀI HỌC | MỨC ĐỘ <td colspan=8/> | TỔNG SỐ CÂU <td colspan=2/> | TỔNG ĐIỂM
- |  | NHẬN BIẾT <td colspan=2/> | THÔNG HIỂU <td colspan=2/> | VẬN DỤNG <td colspan=2/> | VẬN DỤNG CAO <td colspan=2/> | <td colspan=2/> | 
- |  | TL | TN | TL | TN | TL | TN | TL | TN | TL | TN | 
-CHÚ Ý BẮT BUỘC: TRƯỚC MỖI DÒNG CHỦ ĐỀ PHẢI CÓ THẺ `<td colspan=13/>` NẰM Ở MỘT DÒNG ĐỘC LẬP NHƯ MẪU DƯỚI ĐÂY:
-<td colspan=13/>
-[Tên chủ đề 1] | [Tên bài học 1] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Cộng câu TL] | [Cộng câu TN] | [Cộng điểm]
-<td colspan=13/>
-[Tên chủ đề 2] | [Tên bài học 2] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Số câu TL] | [Số câu TN] | [Cộng câu TL] | [Cộng câu TN] | [Cộng điểm]
-(Tiếp tục lặp lại cấu trúc trên (bao gồm cả thẻ td colspan) cho đến hết các chủ đề...)
-<td colspan=13/>
-Tổng câu | | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
-Tổng điểm | | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
-% điểm số | | 40% <td colspan=2/> | 30% <td colspan=2/> | 20% <td colspan=2/> | 10% <td colspan=2/> | [Tổng % TL] | [Tổng % TN] | 100%
-
-II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA
-TT | Chủ đề/Chương | Nội dung/Đơn vị kiến thức | Yêu cầu cần đạt | Số câu hỏi/ý hỏi ở các mức độ đánh giá <td colspan=9/> | Tổng điểm
- |  |  |  | Trắc nghiệm khách quan <td colspan=6/> | Tự luận <td colspan=3/> | 
- |  |  |  | Nhiều lựa chọn <td colspan=3/> | Đúng/Sai <td colspan=3/> | <td colspan=3/> | 
- |  |  |  | Biết | Hiểu | Vận dụng | Biết | Hiểu | Vận dụng | Biết | Hiểu | Vận dụng | 
-CHÚ Ý BẮT BUỘC: TRƯỚC MỖI DÒNG ĐẶC TẢ PHẢI CÓ THẺ `<td colspan=14/>` NẰM Ở MỘT DÒNG ĐỘC LẬP NHƯ MẪU DƯỚI ĐÂY:
-<td colspan=14/>
-[Số TT 1] | [Tên Chủ Đề 1] | [Nội dung 1] | [Gạch đầu dòng YCCĐ 1] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Cộng điểm]
-<td colspan=14/>
-[Số TT 2] | [Tên Chủ Đề 2] | [Nội dung 2] | [Gạch đầu dòng YCCĐ 2] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Đếm số] | [Cộng điểm]
-(Tiếp tục lặp lại cấu trúc trên (bao gồm cả thẻ td colspan) cho đến hết các chủ đề...)
-<td colspan=14/>
-Tổng số câu <td colspan=4/> | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | [Cộng] | 
-Tổng số điểm <td colspan=4/> | <td colspan=3/> | <td colspan=3/> | <td colspan=3/> | 
-Tỷ lệ % <td colspan=4/> | <td colspan=3/> | <td colspan=3/> | <td colspan=3/> | 
-"""
-            try:
-                result = ai_engine.generate_text(analysis_prompt)
-                if not result or not result.strip():
-                    st.error("❌ AI không phản hồi.")
-                    st.stop()
-                    
-                st.session_state["mt_content"] = result
-                st.session_state["mt_filename"] = file_de.name
-                st.success("✅ Phân tích hoàn tất! Dữ liệu đã được định dạng chuẩn theo mẫu.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Lỗi xử lý AI: {e}")
-
-    # --- KHỐI HIỂN THỊ KẾT QUẢ VÀ XUẤT WORD ---
-    if "mt_content" in st.session_state:
-        st.divider()
-        st.markdown(f"## 📄 MA TRẬN & ĐẶC TẢ (TỪ TỆP: `{st.session_state.get('mt_filename')}`)")
-        
-        if st.button("🗑️ ĐÓNG VÀ LÀM LẠI", key="mt_delete"):
-            st.session_state.pop("mt_content", None)
-            st.session_state.pop("mt_filename", None)
-            st.rerun()
-            
-        st.markdown(st.session_state["mt_content"], unsafe_allow_html=True)
-        
-        # Xuất Word
-        try:
-            root_path = str(Path(__file__).resolve().parents[2])
-            if root_path not in sys.path:
-                sys.path.insert(0, root_path)
-                
-            from export.export_word import WordExportEngine
-            word_bytes = WordExportEngine.export_to_word({
-                "ai_generated_content": st.session_state["mt_content"],
-                "is_de_kt": False, 
-                "title": "Ma_Tran_Phan_Tich_Tu_De"
-            })
-            st.download_button(
-                "📥 TẢI XUỐNG FILE WORD (.DOCX)", 
-                data=word_bytes, 
-                file_name="Ma_Tran_Dac_Ta.docx", 
-                use_container_width=True, 
-                key="mt_download_word"
-            )
-        except Exception as e:
-            st.warning(f"⚠️ Chưa thể kết xuất Word do lỗi thư viện: {e}")
+YÊU CẦU JSON BẮT BUỘC:
+Trả về 1 chuỗi JSON chứa 2 mảng chính: "ma_tran" và "dac_ta".
+Định dạng mẫu (Tuân thủ tuyệt đối key):
+```json
+{{
+  "mon_hoc": "{mon_hoc}",
+  "lop": "{lop}",
+  "ma_tran": [
+    {{
+      "chu_de": "Tên chủ đề 1",
+      "noi_dung": "Nội dung bài học",
+      "nb_tl": 0, "nb_tn": 8,
+      "th_tl": 0, "th_tn": 4,
+      "vd_tl": 0, "vd_tn": 0,
+      "vdc_tl": 0, "vdc_tn": 0,
+      "tong_cau_tl": 0,
+      "tong_cau_tn": 12,
+      "tong_diem": 4.0
+    }}
+  ],
+  "dac_ta": [
+    {{
+      "stt": 1,
+      "chu_de": "Tên chủ đề 1",
+      "noi_dung": "Nội dung bài học",
+      "yccd": "- Biết khái niệm...\\n- Hiểu cách tính...",
+      "cau_tn_nb": 8, "cau_tn_th": 4, "cau_tn_vd": 0,
+      "cau_tl_nb": 0, "cau_tl_th": 0, "cau_tl_vd": 0,
+      "tong_diem_dt": 4.0
+    }}
+  ]
+}}
