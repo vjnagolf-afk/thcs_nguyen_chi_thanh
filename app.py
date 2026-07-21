@@ -173,7 +173,7 @@ try:
         with tabs[7]: render_tom_tat_gmail(ai_engine)
         with tabs[8]: render_viet_sang_kien(ai_engine_2)
         with tabs[9]: render_cham_sang_kien(ai_engine_2)
-        with tabs[10]: render_xd_tkb
+        with tabs[10]: render_tkb
 except Exception as e:
     st.error("🚨 Lỗi hệ thống trong quá trình tạo giao diện!")
     st.exception(e)
