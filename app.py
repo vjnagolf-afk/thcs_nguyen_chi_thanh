@@ -161,7 +161,7 @@ try:
     # --- PHÂN HỆ 3: QUẢN LÝ TỔ CHUYÊN MÔN ---
     elif phan_he == "Quản lý Tổ chuyên môn":
         st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
-        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Chuyên đề", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail", "Viết sáng kiến", "Chấm sáng kiến"])
+        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Chuyên đề", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail", "Viết sáng kiến", "Chấm sáng kiến","TKB"])
         
         with tabs[0]: render_danh_sach()
         with tabs[1]: render_phan_cong(db)
