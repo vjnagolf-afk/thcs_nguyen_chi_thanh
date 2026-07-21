@@ -8,22 +8,21 @@ from io import BytesIO
 
 
 # ============================================================
-# KIỂM TRA THƯ VIỆN TEMPLATE
+# KIỂM TRA THƯ VIỆN TEMPLATE WORD
 # ============================================================
 
 try:
     from docxtpl import DocxTemplate
 
 except ImportError:
-
     st.error(
-        "⚠️ Thư viện docxtpl chưa được cài đặt. "
+        "⚠️ Chưa cài đặt thư viện docxtpl. "
         "Vui lòng chạy: pip install docxtpl"
     )
 
 
 # ============================================================
-# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN
+# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN ĐỀ KIỂM TRA
 # ============================================================
 
 class ExamTextExtractor:
@@ -40,7 +39,7 @@ class ExamTextExtractor:
             file_bytes = uploaded_file.getvalue()
 
             # ------------------------------------------------
-            # PDF
+            # ĐỌC PDF
             # ------------------------------------------------
 
             if file_name.endswith(".pdf"):
@@ -60,11 +59,11 @@ class ExamTextExtractor:
                             extracted.strip()
                         )
 
-                return "\n".join(pages_text).strip()
+                return "\n".join(pages_text)
 
 
             # ------------------------------------------------
-            # DOCX
+            # ĐỌC DOCX
             # ------------------------------------------------
 
             elif file_name.endswith(".docx"):
@@ -77,12 +76,13 @@ class ExamTextExtractor:
 
                 result = []
 
-                # Đọc paragraph
+                # Đọc đoạn văn
                 for paragraph in doc.paragraphs:
 
                     text = paragraph.text.strip()
 
                     if text:
+
                         result.append(text)
 
 
@@ -101,23 +101,28 @@ class ExamTextExtractor:
                                 .replace("\n", " ")
                             )
 
-                            row_data.append(cell_text)
-
+                            row_data.append(
+                                cell_text
+                            )
 
                         row_text = " | ".join(
-                            filter(None, row_data)
+                            item
+                            for item in row_data
+                            if item
                         )
 
-                        if row_text.strip():
+                        if row_text:
 
-                            result.append(row_text)
+                            result.append(
+                                row_text
+                            )
 
 
-                return "\n".join(result).strip()
+                return "\n".join(result)
 
 
             # ------------------------------------------------
-            # TXT
+            # ĐỌC TXT
             # ------------------------------------------------
 
             elif file_name.endswith(".txt"):
@@ -142,12 +147,16 @@ class ExamTextExtractor:
         except Exception as e:
 
             st.error(
-                f"❌ Lỗi đọc file: {e}"
+                f"❌ Lỗi đọc file đề kiểm tra: {e}"
             )
 
 
         return ""
 
+
+    # --------------------------------------------------------
+    # CHUẨN HÓA VĂN BẢN
+    # --------------------------------------------------------
 
     @staticmethod
     def normalize(text):
@@ -156,19 +165,17 @@ class ExamTextExtractor:
 
             return ""
 
-
-        clean_text = re.sub(
+        text = re.sub(
             r"\s+",
             " ",
             text
         ).strip()
 
+        words = text.split(" ")
 
-        # Giới hạn dữ liệu gửi AI
-        words = clean_text.split(" ")
-
+        # Giới hạn nội dung tránh quá dài
         return " ".join(
-            words[:12000]
+            words[:6000]
         )
 
 
@@ -179,155 +186,134 @@ class ExamTextExtractor:
 class MatrixCalculator:
 
 
-    @staticmethod
-    def to_number(value, default=0):
-
-        """
-        Chuyển mọi dữ liệu số về dạng số an toàn.
-        Ví dụ:
-        '4' -> 4
-        '4.0' -> 4.0
-        None -> 0
-        """
-
-        if value is None:
-
-            return default
-
-
-        if isinstance(
-            value,
-            bool
-        ):
-
-            return int(value)
-
-
-        if isinstance(
-            value,
-            (int, float)
-        ):
-
-            return value
-
-
-        if isinstance(
-            value,
-            str
-        ):
-
-            value = value.strip()
-
-            if not value:
-
-                return default
-
-
-            value = value.replace(
-                ",",
-                "."
-            )
-
-
-            try:
-
-                number = float(value)
-
-                if number.is_integer():
-
-                    return int(number)
-
-                return number
-
-
-            except Exception:
-
-                return default
-
-
-        return default
-
+    # --------------------------------------------------------
+    # BÓC TÁCH JSON TỪ KẾT QUẢ AI
+    # --------------------------------------------------------
 
     @staticmethod
     def parse_ai_json(result_text):
 
-        """
-        Bóc tách JSON an toàn từ kết quả AI.
-
-        Hỗ trợ:
-        1. JSON thuần
-        2. ```json ... ```
-        3. AI có thêm văn bản trước/sau JSON
-        """
-
         if not result_text:
 
-            raise json.JSONDecodeError(
-                "AI không trả về dữ liệu",
-                "",
-                0
+            raise ValueError(
+                "AI không trả về dữ liệu."
             )
 
 
-        text = result_text.strip()
+        result_text = result_text.strip()
 
 
-        # ----------------------------------------------------
-        # Trường hợp 1: Có code block ```json
-        # ----------------------------------------------------
-
-        match = re.search(
+        # Trường hợp AI trả về Markdown JSON
+        json_match = re.search(
             r"```json\s*(.*?)\s*```",
-            text,
-            re.IGNORECASE | re.DOTALL
+            result_text,
+            re.DOTALL | re.IGNORECASE
         )
 
 
-        if match:
+        if json_match:
 
-            json_text = match.group(1).strip()
-
+            json_str = json_match.group(1).strip()
 
         else:
 
-            # ------------------------------------------------
-            # Trường hợp 2: Tìm JSON Object đầu tiên
-            # ------------------------------------------------
-
-            start = text.find("{")
-            end = text.rfind("}")
+            json_str = result_text
 
 
-            if start == -1 or end == -1:
+        # Tìm vùng JSON Object đầu tiên
+        if not json_str.startswith("{"):
 
-                raise json.JSONDecodeError(
-                    "Không tìm thấy JSON Object",
-                    text,
-                    0
+            start_index = json_str.find("{")
+
+            end_index = json_str.rfind("}")
+
+            if (
+                start_index != -1
+                and end_index != -1
+                and end_index > start_index
+            ):
+
+                json_str = json_str[
+                    start_index:
+                    end_index + 1
+                ]
+
+
+        return json.loads(json_str)
+
+
+    # --------------------------------------------------------
+    # ÉP KIỂU SỐ AN TOÀN
+    # --------------------------------------------------------
+
+    @staticmethod
+    def number(value, default=0):
+
+        try:
+
+            if value is None:
+
+                return default
+
+            if isinstance(value, str):
+
+                value = value.replace(
+                    ",",
+                    "."
                 )
 
+            return float(value)
 
-            json_text = text[start:end + 1]
+        except Exception:
+
+            return default
 
 
-        return json.loads(
-            json_text
-        )
-
+    # --------------------------------------------------------
+    # TÍNH LẠI TOÀN BỘ TỔNG
+    # --------------------------------------------------------
 
     @staticmethod
     def calculate_totals(parsed_data):
 
-        """
-        Tính lại toàn bộ tổng bằng Python.
+        if not isinstance(
+            parsed_data,
+            dict
+        ):
 
-        AI chỉ phân loại câu hỏi.
-        Python chịu trách nhiệm tính toán.
-        """
+            raise ValueError(
+                "Dữ liệu AI trả về phải là JSON Object."
+            )
+
+
+        if not isinstance(
+            parsed_data.get(
+                "ma_tran",
+                []
+            ),
+            list
+        ):
+
+            raise ValueError(
+                "Trường 'ma_tran' phải là một mảng JSON."
+            )
+
+
+        if not isinstance(
+            parsed_data.get(
+                "dac_ta",
+                []
+            ),
+            list
+        ):
+
+            raise ValueError(
+                "Trường 'dac_ta' phải là một mảng JSON."
+            )
 
 
         # ----------------------------------------------------
-        # Tổng toàn bài
+        # TỔNG THEO MỨC ĐỘ NHẬN THỨC
         # ----------------------------------------------------
 
         total = {
@@ -350,15 +336,13 @@ class MatrixCalculator:
             "diem_tl": 0.0,
             "diem_tn": 0.0,
 
-            "diem": 0.0,
+            "diem": 0.0
 
-            "phan_tram_tl": 0.0,
-            "phan_tram_tn": 0.0
         }
 
 
         # ----------------------------------------------------
-        # Tính lại từng dòng ma trận
+        # CỘNG DỮ LIỆU TỪNG CHỦ ĐỀ
         # ----------------------------------------------------
 
         for item in parsed_data.get(
@@ -366,10 +350,7 @@ class MatrixCalculator:
             []
         ):
 
-            # --------------------------------------------
-            # Chuẩn hóa các trường số
-            # --------------------------------------------
-
+            # Số câu theo mức độ
             for key in [
 
                 "nb_tl",
@@ -386,131 +367,68 @@ class MatrixCalculator:
 
             ]:
 
-                item[key] = MatrixCalculator.to_number(
-                    item.get(key, 0)
+                total[key] += int(
+                    MatrixCalculator.number(
+                        item.get(
+                            key,
+                            0
+                        )
+                    )
                 )
 
 
-            # --------------------------------------------
-            # Tính tổng câu tự luận
-            # --------------------------------------------
-
-            item["tong_cau_tl"] = (
-
-                item["nb_tl"]
-                + item["th_tl"]
-                + item["vd_tl"]
-                + item["vdc_tl"]
-
-            )
-
-
-            # --------------------------------------------
-            # Tính tổng câu trắc nghiệm
-            # --------------------------------------------
-
-            item["tong_cau_tn"] = (
-
-                item["nb_tn"]
-                + item["th_tn"]
-                + item["vd_tn"]
-                + item["vdc_tn"]
-
-            )
-
-
-            # --------------------------------------------
-            # Chuẩn hóa điểm
-            # --------------------------------------------
-
-            item["tong_diem_tl"] = round(
-
-                MatrixCalculator.to_number(
+            # Tổng số câu tự luận
+            total["cau_tl"] += int(
+                MatrixCalculator.number(
                     item.get(
-                        "tong_diem_tl",
+                        "tong_cau_tl",
                         0
                     )
-                ),
-
-                2
+                )
             )
 
 
-            item["tong_diem_tn"] = round(
-
-                MatrixCalculator.to_number(
+            # Tổng số câu trắc nghiệm
+            total["cau_tn"] += int(
+                MatrixCalculator.number(
                     item.get(
-                        "tong_diem_tn",
+                        "tong_cau_tn",
                         0
                     )
-                ),
-
-                2
+                )
             )
 
 
-            item["tong_diem"] = round(
-
-                item["tong_diem_tl"]
-                + item["tong_diem_tn"],
-
-                2
+            # Tổng điểm tự luận
+            total["diem_tl"] += MatrixCalculator.number(
+                item.get(
+                    "tong_diem_tl",
+                    0
+                )
             )
 
 
-            # --------------------------------------------
-            # Cộng vào tổng
-            # --------------------------------------------
-
-            for key in [
-
-                "nb_tl",
-                "nb_tn",
-
-                "th_tl",
-                "th_tn",
-
-                "vd_tl",
-                "vd_tn",
-
-                "vdc_tl",
-                "vdc_tn"
-
-            ]:
-
-                total[key] += item[key]
-
-
-            total["cau_tl"] += (
-                item["tong_cau_tl"]
-            )
-
-
-            total["cau_tn"] += (
-                item["tong_cau_tn"]
-            )
-
-
-            total["diem_tl"] += (
-                item["tong_diem_tl"]
-            )
-
-
-            total["diem_tn"] += (
-                item["tong_diem_tn"]
+            # Tổng điểm trắc nghiệm
+            total["diem_tn"] += MatrixCalculator.number(
+                item.get(
+                    "tong_diem_tn",
+                    0
+                )
             )
 
 
         # ----------------------------------------------------
-        # TỔNG ĐIỂM CUỐI CÙNG
+        # TÍNH TỔNG ĐIỂM
         # ----------------------------------------------------
 
         total["diem"] = round(
 
             total["diem_tl"]
-            + total["diem_tn"],
+            +
+            total["diem_tn"],
 
             2
+
         )
 
 
@@ -523,25 +441,37 @@ class MatrixCalculator:
             total["phan_tram_tl"] = round(
 
                 total["diem_tl"]
-                / total["diem"]
-                * 100,
+                /
+                total["diem"]
+                *
+                100,
 
                 1
+
             )
 
 
             total["phan_tram_tn"] = round(
 
                 total["diem_tn"]
-                / total["diem"]
-                * 100,
+                /
+                total["diem"]
+                *
+                100,
 
                 1
+
             )
+
+        else:
+
+            total["phan_tram_tl"] = 0
+
+            total["phan_tram_tn"] = 0
 
 
         # ----------------------------------------------------
-        # Gắn tổng vào dữ liệu
+        # GẮN TỔNG VÀO JSON
         # ----------------------------------------------------
 
         parsed_data["tong"] = total
@@ -568,11 +498,13 @@ class DocxTemplateEngine:
         )
 
 
+        # Đổ dữ liệu vào template
         doc.render(
             context_data
         )
 
 
+        # Lưu vào bộ nhớ
         bio = BytesIO()
 
 
@@ -585,6 +517,81 @@ class DocxTemplateEngine:
 
 
 # ============================================================
+# SERVICE 4: KIỂM TRA CẤU TRÚC JSON
+# ============================================================
+
+class MatrixValidator:
+
+
+    @staticmethod
+    def validate(data):
+
+        if not isinstance(
+            data,
+            dict
+        ):
+
+            raise ValueError(
+                "JSON phải là một Object."
+            )
+
+
+        if "ma_tran" not in data:
+
+            raise ValueError(
+                "JSON thiếu trường 'ma_tran'."
+            )
+
+
+        if "dac_ta" not in data:
+
+            raise ValueError(
+                "JSON thiếu trường 'dac_ta'."
+            )
+
+
+        if not isinstance(
+            data["ma_tran"],
+            list
+        ):
+
+            raise ValueError(
+                "'ma_tran' phải là một mảng."
+            )
+
+
+        if not isinstance(
+            data["dac_ta"],
+            list
+        ):
+
+            raise ValueError(
+                "'dac_ta' phải là một mảng."
+            )
+
+
+        if len(
+            data["ma_tran"]
+        ) == 0:
+
+            raise ValueError(
+                "Ma trận không có dữ liệu."
+            )
+
+
+        if len(
+            data["dac_ta"]
+        ) == 0:
+
+            raise ValueError(
+                "Bản đặc tả không có dữ liệu."
+            )
+
+
+        return True
+
+
+# ============================================================
 # VIEW CHÍNH
 # ============================================================
 
@@ -594,7 +601,7 @@ def render_xd_ma_tran_tu_de(
 
 
     st.markdown(
-        "### 🧩 Sinh Ma trận & Đặc tả"
+        "### 🧩 Sinh Ma trận & Đặc tả từ Đề kiểm tra"
     )
 
 
@@ -603,13 +610,13 @@ def render_xd_ma_tran_tu_de(
     # ========================================================
 
     c1, c2 = st.columns(
-        [1, 1]
+        2
     )
 
 
     mon_hoc = c1.selectbox(
 
-        "Môn",
+        "Môn học",
 
         [
 
@@ -693,16 +700,18 @@ def render_xd_ma_tran_tu_de(
 
 
         # ----------------------------------------------------
-        # TÌM FILE TEMPLATE
+        # ĐƯỜNG DẪN TEMPLATE
         # ----------------------------------------------------
 
         template_path = (
 
-            Path(__file__).resolve().parents[1]
-
-            / "templates"
-
-            / "ma_tran_dac_ta_mau.docx"
+            Path(__file__)
+            .resolve()
+            .parents[1]
+            /
+            "templates"
+            /
+            "ma_tran_dac_ta_mau.docx"
 
         )
 
@@ -711,7 +720,7 @@ def render_xd_ma_tran_tu_de(
 
             st.error(
 
-                f"❌ Không tìm thấy file mẫu tại:\n"
+                f"❌ Không tìm thấy file mẫu Word:\n"
                 f"{template_path}"
 
             )
@@ -719,31 +728,27 @@ def render_xd_ma_tran_tu_de(
             st.stop()
 
 
+        # ----------------------------------------------------
+        # ĐỌC ĐỀ
+        # ----------------------------------------------------
+
         with st.spinner(
 
-            "⏳ AI đang phân tích từng câu hỏi..."
+            "⏳ Đang đọc và phân tích đề kiểm tra..."
 
         ):
 
 
-            # =================================================
-            # ĐỌC ĐỀ
-            # =================================================
+            raw_text = ExamTextExtractor.extract(
 
-            raw_text = (
-
-                ExamTextExtractor.extract(
-                    file_de
-                )
+                file_de
 
             )
 
 
-            exam_text = (
+            exam_text = ExamTextExtractor.normalize(
 
-                ExamTextExtractor.normalize(
-                    raw_text
-                )
+                raw_text
 
             )
 
@@ -760,77 +765,109 @@ def render_xd_ma_tran_tu_de(
 
 
             # =================================================
-            # JSON SCHEMA
+            # SCHEMA JSON
             # =================================================
 
-            json_schema = """
+            json_schema = {
 
-{
-  "mon_hoc": "Tên môn học",
-  "lop": "Lớp",
-  "ma_tran": [
-    {
-      "chu_de": "Tên chủ đề",
-      "noi_dung": "Đơn vị kiến thức",
+                "mon_hoc": mon_hoc,
 
-      "nb_tl": 0,
-      "nb_tn": 0,
+                "lop": lop,
 
-      "th_tl": 0,
-      "th_tn": 0,
+                "ma_tran": [
 
-      "vd_tl": 0,
-      "vd_tn": 0,
+                    {
 
-      "vdc_tl": 0,
-      "vdc_tn": 0,
+                        "chu_de": "Tên chủ đề",
 
-      "tong_cau_tl": 0,
-      "tong_cau_tn": 0,
+                        "noi_dung": "Đơn vị kiến thức",
 
-      "tong_diem_tl": 0.0,
-      "tong_diem_tn": 0.0,
+                        "nb_tl": 0,
 
-      "tong_diem": 0.0
-    }
-  ],
+                        "nb_tn": 8,
 
-  "dac_ta": [
-    {
-      "stt": 1,
-      "chu_de": "Tên chủ đề",
-      "noi_dung": "Đơn vị kiến thức",
+                        "th_tl": 0,
 
-      "yccd": "- YCCĐ 1.\\n- YCCĐ 2.",
+                        "th_tn": 4,
 
-      "cau_tn_nb": 0,
-      "cau_tn_th": 0,
-      "cau_tn_vd": 0,
-      "cau_tn_vdc": 0,
+                        "vd_tl": 0,
 
-      "cau_tl_nb": 0,
-      "cau_tl_th": 0,
-      "cau_tl_vd": 0,
-      "cau_tl_vdc": 0,
+                        "vd_tn": 0,
 
-      "ds_cau_hoi": "",
+                        "vdc_tl": 0,
 
-      "tong_diem_dt": 0.0
-    }
-  ]
-}
+                        "vdc_tn": 0,
 
-"""
+                        "tong_cau_tl": 0,
+
+                        "tong_cau_tn": 12,
+
+                        "tong_diem_tl": 0.0,
+
+                        "tong_diem_tn": 3.0,
+
+                        "tong_diem": 3.0
+
+                    }
+
+                ],
+
+                "dac_ta": [
+
+                    {
+
+                        "stt": 1,
+
+                        "chu_de": "Tên chủ đề",
+
+                        "noi_dung": "Đơn vị kiến thức",
+
+                        "yccd": (
+
+                            "- YCCĐ 1.\n"
+
+                            "- YCCĐ 2."
+
+                        ),
+
+                        "cau_tn_nb": 8,
+
+                        "cau_tn_th": 4,
+
+                        "cau_tn_vd": 0,
+
+                        "cau_tn_vdc": 0,
+
+                        "cau_tl_nb": 0,
+
+                        "cau_tl_th": 0,
+
+                        "cau_tl_vd": 0,
+
+                        "cau_tl_vdc": 0,
+
+                        "ds_cau_hoi": (
+
+                            "Câu 1, 2, 3 (NB); "
+
+                            "Câu 4, 5 (TH)"
+
+                        ),
+
+                        "tong_diem_dt": 3.0
+
+                    }
+
+                ]
+
+            }
 
 
             # =================================================
             # PROMPT
-            # KHÔNG DÙNG F-STRING CHO JSON SCHEMA
             # =================================================
 
-            prompt = (
-
-                """
+            prompt = f"""
 
 BẠN LÀ HỆ THỐNG XỬ LÝ DỮ LIỆU KHẢO THÍ.
 
@@ -844,114 +881,74 @@ Xác định:
 
 - Chủ đề
 - Đơn vị kiến thức
-- Hình thức trắc nghiệm hoặc tự luận
-- Mức độ Nhận biết (NB)
-- Mức độ Thông hiểu (TH)
-- Mức độ Vận dụng (VD)
-- Mức độ Vận dụng cao (VDC)
+- Mức độ nhận thức:
+  + NB = Nhận biết
+  + TH = Thông hiểu
+  + VD = Vận dụng
+  + VDC = Vận dụng cao
 
-Sau đó trả về đúng một JSON Object.
+Phân biệt chính xác:
 
-TUYỆT ĐỐI KHÔNG:
+- TN = Trắc nghiệm
+- TL = Tự luận
 
-- Không viết lời giải thích.
-- Không viết Markdown.
-- Không dùng ```json.
-- Không thêm văn bản trước JSON.
-- Không thêm văn bản sau JSON.
+TÍNH ĐIỂM:
 
-============================================================
-THÔNG TIN ĐỀ
-============================================================
+- Không được tự ý thay đổi điểm của đề.
+- Phải căn cứ vào cấu trúc thực tế của đề.
+- Tổng điểm các câu phải khớp với tổng điểm bài kiểm tra.
+- Tổng điểm theo các mức độ phải khớp với tổng điểm toàn bài.
+- Số câu trong ma trận phải khớp với số câu thực tế.
+- Không được tự ý tạo thêm câu hỏi.
+- Không được bỏ sót câu hỏi.
 
-MÔN HỌC:
+QUY TẮC QUAN TRỌNG:
+
+1. Chỉ trả về JSON hợp lệ.
+2. Không được trả về Markdown.
+3. Không được trả về ```json.
+4. Không được thêm lời giải thích.
+5. Tất cả key phải đúng chính xác như schema.
+6. Các giá trị số phải là số JSON thực sự.
+7. Không dùng dấu phẩy thập phân.
+8. Dùng dấu chấm cho số thập phân.
+9. Không được để giá trị số dưới dạng chuỗi.
+
+THÔNG TIN ĐỀ:
+
+Môn học: {mon_hoc}
+
+Lớp: {lop}
+
+
+NỘI DUNG ĐỀ KIỂM TRA:
+
+{exam_text}
+
+
+SCHEMA JSON BẮT BUỘC:
+
+{json.dumps(
+    json_schema,
+    ensure_ascii=False,
+    indent=2
+)}
+
+
+HÃY PHÂN TÍCH VÀ TRẢ VỀ DUY NHẤT MỘT JSON OBJECT.
 """
-                + mon_hoc
-                + """
 
-LỚP:
-"""
-                + lop
-                + """
-
-============================================================
-NỘI DUNG ĐỀ KIỂM TRA
-============================================================
-
-"""
-                + exam_text
-                + """
-
-============================================================
-QUY TẮC TÍNH ĐIỂM
-============================================================
-
-1. Phải phân loại từng câu hỏi.
-
-2. Không được đếm một câu hỏi hai lần.
-
-3. Tổng số câu trong ma_tran phải khớp với đề.
-
-4. Tổng số câu trắc nghiệm phải khớp với số câu trắc nghiệm thực tế.
-
-5. Tổng số câu tự luận phải khớp với số câu tự luận thực tế.
-
-6. Tổng điểm phải khớp với tổng điểm của đề.
-
-7. Nếu đề có điểm cho từng câu hoặc từng ý, phải căn cứ đúng vào đề.
-
-8. Không được tự ý tạo thêm câu hỏi.
-
-9. Không được bỏ sót câu hỏi.
-
-10. Các trường số phải là NUMBER JSON thực sự.
-
-Ví dụ đúng:
-
-"nb_tn": 4
-
-Ví dụ sai:
-
-"nb_tn": "4"
-
-11. Các trường điểm phải là số.
-
-Ví dụ:
-
-"tong_diem_tn": 4.0
-
-12. Các tổng câu trong từng dòng ma_tran phải được tính đúng.
-
-13. Các tổng điểm trong từng dòng ma_tran phải được tính đúng.
-
-14. Các trường tổng cuối cùng sẽ được Python tính lại.
-
-============================================================
-CẤU TRÚC JSON BẮT BUỘC
-============================================================
-
-"""
-                + json_schema
-                + """
-
-============================================================
-ĐỀ KIỂM TRA CẦN PHÂN TÍCH
-============================================================
-
-"""
-                + exam_text
-
-            )
-
-
-            # =================================================
-            # FLOW 1: GỌI AI SINH JSON
-            # =================================================
 
             try:
 
+                # =================================================
+                # FLOW 1: GỌI AI
+                # =================================================
+
                 result = ai_engine.generate_text(
+
                     prompt
+
                 )
 
 
@@ -968,82 +965,31 @@ CẤU TRÚC JSON BẮT BUỘC
                 # FLOW 2: PARSE JSON
                 # =================================================
 
-                parsed_data = (
+                parsed_data = MatrixCalculator.parse_ai_json(
 
-                    MatrixCalculator.parse_ai_json(
-                        result
-                    )
+                    result
 
                 )
 
 
-                if not isinstance(
-                    parsed_data,
-                    dict
-                ):
+                # =================================================
+                # FLOW 3: KIỂM TRA JSON
+                # =================================================
 
-                    raise ValueError(
+                MatrixValidator.validate(
 
-                        "Dữ liệu AI trả về không phải JSON Object."
+                    parsed_data
 
-                    )
+                )
 
 
                 # =================================================
-                # KIỂM TRA CẤU TRÚC
+                # FLOW 4: TÍNH LẠI TỔNG BẰNG PYTHON
                 # =================================================
 
-                if "ma_tran" not in parsed_data:
+                final_data = MatrixCalculator.calculate_totals(
 
-                    raise ValueError(
-
-                        "JSON thiếu trường: ma_tran"
-
-                    )
-
-
-                if "dac_ta" not in parsed_data:
-
-                    raise ValueError(
-
-                        "JSON thiếu trường: dac_ta"
-
-                    )
-
-
-                if not isinstance(
-                    parsed_data["ma_tran"],
-                    list
-                ):
-
-                    raise ValueError(
-
-                        "Trường ma_tran phải là một mảng."
-
-                    )
-
-
-                if not isinstance(
-                    parsed_data["dac_ta"],
-                    list
-                ):
-
-                    raise ValueError(
-
-                        "Trường dac_ta phải là một mảng."
-
-                    )
-
-
-                # =================================================
-                # FLOW 3: TÍNH TOÁN BẰNG PYTHON
-                # =================================================
-
-                final_data = (
-
-                    MatrixCalculator.calculate_totals(
-                        parsed_data
-                    )
+                    parsed_data
 
                 )
 
@@ -1053,22 +999,21 @@ CẤU TRÚC JSON BẮT BUỘC
                 # =================================================
 
                 tong = final_data.get(
+
                     "tong",
+
                     {}
-                )
-
-
-                tong_diem = (
-
-                    tong.get(
-                        "diem",
-                        0
-                    )
 
                 )
 
 
-                if tong_diem <= 0:
+                if tong.get(
+
+                    "diem",
+
+                    0
+
+                ) <= 0:
 
                     raise ValueError(
 
@@ -1078,7 +1023,7 @@ CẤU TRÚC JSON BẮT BUỘC
 
 
                 # =================================================
-                # FLOW 4: XUẤT WORD TEMPLATE
+                # FLOW 5: XUẤT WORD TEMPLATE
                 # =================================================
 
                 word_bytes = (
@@ -1095,30 +1040,38 @@ CẤU TRÚC JSON BẮT BUỘC
 
 
                 # =================================================
-                # FLOW 5: LƯU SESSION STATE
+                # FLOW 6: LƯU SESSION STATE
                 # =================================================
 
                 st.session_state[
+
                     "mt_word_bytes"
+
                 ] = word_bytes
 
 
                 st.session_state[
+
                     "mt_filename"
+
                 ] = Path(
+
                     file_de.name
+
                 ).stem
 
 
                 st.session_state[
+
                     "mt_parsed_data"
+
                 ] = final_data
 
 
                 st.success(
 
-                    "✅ Hệ thống đã phân tích, "
-                    "tính toán và xuất Word thành công!"
+                    "✅ Đã phân tích, tính toán và "
+                    "đổ dữ liệu vào file Word mẫu thành công!"
 
                 )
 
@@ -1126,22 +1079,16 @@ CẤU TRÚC JSON BẮT BUỘC
                 st.rerun()
 
 
-            # =================================================
-            # LỖI JSON
-            # =================================================
-
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
 
                 st.error(
 
-                    "❌ AI không trả về đúng định dạng JSON hợp lệ."
+                    "❌ AI không trả về JSON hợp lệ.\n\n"
+
+                    f"Chi tiết: {e}"
 
                 )
 
-
-            # =================================================
-            # LỖI DỮ LIỆU
-            # =================================================
 
             except ValueError as e:
 
@@ -1152,10 +1099,6 @@ CẤU TRÚC JSON BẮT BUỘC
                 )
 
 
-            # =================================================
-            # LỖI HỆ THỐNG
-            # =================================================
-
             except Exception as e:
 
                 st.error(
@@ -1165,126 +1108,304 @@ CẤU TRÚC JSON BẮT BUỘC
                 )
 
 
+# ============================================================
+# HIỂN THỊ KẾT QUẢ
+# ============================================================
+
+if (
+
+    "mt_parsed_data"
+
+    in st.session_state
+
+):
+
+
+    st.divider()
+
+
+    st.success(
+
+        "🎉 AI ĐÃ PHÂN TÍCH THÀNH CÔNG!"
+
+    )
+
+
+    data = st.session_state[
+
+        "mt_parsed_data"
+
+    ]
+
+
     # ========================================================
-    # 3. HIỂN THỊ KẾT QUẢ
+    # XEM TRƯỚC MA TRẬN
     # ========================================================
 
-    if "mt_word_bytes" in st.session_state:
+    st.markdown(
+
+        "#### 📊 1. MA TRẬN"
+
+    )
 
 
-        st.divider()
+    for index, item in enumerate(
 
+        data.get(
 
-        st.markdown(
+            "ma_tran",
 
-            "### 🎉 KẾT QUẢ XỬ LÝ"
+            []
 
-        )
+        ),
 
+        start=1
 
-        c_btn1, c_btn2 = st.columns(
-            2
-        )
-
-
-        safe_filename = (
-
-            st.session_state.get(
-
-                "mt_filename",
-
-                "HoanChinh"
-
-            )
-
-        )
-
-
-        # ----------------------------------------------------
-        # DOWNLOAD WORD
-        # ----------------------------------------------------
-
-        c_btn1.download_button(
-
-            "📥 TẢI MA TRẬN & ĐẶC TẢ (.DOCX)",
-
-            data=st.session_state[
-                "mt_word_bytes"
-            ],
-
-            file_name=(
-
-                f"MaTran_DacTa_"
-                f"{safe_filename}.docx"
-
-            ),
-
-            use_container_width=True,
-
-            type="primary"
-
-        )
-
-
-        # ----------------------------------------------------
-        # XÓA KẾT QUẢ
-        # ----------------------------------------------------
-
-        if c_btn2.button(
-
-            "🗑️ ĐÓNG & LÀM LẠI",
-
-            use_container_width=True
-
-        ):
-
-
-            st.session_state.pop(
-
-                "mt_word_bytes",
-
-                None
-
-            )
-
-
-            st.session_state.pop(
-
-                "mt_filename",
-
-                None
-
-            )
-
-
-            st.session_state.pop(
-
-                "mt_parsed_data",
-
-                None
-
-            )
-
-
-            st.rerun()
-
-
-        # ----------------------------------------------------
-        # HIỂN THỊ JSON
-        # ----------------------------------------------------
+    ):
 
         with st.expander(
 
-            "👁️ KIỂM TRA DỮ LIỆU JSON "
-            "(GIÁO VIÊN SOÁT LỖI AI)"
+            f"📌 Chủ đề {index}: "
+            f"{item.get('chu_de', '')}"
 
         ):
 
+            st.json(
+
+                item
+
+            )
+
+
+    # ========================================================
+    # XEM TRƯỚC ĐẶC TẢ
+    # ========================================================
+
+    st.markdown(
+
+        "#### 📝 2. BẢN ĐẶC TẢ"
+
+    )
+
+
+    for index, item in enumerate(
+
+        data.get(
+
+            "dac_ta",
+
+            []
+
+        ),
+
+        start=1
+
+    ):
+
+        with st.expander(
+
+            f"📌 Mục {index}: "
+            f"{item.get('chu_de', '')}"
+
+        ):
 
             st.json(
 
-                st.session_state[
-                    "mt_parsed_data"
-                ]
+                item
 
             )
+
+
+    # ========================================================
+    # TỔNG HỢP
+    # ========================================================
+
+    st.markdown(
+
+        "#### 📈 3. TỔNG HỢP ĐIỂM"
+
+    )
+
+
+    tong = data.get(
+
+        "tong",
+
+        {}
+
+    )
+
+
+    col1, col2, col3, col4 = st.columns(
+
+        4
+
+    )
+
+
+    col1.metric(
+
+        "Câu TN",
+
+        tong.get(
+
+            "cau_tn",
+
+            0
+
+        )
+
+    )
+
+
+    col2.metric(
+
+        "Câu TL",
+
+        tong.get(
+
+            "cau_tl",
+
+            0
+
+        )
+
+    )
+
+
+    col3.metric(
+
+        "Điểm TN",
+
+        tong.get(
+
+            "diem_tn",
+
+            0
+
+        )
+
+    )
+
+
+    col4.metric(
+
+        "Điểm TL",
+
+        tong.get(
+
+            "diem_tl",
+
+            0
+
+        )
+
+    )
+
+
+    # ========================================================
+    # NÚT TẢI WORD
+    # ========================================================
+
+    st.divider()
+
+
+    c_btn1, c_btn2 = st.columns(
+
+        2
+
+    )
+
+
+    safe_filename = st.session_state.get(
+
+        "mt_filename",
+
+        "HoanChinh"
+
+    )
+
+
+    c_btn1.download_button(
+
+        "📥 TẢI MA TRẬN & ĐẶC TẢ (.DOCX)",
+
+        data=st.session_state[
+
+            "mt_word_bytes"
+
+        ],
+
+        file_name=(
+
+            f"MaTran_DacTa_"
+
+            f"{safe_filename}.docx"
+
+        ),
+
+        use_container_width=True,
+
+        type="primary"
+
+    )
+
+
+    # ========================================================
+    # XÓA KẾT QUẢ
+    # ========================================================
+
+    if c_btn2.button(
+
+        "🗑️ ĐÓNG & LÀM LẠI",
+
+        use_container_width=True
+
+    ):
+
+
+        st.session_state.pop(
+
+            "mt_word_bytes",
+
+            None
+
+        )
+
+
+        st.session_state.pop(
+
+            "mt_filename",
+
+            None
+
+        )
+
+
+        st.session_state.pop(
+
+            "mt_parsed_data",
+
+            None
+
+        )
+
+
+        st.rerun()
+
+
+    # ========================================================
+    # RAW JSON
+    # ========================================================
+
+    with st.expander(
+
+        "🛠️ XEM DỮ LIỆU JSON GỐC"
+
+    ):
+
+        st.json(
+
+            data
+
+        )
