@@ -129,7 +129,6 @@ try:
         
         with tabs[0]: render_xd_khbd(ai_engine)
         with tabs[1]: render_xd_de_kt(ai_engine)
-        with tabs[1]:  render_xd_ma_tran_tu_de(ai_engine)
         with tabs[2]: render_xd_stem(ai_engine)
         with tabs[3]: render_xd_rubric(ai_engine)
         with tabs[4]: render_xd_chu_nhiem(ai_engine)
@@ -140,7 +139,7 @@ try:
         with tabs[9]: render_xd_live(ai_engine)
         with tabs[10]: render_chuyen_doi(ai_engine) 
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
-
+        with tabs[12]: render_xd_ma_tran_tu_de(ai_engine)
     # --- PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY ---
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
