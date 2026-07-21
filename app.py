@@ -27,7 +27,7 @@ from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
 from modules.ho_tro_gv.xd_live import render_xd_live
 from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
 from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
-from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
+from modules.ho_tro_gv.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
 # --- PHÂN HỆ HỖ TRỢ GIẢNG DẠY ---
 from modules.ho_tro_giang_day.rag_ask import render_rag
 from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
