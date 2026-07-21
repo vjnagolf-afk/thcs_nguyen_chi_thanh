@@ -165,25 +165,34 @@ Trả về 1 chuỗi JSON chứa 2 mảng chính: "ma_tran" và "dac_ta".
   ]
 }}
 """
-try:
-# 1. Gọi AI
-result = ai_engine.generate_text(json_prompt)
-# 2. Xử lý Dữ liệu
+        try:
+            # 1. Gọi AI
+            result = ai_engine.generate_text(json_prompt)
+
+            # 2. Xử lý dữ liệu
             parsed_data = extract_json_from_ai(result)
             final_data = calculate_matrix_totals(parsed_data)
-            
+
             # 3. Đổ vào Word
-            word_bytes = generate_word_from_template(template_path, final_data)
-            
+            word_bytes = generate_word_from_template(
+                template_path,
+                final_data
+            )
+
             # 4. Lưu trạng thái
             st.session_state["mt_word_bytes"] = word_bytes
             st.session_state["mt_filename"] = file_de.name
-            
-            st.success("✅ AI phân tích JSON và chèn vào file Word mẫu thành công tuyệt đối!")
+
+            st.success(
+                "✅ AI phân tích JSON và chèn vào file Word mẫu thành công!"
+            )
             st.rerun()
 
         except json.JSONDecodeError:
-            st.error("❌ AI không trả về đúng chuẩn JSON. Vui lòng thử lại.")
+            st.error(
+                "❌ AI không trả về đúng chuẩn JSON. Vui lòng thử lại."
+            )
+
         except Exception as e:
             st.error(f"❌ Lỗi hệ thống: {e}")
 
