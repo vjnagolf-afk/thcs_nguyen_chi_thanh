@@ -103,6 +103,34 @@ class ExamTextExtractor:
 # SERVICE 2: XỬ LÝ JSON VÀ TÍNH TOÁN MA TRẬN
 # ============================================================
 class MatrixCalculator:
+    # ============================================================
+# SERVICE 3: ĐỘNG CƠ XUẤT FILE WORD
+# ============================================================
+
+class DocxTemplateEngine:
+
+    @staticmethod
+    def render_to_bytes(template_path, context_data):
+
+        try:
+            from docxtpl import DocxTemplate
+
+            # Mở file Word mẫu
+            doc = DocxTemplate(str(template_path))
+
+            # Render dữ liệu vào template
+            doc.render(context_data)
+
+            # Lưu vào bộ nhớ RAM
+            bio = BytesIO()
+            doc.save(bio)
+
+            return bio.getvalue()
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Lỗi khi kết xuất dữ liệu vào file Word: {str(e)}"
+            )
     @staticmethod
     def parse_ai_json(result_text):
         if not result_text:
