@@ -72,7 +72,7 @@ def normalize_outline(text):
         line = re.sub(r"\s+", " ", line)
         lines.append(line)
     result = "\n".join(lines)
-    return result[:60000] # Giới hạn ký tự để tránh vượt token AI
+    return result[:60000]
 
 # ============================================================
 # 3. GIAO DIỆN CHÍNH
@@ -210,20 +210,18 @@ def render_xd_de_kt(ai_engine):
         # --------------------------------------------------------
         tong_cau_tn = n_nlc + n_ds + n_dk + n_ngan
         
-        # Chỉ số Trắc nghiệm
         idx_nlc_start, idx_nlc_end = 1, n_nlc
         idx_ds_start, idx_ds_end = idx_nlc_end + 1, idx_nlc_end + n_ds
         idx_dk_start, idx_dk_end = idx_ds_end + 1, idx_ds_end + n_dk
         idx_ngan_start, idx_ngan_end = idx_dk_end + 1, idx_dk_end + n_ngan
         
-        # Chỉ số Tự luận
         idx_tl_start = tong_cau_tn + 1
         chi_tiet_tu_luan = ""
         for i, p in enumerate(tl_points):
             chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
 
         # --------------------------------------------------------
-        # KHUNG RÀNG BUỘC CHO AI
+        # KHUNG RÀNG BUỘC CHO AI (ĐÃ ESCAPE NGOẶC NHỌN LATEX)
         # --------------------------------------------------------
         strict_prompt = f"""
 BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.
@@ -254,13 +252,13 @@ PHẦN II. TỰ LUẬN ({num_tl} câu, {total_diem_tl} điểm)
 QUY TẮC NGHIÊM NGẶT (NẾU VI PHẠM SẼ BỊ LỖI HỆ THỐNG)
 ============================================================
 1. SỐ THỨ TỰ CÂU HỎI: Phải nối tiếp nhau từ Câu 1 đến Câu {idx_tl_start + num_tl - 1} theo đúng Khung Cấu Trúc ở trên. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.
-2. CÔNG THỨC TOÁN HỌC (LaTeX): Mọi số liệu, biểu thức, phương trình, tọa độ, ký hiệu (VD: phân số, căn bậc hai, lũy thừa, v.v.) BẮT BUỘC phải được bọc trong cặp dấu $ để hiển thị đúng chuẩn LaTeX. (Ví dụ đúng: $y = x^2 + 2$, $\Delta$, $x_1, x_2$. Ví dụ SAI: y = x^2 + 2, delta, x1, x2).
+2. CÔNG THỨC TOÁN HỌC (LaTeX): Mọi số liệu, biểu thức, phương trình, tọa độ, ký hiệu (VD: phân số, căn bậc hai, lũy thừa, v.v.) BẮT BUỘC phải được bọc trong cặp dấu $. (Ví dụ đúng: $y = x^2 + 2$, $\\Delta$, $x_1, x_2$. Ví dụ SAI: y = x^2 + 2, delta, x1, x2).
 3. ĐÁP ÁN NLC: Bắt buộc cung cấp đủ 4 phương án A, B, C, D cho mỗi câu NLC.
 4. TÍNH TOÁN MA TRẬN: Cột "Tổng" (số câu / số điểm) trong Ma trận phải là TỔNG ĐÚNG của các cột Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao trên cùng hàng đó. Không được cộng sai.
 5. XỬ LÝ HÌNH VẼ VÀ ĐỀ BÀI HÌNH HỌC (QUY TẮC BẮT BUỘC)
 - HỆ THỐNG KHÔNG THỂ XUẤT HÌNH ẢNH. Do đó, đối với mọi câu hỏi hình học, TUYỆT ĐỐI KHÔNG ĐƯỢC dùng cụm từ chung chung như "Cho hình vẽ bên..." hay "Dựa vào hình vẽ...".
 - BẮT BUỘC phải mô tả toàn bộ giả thiết hình học bằng lời văn chi tiết ngay trong đề bài để học sinh có đủ dữ liệu đọc và giải mà không cần nhìn hình vẽ minh họa.
-- Ví dụ: Thay vì viết "Cho hình vẽ tính x", phải viết rõ: "Cho tam giác $ABC$ có $AD$ là tia phân giác của góc $\hat{BAC}$ ($D$ thuộc đoạn thẳng $BC$), biết độ dài các đoạn thẳng $AB = 3\text{ cm}$, $AC = 5\text{ cm}$, $BD = 2\text{ cm}$. Tính độ dài đoạn thẳng $DC$ ($x$)?".
+- Ví dụ: Thay vì viết "Cho hình vẽ tính x", phải viết rõ: "Cho tam giác $ABC$ có $AD$ là tia phân giác của góc $\\hat{{BAC}}$ ($D$ thuộc đoạn thẳng $BC$), biết độ dài các đoạn thẳng $AB = 3\\text{{ cm}}$, $AC = 5\\text{{ cm}}$, $BD = 2\\text{{ cm}}$. Tính độ dài đoạn thẳng $DC$ ($x$)?".
 
 TRÌNH BÀY ĐẦU RA THEO THỨ TỰ:
 # PHẦN I. PHẠM VI KIẾN THỨC SỬ DỤNG
