@@ -53,7 +53,7 @@ from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
 from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
 from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
 from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
-
+from modules.quan_ly_to.xd_tkb import render_tkb
 # 4. HÀM CẤU HÌNH ENGINE
 def get_ai_engine_instance():
     if "ai_engine_instance" not in st.session_state:
