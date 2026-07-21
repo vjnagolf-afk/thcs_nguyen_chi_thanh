@@ -6,7 +6,7 @@ from io import BytesIO
 import re
 
 # ============================================================
-# 1. HÀM ĐỌC NỘI DUNG ĐỀ CƯƠNG
+# 1. HÀM ĐỌC NỘI DUNG ĐỀ CƯƠNG (ĐÃ FIX LỖI LẶP DỮ LIỆU BẢNG DOCX)
 # ============================================================
 def extract_text_from_file(uploaded_file):
     if uploaded_file is None:
@@ -28,21 +28,29 @@ def extract_text_from_file(uploaded_file):
                     pages.append(f"\n--- TRANG {page_number} ---\n{text.strip()}")
             return "\n\n".join(pages).strip()
 
-        # DOCX
+        # DOCX (Khắc phục lỗi đọc trùng lặp Paragraph và Table)
         elif file_name.endswith(".docx"):
             from docx import Document
             document = Document(BytesIO(file_bytes))
             contents = []
+            seen_texts = set() # Bộ lọc chống trùng lặp dữ liệu
+
+            # Đọc Paragraphs (nằm ngoài bảng)
             for paragraph in document.paragraphs:
                 text = paragraph.text.strip()
-                if text:
+                if text and text not in seen_texts:
                     contents.append(text)
+                    seen_texts.add(text)
+
+            # Đọc Tables (nằm trong bảng)
             for table in document.tables:
                 for row in table.rows:
                     row_data = [cell.text.strip().replace("\n", " ") for cell in row.cells]
-                    row_text = " | ".join(row_data)
-                    if row_text.strip():
+                    row_text = " | ".join(filter(None, row_data))
+                    if row_text.strip() and row_text not in seen_texts:
                         contents.append(row_text)
+                        seen_texts.add(row_text)
+                        
             return "\n".join(contents).strip()
 
         # TXT
@@ -59,20 +67,22 @@ def extract_text_from_file(uploaded_file):
     return ""
 
 # ============================================================
-# 2. HÀM CHUẨN HÓA ĐỀ CƯƠNG
+# 2. HÀM CHUẨN HÓA ĐỀ CƯƠNG (ĐÃ FIX LỖI TRÀN TOKEN AI)
 # ============================================================
 def normalize_outline(text):
     if not text:
         return ""
-    lines = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        line = re.sub(r"\s+", " ", line)
-        lines.append(line)
-    result = "\n".join(lines)
-    return result[:60000]
+    # Xóa khoảng trắng thừa
+    clean_text = re.sub(r"\s+", " ", text).strip()
+    
+    # Giới hạn an toàn khoảng 6,000 từ (~8,000 tokens) để không gây tràn Context Window
+    words = clean_text.split(" ")
+    safe_text = " ".join(words[:6000])
+    
+    if len(words) > 6000:
+        st.warning(f"⚠️ Đề cương gốc rất dài ({len(words):,} từ). AI đã tự động trích lọc 6,000 từ cốt lõi để đảm bảo an toàn hệ thống.")
+        
+    return safe_text
 
 # ============================================================
 # 3. GIAO DIỆN CHÍNH
@@ -221,11 +231,11 @@ def render_xd_de_kt(ai_engine):
             chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
 
         # --------------------------------------------------------
-        # KHUNG RÀNG BUỘC CHO AI (ĐÃ ESCAPE NGOẶC NHỌN LATEX)
+        # KHUNG RÀNG BUỘC CHO AI (FIX MARKDOWN VÀ HÌNH HỌC)
         # --------------------------------------------------------
         strict_prompt = f"""
 BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.
-NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án tuân thủ TUYỆT ĐỐI các ràng buộc sau.
+NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON).
 
 ============================================================
 THÔNG TIN CHUNG & PHẠM VI KIẾN THỨC
@@ -249,18 +259,21 @@ PHẦN II. TỰ LUẬN ({num_tl} câu, {total_diem_tl} điểm)
 {chi_tiet_tu_luan.strip()}
 
 ============================================================
-QUY TẮC NGHIÊM NGẶT (NẾU VI PHẠM SẼ BỊ LỖI HỆ THỐNG)
+QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)
 ============================================================
 1. SỐ THỨ TỰ CÂU HỎI: Phải nối tiếp nhau từ Câu 1 đến Câu {idx_tl_start + num_tl - 1} theo đúng Khung Cấu Trúc ở trên. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.
-2. CÔNG THỨC TOÁN HỌC (LaTeX): Mọi số liệu, biểu thức, phương trình, tọa độ, ký hiệu (VD: phân số, căn bậc hai, lũy thừa, v.v.) BẮT BUỘC phải được bọc trong cặp dấu $. (Ví dụ đúng: $y = x^2 + 2$, $\\Delta$, $x_1, x_2$. Ví dụ SAI: y = x^2 + 2, delta, x1, x2).
+2. CÔNG THỨC TOÁN HỌC (LaTeX): Mọi số liệu, biểu thức, phương trình, tọa độ, ký hiệu (VD: phân số, căn bậc hai, lũy thừa, v.v.) BẮT BUỘC phải được bọc trong cặp dấu $. (Ví dụ đúng: $y = x^2 + 2$, $\\Delta$, $x_1, x_2$. Ví dụ SAI: y = x^2 + 2, delta, x1, x2). Chú ý sử dụng 2 dấu ngoặc nhọn nếu cần bọc ký tự đặc biệt như $\\hat{{BAC}}$.
 3. ĐÁP ÁN NLC: Bắt buộc cung cấp đủ 4 phương án A, B, C, D cho mỗi câu NLC.
-4. TÍNH TOÁN MA TRẬN: Cột "Tổng" (số câu / số điểm) trong Ma trận phải là TỔNG ĐÚNG của các cột Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao trên cùng hàng đó. Không được cộng sai.
-5. XỬ LÝ HÌNH VẼ VÀ ĐỀ BÀI HÌNH HỌC (QUY TẮC BẮT BUỘC)
-- HỆ THỐNG KHÔNG THỂ XUẤT HÌNH ẢNH. Do đó, đối với mọi câu hỏi hình học, TUYỆT ĐỐI KHÔNG ĐƯỢC dùng cụm từ chung chung như "Cho hình vẽ bên..." hay "Dựa vào hình vẽ...".
-- BẮT BUỘC phải mô tả toàn bộ giả thiết hình học bằng lời văn chi tiết ngay trong đề bài để học sinh có đủ dữ liệu đọc và giải mà không cần nhìn hình vẽ minh họa.
-- Ví dụ: Thay vì viết "Cho hình vẽ tính x", phải viết rõ: "Cho tam giác $ABC$ có $AD$ là tia phân giác của góc $\\hat{{BAC}}$ ($D$ thuộc đoạn thẳng $BC$), biết độ dài các đoạn thẳng $AB = 3\\text{{ cm}}$, $AC = 5\\text{{ cm}}$, $BD = 2\\text{{ cm}}$. Tính độ dài đoạn thẳng $DC$ ($x$)?".
+4. TÍNH TOÁN MA TRẬN: Cột "Tổng" trong Ma trận phải là TỔNG ĐÚNG của các cột tương ứng trên cùng hàng đó. Không được tự ý thay đổi số liệu.
 
-TRÌNH BÀY ĐẦU RA THEO THỨ TỰ:
+5. XỬ LÝ HÌNH VẼ (ĐẶC BIỆT MÔN TOÁN, HÌNH HỌC, VẬT LÝ, SINH HỌC)
+- AI không thể xuất file ảnh. BẠN TUYỆT ĐỐI KHÔNG sinh ra các mã code SVG, TikZ hay chèn link ảnh mạo danh.
+- NẾU CÂU HỎI BẮT BUỘC PHẢI CÓ HÌNH VẼ (ví dụ: Hình học không gian, Đồ thị hàm số, Mạch điện), HÃY THÊM CHÍNH XÁC dòng chữ sau vào ngay dưới nội dung câu hỏi:
+`[GIÁO VIÊN CHÈN HÌNH VẼ TẠI ĐÂY: <MÔ TẢ CHI TIẾT ĐỂ GIÁO VIÊN VẼ CHÍNH XÁC HÌNH ĐÓ>]`
+- Ví dụ: `[GIÁO VIÊN CHÈN HÌNH VẼ TẠI ĐÂY: Vẽ tam giác ABC vuông tại A, có đường cao AH, biết AB = 3cm, AC = 4cm]`.
+- Bắt buộc phải dùng cơ chế giữ chỗ này để nhắc giáo viên thay vì yêu cầu học sinh "nhìn hình bên" mà thực tế không có hình nào cả.
+
+TRÌNH BÀY ĐẦU RA BẰNG VĂN BẢN THEO ĐÚNG CÁC TIÊU ĐỀ SAU (BẮT BUỘC):
 # PHẦN I. PHẠM VI KIẾN THỨC SỬ DỤNG
 # PHẦN II. MA TRẬN ĐỀ KIỂM TRA
 # PHẦN III. BẢN ĐẶC TẢ
@@ -269,6 +282,7 @@ TRÌNH BÀY ĐẦU RA THEO THỨ TỰ:
 """
         with st.spinner("🤖 AI đang soạn thảo ma trận, đề thi và định dạng công thức..."):
             try:
+                # Gọi Text Generation thuần túy thay vì JSON
                 result = ai_engine.generate_text(strict_prompt)
                 
                 if not result or not result.strip():
@@ -283,7 +297,7 @@ TRÌNH BÀY ĐẦU RA THEO THỨ TỰ:
                     "tong_diem": total_diem, "bam_sat": bam_sat
                 }
 
-                st.success("✅ Đã tạo thành công! Khung cấu trúc và số thứ tự đã được bảo đảm.")
+                st.success("✅ Đã tạo thành công! Khung cấu trúc, số thứ tự và khung chèn hình ảnh đã được bảo đảm.")
                 st.rerun()
 
             except Exception as e:
