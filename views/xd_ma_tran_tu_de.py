@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import streamlit as pd
 import streamlit as st
 import json
 import re
@@ -52,8 +53,8 @@ class ExamTextExtractor:
                                     p_txt = p.text.strip()
                                     if p_txt:
                                         table_texts.add(p_txt)
-                            cell_text_clean = cell_text.replace("\n", " ")
-                            row_data.append(cell_text_clean)
+                                cell_text_clean = cell_text.replace("\n", " ")
+                                row_data.append(cell_text_clean)
                         
                         row_text = " | ".join(filter(None, row_data))
                         if row_text:
@@ -65,7 +66,7 @@ class ExamTextExtractor:
                         result.append(text)
                 
                 return "\n".join(result)
-            
+                
             elif file_name.endswith(".txt"):
                 for encoding in ["utf-8", "utf-8-sig", "cp1258"]:
                     try:
@@ -97,13 +98,13 @@ class MatrixCalculator:
         result_text = result_text.strip()
         match = re.search(r"```json\s*(.*?)\s*```", result_text, re.DOTALL | re.IGNORECASE)
         json_str = match.group(1).strip() if match else result_text
-            
+        
         if not json_str.startswith("{"):
             start = json_str.find("{")
             end = json_str.rfind("}")
             if start != -1 and end != -1:
                 json_str = json_str[start:end + 1]
-                
+        
         return json.loads(json_str)
 
     @staticmethod
@@ -122,7 +123,7 @@ class MatrixCalculator:
     def prepare_template_context(parsed_data, mon_hoc):
         if not isinstance(parsed_data, dict):
             raise ValueError("Dữ liệu AI phản hồi không đúng cấu trúc.")
-            
+        
         ma_tran_raw = parsed_data.get("ma_tran", [])
         dac_ta_raw = parsed_data.get("dac_ta", [])
         
@@ -145,7 +146,7 @@ class MatrixCalculator:
                 "tong_so_cau": tong_so_cau,
                 "tong_diem": tong_diem
             })
-            
+        
         dac_ta_data = []
         for item in dac_ta_raw:
             dac_ta_data.append({
@@ -164,13 +165,14 @@ class MatrixCalculator:
                 "tl_vd": MatrixCalculator.to_number(item.get("tl_vd", 0)),
                 "tong_diem": MatrixCalculator.to_number(item.get("tong_diem", 0))
             })
-            
+        
         context = {
             "MON_HOC": mon_hoc,
             "ma_tran_data": ma_tran_data,
             "dac_ta_data": dac_ta_data
         }
         return context
+
 # ============================================================
 # SERVICE 3: ĐỘNG CƠ KẾT XUẤT WORD BẰNG DOCXTPL
 # ============================================================
@@ -186,7 +188,7 @@ class DocxTemplateEngine:
 # 4. VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
-    st.markdown("### 🧩 Sinh Ma trận & Đặc tả Đề kiểm tra (Chuẩn Template Word)")
+    st.markdown("### 📊 Sinh Ma trận & Đặc tả Đề kiểm tra (Chuẩn Template Word)")
     
     c1, c2 = st.columns(2)
     mon_hoc = c1.selectbox("Môn học", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon")
@@ -196,21 +198,21 @@ def render_xd_ma_tran_tu_de(ai_engine):
     
     if st.button("PHÂN TÍCH ĐỀ & LẬP MA TRẬN", type="primary", use_container_width=True):
         if not file_de:
-            st.warning("Vui lòng đính kèm và tải lên file đề kiểm tra trước khi thực hiện phân tích.")
+            st.warning("⚠️ Vui lòng đính kèm và tải lên file đề kiểm tra trước khi thực hiện phân tích.")
             return
-            
+        
         template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_dac_ta_mau.docx"
         if not template_path.exists():
-            st.error(f"Hệ thống thiếu file cấu trúc mẫu tại đường dẫn: {template_path}")
+            st.error(f"❌ Hệ thống thiếu file cấu trúc mẫu tại đường dẫn: {template_path}")
             return
-            
+        
         try:
-            with st.spinner("Hệ thống AI đang đọc dữ liệu tệp và phân tích cấu trúc chi tiết..."):
+            with st.spinner("⏳ Hệ thống AI đang đọc dữ liệu tệp và phân tích cấu trúc chi tiết..."):
                 raw_text = ExamTextExtractor.extract(file_de)
                 exam_text = ExamTextExtractor.normalize(raw_text)
                 
                 if not exam_text:
-                    st.error("Không thể đọc được dữ liệu chữ từ tệp tin này.")
+                    st.error("❌ Không thể đọc được dữ liệu chữ từ tệp tin này.")
                     return
                 
                 json_schema = """
@@ -259,46 +261,49 @@ YÊU CẦU ĐẶC TẢ ('dac_ta'):
 CẤU TRÚC JSON YÊU CẦU ĐẦU RA (CHỈ TRẢ VỀ JSON THUẦN TÚY):
 ```json
 {json_schema}
-try:
-    result = ai_engine.generate_text(prompt)
-    parsed_json = MatrixCalculator.parse_ai_json(result)
-    template_context = MatrixCalculator.prepare_template_context(parsed_json, mon_hoc)
-    word_bytes = DocxTemplateEngine.render_to_bytes(template_path, template_context)
-    
-    st.session_state["processed_matrix_data"] = template_context
-    st.session_state["download_word_bytes"] = word_bytes
-    st.session_state["mt_mon_hoc_file"] = mon_hoc
-    st.session_state["mt_lop_file"] = lop
-    st.success("🎉 Phân tích đề bài và thiết lập file Word mẫu thành công!")
-    
-except json.JSONDecodeError:
-    st.error("❌ AI trả về dữ liệu không đúng chuẩn định dạng JSON. Vui lòng bấm thử lại.")
-except Exception as err:
-    st.error(f"❌ Quá trình phân tích thất bại: {str(err)}")
+```
+"""
+                # Tiến hành gọi AI Engine xử lý chuỗi prompt đã đóng gói
+                result = ai_engine.generate_text(prompt)
+                parsed_json = MatrixCalculator.parse_ai_json(result)
+                template_context = MatrixCalculator.prepare_template_context(parsed_json, mon_hoc)
+                word_bytes = DocxTemplateEngine.render_to_bytes(template_path, template_context)
+                
+                st.session_state["processed_matrix_data"] = template_context
+                st.session_state["download_word_bytes"] = word_bytes
+                st.session_state["mt_mon_hoc_file"] = mon_hoc
+                st.session_state["mt_lop_file"] = lop
+                st.success("🎉 Phân tích đề bài và thiết lập file Word mẫu thành công!")
+                
+        except json.JSONDecodeError:
+            st.error("❌ AI trả về dữ liệu không đúng chuẩn định dạng JSON. Vui lòng bấm thử lại.")
+        except Exception as err:
+            st.error(f"❌ Quá trình phân tích thất bại: {str(err)}")
 
-if "processed_matrix_data" in st.session_state:
-    st.divider()
-    st.markdown("#### 👁️ Xem trước dữ liệu cấu trúc")
-    
-    data = st.session_state["processed_matrix_data"]
-    if data.get("ma_tran_data"):
-        st.markdown("**1. Bảng Ma Trận**")
-        st.dataframe(pd.DataFrame(data["ma_tran_data"]), use_container_width=True)
+    # Hiển thị dữ liệu xem trước và nút bấm tải xuống
+    if "processed_matrix_data" in st.session_state:
+        st.divider()
+        st.markdown("#### 👁️ Xem trước dữ liệu cấu trúc")
         
-    if data.get("dac_ta_data"):
-        st.markdown("**2. Bản Đặc Tả**")
-        st.dataframe(pd.DataFrame(data["dac_ta_data"]), use_container_width=True)
+        data = st.session_state["processed_matrix_data"]
+        if data.get("ma_tran_data"):
+            st.markdown("**1. Bảng Ma Trận**")
+            st.dataframe(pd.DataFrame(data["ma_tran_data"]), use_container_width=True)
+            
+        if data.get("dac_ta_data"):
+            st.markdown("**2. Bản Đặc Tả**")
+            st.dataframe(pd.DataFrame(data["dac_ta_data"]), use_container_width=True)
+            
+        st.markdown("<br>", unsafe_allow_html=True)
         
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    safe_mon = st.session_state.get('mt_mon_hoc_file', 'Mon')
-    safe_lop = st.session_state.get('mt_lop_file', 'Lop')
-    
-    st.download_button(
-        label="📥 TẢI XUỐNG FILE WORD MA TRẬN & ĐẶC TẢ (.DOCX)",
-        data=st.session_state["download_word_bytes"],
-        file_name=f"Ma_tran_Dac_ta_{safe_mon}_{safe_lop}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True,
-        type="primary"
-    )
+        safe_mon = st.session_state.get('mt_mon_hoc_file', 'Mon')
+        safe_lop = st.session_state.get('mt_lop_file', 'Lop')
+        
+        st.download_button(
+            label="📥 TẢI XUỐNG FILE WORD MA TRẬN & ĐẶC TẢ (.DOCX)",
+            data=st.session_state["download_word_bytes"],
+            file_name=f"Ma_tran_Dac_ta_{safe_mon}_{safe_lop}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+            type="primary"
+        )
