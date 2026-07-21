@@ -174,9 +174,10 @@ try:
         with tabs[8]: render_viet_sang_kien(ai_engine_2)
         with tabs[9]: render_cham_sang_kien(ai_engine_2)
         with tabs[10]: render_tkb(db)
-    elif phan_he == "Ứng dụng khác":
-        from views.ung_dung_khac import render_ung_dung_khac
-        render_ung_dung_khac()
+    elif phanh_he == "Ứng dụng khác":
+        from modules.ung_dung_khac.main import render_ung_dung_khac
+        render_ung_dung_khac(ai_engine)
+
 except Exception as e:
     st.error("🚨 Lỗi hệ thống trong quá trình tạo giao diện!")
     st.exception(e)
