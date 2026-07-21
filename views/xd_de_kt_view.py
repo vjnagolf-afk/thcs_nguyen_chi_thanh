@@ -194,21 +194,28 @@ def render_xd_de_kt(ai_engine):
             chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
             
         # --- XÂY DỰNG RÀNG BUỘC PHẲNG ---
+        # --- XÂY DỰNG RÀNG BUỘC PHẲNG ---
         base_prompt = (
             "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n"
             "NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON hay Code Block).\n\n"
+            
+            # ... (Các phần trên giữ nguyên) ...
+
             "============================================================\n"
-            "KHUNG CẤU TRÚC ĐỀ BÀI VÀ TỶ LỆ ĐIỂM (KHÔNG THAY ĐỔI)\n"
+            "QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)\n"
             "============================================================\n"
-            "Môn: {mon_hoc} | Lớp: {lop} | Tên bài: {ten_de} | Thời gian: {thoi_gian}\n"
-            "TỶ LỆ: Nhận biết: {nb}% | Thông hiểu: {th}% | Vận dụng: {vd}% | Vận dụng cao: {vdc}%\n\n"
-            "PHẦN I. TRẮC NGHIỆM ({tong_cau_tn} câu, {total_diem_tn} điểm)\n"
-            "- Nhiều lựa chọn (NLC): {n_nlc} câu ({d_nlc}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_nlc_start} đến Câu {idx_nlc_end}\n"
-            "- Đúng/Sai: {n_ds} câu ({d_ds}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_ds_start} đến Câu {idx_ds_end}\n"
-            "- Điền khuyết: {n_dk} câu ({d_dk}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_dk_start} đến Câu {idx_dk_end}\n"
-            "- Trả lời ngắn: {n_ngan} câu ({d_ngan}đ/câu) -> BẮT BUỘC Đánh số từ Câu {idx_ngan_start} đến Câu {idx_ngan_end}\n\n"
-            "PHẦN II. TỰ LUẬN ({num_tl} câu, {total_diem_tl} điểm)\n"
-            "{chi_tiet_tu_luan}\n\n"
+            "1. SỐ THỨ TỰ CÂU HỎI: Phải liên tục từ Câu 1 đến Câu {idx_tl_end}. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.\n"
+            
+            # --- ĐÂY LÀ ĐOẠN ĐÃ ĐƯỢC NÂNG CẤP ĐỂ SỬA LỖI WORD ---
+            "2. CÔNG THỨC TOÁN HỌC VÀ KÝ HIỆU (QUAN TRỌNG):\n"
+            "   - MỌI biểu thức, số liệu, lũy thừa (VD: a^2), đơn vị (VD: cm^2) BẮT BUỘC phải bọc trong cặp dấu $. (Ví dụ đúng: $S = a^2 = 16\\text{{ cm}}^2$).\n"
+            "   - Áp dụng quy tắc bọc dấu $ này cho CẢ PHẦN ĐỀ BÀI LẪN PHẦN ĐÁP ÁN.\n"
+            "   - TUYỆT ĐỐI KHÔNG để lộ mã thô như a^2 hay cm^2 ra ngoài văn bản thường.\n"
+            "   - Đối với ký hiệu SONG SONG, TUYỆT ĐỐI KHÔNG dùng mã \\parallel. Bắt buộc phải dùng ký hiệu // thông thường (Ví dụ viết: $AB // CD$).\n"
+            # ---------------------------------------------------
+
+            "3. XỬ LÝ HÌNH HỌC VÀ HÌNH VẼ (ĐẶC BIỆT LƯU Ý):\n"
+            # ... (Các phần dưới giữ nguyên) ...
             "============================================================\n"
             "QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)\n"
             "============================================================\n"
