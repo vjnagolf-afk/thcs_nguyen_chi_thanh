@@ -260,97 +260,558 @@ class WordMatrixEngine:
         doc.save(bio)
         return bio.getvalue()
 # ============================================================
-# VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN (TƯƠNG THÍCH EXAMAIENGINE)
+# VIEW CHÍNH VÀ ĐIỀU HƯỚNG GIAO DIỆN
 # ============================================================
 def render_xd_ma_tran_tu_de(ai_engine):
-    """
-    ai_engine: là một thực thể (instance) của lớp ExamAIEngine đã được khởi tạo
-               ví dụ: ai_engine = ExamAIEngine(gemini_api_key="...")
-    """
-    st.markdown("### Sinh Ma trận & Đặc tả Đề kiểm tra")
-    
-    # Cấu hình thanh chọn thông tin đề bài từ giáo viên
-    c1, c2 = st.columns(2)
-    mon_hoc = c1.selectbox("Môn học", ["Khoa học Tự nhiên", "Toán học", "Ngữ văn", "Ngoại ngữ", "Khác"], key="mt_mon")
-    lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], index=2, key="mt_lop")
-    
-    file_de = st.file_uploader("Tải lên tệp đề kiểm tra hiện tại", type=["pdf", "docx", "txt"], key="mt_file")
-    
-    if st.button("PHÂN TÍCH ĐỀ & LẬP MA TRẬN", type="primary", use_container_width=True):
-        if not file_de:
-            st.warning("Vui lòng đính kèm và tải lên file đề kiểm tra trước khi thực hiện phân tích.")
-            return
-            
-        # Tìm đường dẫn file mẫu Word trong thư mục templates
-        template_path = Path(__file__).resolve().parents[1] / "templates" / "ma_tran_dac_ta_mau.docx"
-        if not template_path.exists():
-            st.error(f"Hệ thống thiếu file cấu trúc mẫu tại đường dẫn: {template_path}")
-            return
-            
-        # --- BẮT ĐẦU VÒNG XỬ LÝ AN TOÀN CHỐNG SẬP (CRASH-PROOF) ---
-        try:
-            with st.spinner("Hệ thống AI đang đọc dữ liệu tệp và phân tích cấu trúc đề..."):
-                # 1. Đọc và chuẩn hóa nội dung văn bản đề bài từ File gửi lên
-                raw_text = ExamTextExtractor.extract(file_de)
-                exam_text = ExamTextExtractor.normalize(raw_text)
-                
-                if not exam_text:
-                    st.error("Không thể đọc được dữ liệu chữ từ tệp tin này. Hãy thử kiểm tra lại tệp tin.")
-                    return
-                
-                # 2. Xây dựng cấu trúc Exam Contract theo đúng định dạng nghiệp vụ yêu cầu (Trang 7)
-                # Hệ thống yêu cầu: subject, grade, duration, total_score, question_blueprint
-                # Lưu ý: Cần điều chỉnh blueprint động dựa theo đề, đoạn này tạo khung hợp đồng mẫu
-                exam_contract = {
-                    "subject": mon_hoc,
-                    "grade": lop,
-                    "duration": 90,  # Thời gian làm bài mặc định (phút)
-                    "total_score": 10.0,  # Tổng điểm bắt buộc bằng 10.0 theo luật thẩm định hệ thống
-                    "question_blueprint": [
-                        # Khung blueprint mẫu để AI bám theo sinh và ánh xạ số câu
-                        {"question_no": 1, "question_type": "NLC", "points": 0.25},
-                        {"question_no": 2, "question_type": "NLC", "points": 0.25},
-                        {"question_no": 3, "question_type": "TL", "points": 1.0}
-                    ]
-                }
-                
-                # 3. GỌI CHÍNH XÁC HÀM ĐIỀU PHỐI CỦA EXAMAIENGINE (Đã sửa lỗi attribute)
-                # Truyền exam_contract và nội dung văn bản đề bài (đóng vai trò outline_text)
-                validated_data = ai_engine.generate_exam(
-                    exam_contract=exam_contract,
-                    outline_text=exam_text,
-                    additional_materials="Yêu cầu trích xuất cấu trúc ma trận và đặc tả từ đề bài trên."
-                )
-                
-                # 4. Đổ dữ liệu đã được AI xử lý và hậu kiểm xong xuôi vào file Word template
-                word_bytes = WordMatrixEngine.render_to_bytes(template_path, validated_data)
-                
-                # Lưu thông tin tạm vào session_state để hiển thị bản trực quan lên giao diện
-                st.session_state["processed_matrix_data"] = validated_data
-                st.session_state["download_word_bytes"] = word_bytes
-                st.success("🎉 Phân tích đề bài và tự động thiết lập ma trận thành công!")
 
-        except Exception as err:
-            # Bọc giữ lỗi an toàn, hiển thị thông báo nghiệp vụ rõ ràng (ExamContractError, ExamOutputError,...)
-            st.error(f"❌ Quá trình phân tích thất bại do lỗi hệ thống: {str(err)}")
-            
-    # --- PHẦN TỐI ƯU UX: HIỂN THỊ XEM TRƯỚC VÀ NÚT TẢI XUỐNG ---
-    if "processed_matrix_data" in st.session_state:
-        st.markdown("#### Đã phân tích - Xem trước bảng dữ liệu ma trận sơ bộ")
-        
-        # Nếu AI trả về cấu trúc gồm trường 'matrix', hiển thị trực quan lên Streamlit
-        matrix_data = st.session_state["processed_matrix_data"].get("matrix", [])
-        if matrix_data:
-            df_preview = pd.DataFrame(matrix_data)
-            st.dataframe(df_preview, use_container_width=True)
-        else:
-            st.info("Hệ thống đã lưu tệp dữ liệu, sẵn sàng tải xuống.")
-        
-        st.download_button(
-            label="📥 TẢI XUỐNG FILE WORD MA TRẬN & ĐẶC TẢ (.DOCX)",
-            data=st.session_state["download_word_bytes"],
-            file_name=f"Ma_tran_Dac_ta_{mon_hoc}_{lop}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
+    st.markdown("### 🧩 Sinh Ma trận & Đặc tả Đề kiểm tra")
+
+    # ========================================================
+    # 1. CẤU HÌNH ĐỀ
+    # ========================================================
+    c1, c2 = st.columns(2)
+
+    mon_hoc = c1.selectbox(
+        "Môn học",
+        [
+            "Khoa học Tự nhiên",
+            "Toán học",
+            "Ngữ văn",
+            "Ngoại ngữ",
+            "Khác"
+        ],
+        key="mt_mon"
+    )
+
+    lop = c2.selectbox(
+        "Lớp",
+        [
+            "Lớp 6",
+            "Lớp 7",
+            "Lớp 8",
+            "Lớp 9",
+            "Lớp 10",
+            "Lớp 11",
+            "Lớp 12"
+        ],
+        index=2,
+        key="mt_lop"
+    )
+
+    file_de = st.file_uploader(
+        "📥 Tải lên tệp đề kiểm tra hiện tại",
+        type=["pdf", "docx", "txt"],
+        key="mt_file"
+    )
+
+    # ========================================================
+    # 2. NÚT PHÂN TÍCH
+    # ========================================================
+    if st.button(
+        "🔍 PHÂN TÍCH ĐỀ & LẬP MA TRẬN",
+        type="primary",
+        use_container_width=True
+    ):
+
+        if not file_de:
+            st.warning(
+                "⚠️ Vui lòng đính kèm file đề kiểm tra trước khi phân tích."
+            )
+            return
+
+        # ====================================================
+        # 3. TÌM FILE WORD TEMPLATE
+        # ====================================================
+        template_path = (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "ma_tran_dac_ta_mau.docx"
         )
 
+        if not template_path.exists():
+            st.error(
+                f"❌ Không tìm thấy file mẫu Word:\n"
+                f"{template_path}"
+            )
+            return
+
+        # ====================================================
+        # 4. TOÀN BỘ LUỒNG XỬ LÝ ĐƯỢC BỌC TRY-EXCEPT
+        # ====================================================
+        try:
+
+            with st.spinner(
+                "⏳ AI đang đọc đề, phân loại mức độ và xây dựng ma trận..."
+            ):
+
+                # ------------------------------------------------
+                # FLOW 1: ĐỌC ĐỀ
+                # ------------------------------------------------
+                raw_text = ExamTextExtractor.extract(file_de)
+
+                exam_text = ExamTextExtractor.normalize(
+                    raw_text
+                )
+
+                if not exam_text:
+                    raise ValueError(
+                        "Không đọc được nội dung văn bản từ file đề."
+                    )
+
+                # ------------------------------------------------
+                # FLOW 2: SCHEMA JSON
+                # ------------------------------------------------
+                json_schema = """
+{
+  "mon_hoc": "Tên môn học",
+  "lop": "Lớp",
+
+  "ma_tran": [
+    {
+      "chu_de": "Tên chủ đề",
+      "noi_dung": "Đơn vị kiến thức",
+
+      "nb_tl": 0,
+      "nb_tn": 0,
+
+      "th_tl": 0,
+      "th_tn": 0,
+
+      "vd_tl": 0,
+      "vd_tn": 0,
+
+      "vdc_tl": 0,
+      "vdc_tn": 0,
+
+      "tong_cau_tl": 0,
+      "tong_cau_tn": 0,
+
+      "tong_diem_tl": 0.0,
+      "tong_diem_tn": 0.0,
+
+      "tong_diem": 0.0
+    }
+  ],
+
+  "dac_ta": [
+    {
+      "stt": 1,
+      "chu_de": "Tên chủ đề",
+      "noi_dung": "Đơn vị kiến thức",
+
+      "yccd": "- YCCĐ 1.\\n- YCCĐ 2.",
+
+      "cau_tn_nb": 0,
+      "cau_tn_th": 0,
+      "cau_tn_vd": 0,
+      "cau_tn_vdc": 0,
+
+      "cau_tl_nb": 0,
+      "cau_tl_th": 0,
+      "cau_tl_vd": 0,
+      "cau_tl_vdc": 0,
+
+      "ds_cau_hoi": "Câu 1, Câu 2",
+
+      "tong_diem_dt": 0.0
+    }
+  ]
+}
+"""
+
+                # ------------------------------------------------
+                # FLOW 3: PROMPT
+                # ------------------------------------------------
+                prompt = f"""
+BẠN LÀ HỆ THỐNG PHÂN TÍCH KHẢO THÍ.
+
+NHIỆM VỤ:
+Đọc đề kiểm tra được cung cấp.
+Phân tích từng câu hỏi.
+Xác định:
+- Chủ đề
+- Đơn vị kiến thức
+- Mức độ nhận thức:
+  + NB = Nhận biết
+  + TH = Thông hiểu
+  + VD = Vận dụng
+  + VDC = Vận dụng cao
+- Hình thức:
+  + TN = Trắc nghiệm
+  + TL = Tự luận
+
+Sau đó trả về DUY NHẤT một JSON hợp lệ.
+
+THÔNG TIN ĐỀ:
+Môn học: {mon_hoc}
+Lớp: {lop}
+
+NỘI DUNG ĐỀ:
+{exam_text}
+
+==================================================
+QUY TẮC TÍNH ĐIỂM BẮT BUỘC
+==================================================
+
+1. Phải phân tích đúng số lượng câu thực tế trong đề.
+
+2. Không được tự ý thêm câu hỏi không tồn tại.
+
+3. Không được bỏ sót câu hỏi.
+
+4. Mỗi câu hỏi chỉ được phân loại vào một:
+   - NB
+   - TH
+   - VD
+   - VDC
+
+5. Tổng số câu trong ma_tran phải khớp với đề thực tế.
+
+6. Tổng số câu trong dac_ta phải khớp với ma_tran.
+
+7. Với từng chủ đề:
+
+   tong_cau_tl =
+   nb_tl + th_tl + vd_tl + vdc_tl
+
+   tong_cau_tn =
+   nb_tn + th_tn + vd_tn + vdc_tn
+
+8. Điểm tự luận:
+
+   tong_diem_tl =
+   tổng điểm các câu tự luận thuộc chủ đề.
+
+9. Điểm trắc nghiệm:
+
+   tong_diem_tn =
+   tổng điểm các câu trắc nghiệm thuộc chủ đề.
+
+10. Tổng điểm:
+
+   tong_diem =
+   tong_diem_tl + tong_diem_tn
+
+11. Tất cả giá trị số phải là số thực hoặc số nguyên hợp lệ.
+
+12. Không được dùng dấu phẩy trong số thập phân.
+    Ví dụ đúng: 0.25
+    Ví dụ sai: 0,25
+
+13. Không được trả về Markdown.
+
+14. Không được trả về giải thích.
+
+15. CHỈ TRẢ VỀ JSON.
+
+==================================================
+CẤU TRÚC JSON BẮT BUỘC
+==================================================
+
+{json_schema}
+
+==================================================
+ĐỀ KIỂM TRA CẦN PHÂN TÍCH
+==================================================
+
+{exam_text}
+"""
+
+                # =================================================
+                # FLOW 4: GỌI AI
+                # =================================================
+                result = ai_engine.generate_text(prompt)
+
+                if not result:
+                    raise ValueError(
+                        "AI không trả về dữ liệu."
+                    )
+
+                # =================================================
+                # FLOW 5: PARSE JSON
+                # =================================================
+                parsed_data = (
+                    MatrixCalculator.parse_ai_json(
+                        result
+                    )
+                )
+
+                if not isinstance(
+                    parsed_data,
+                    dict
+                ):
+                    raise ValueError(
+                        "Dữ liệu AI trả về không phải JSON Object."
+                    )
+
+                if "ma_tran" not in parsed_data:
+                    raise ValueError(
+                        "JSON thiếu trường ma_tran."
+                    )
+
+                if "dac_ta" not in parsed_data:
+                    raise ValueError(
+                        "JSON thiếu trường dac_ta."
+                    )
+
+                # =================================================
+                # FLOW 6: TÍNH TOÁN LẠI BẰNG PYTHON
+                # =================================================
+                final_data = (
+                    MatrixCalculator.calculate_totals(
+                        parsed_data
+                    )
+                )
+
+                # =================================================
+                # FLOW 7: XUẤT WORD TEMPLATE
+                # =================================================
+                word_bytes = (
+                    DocxTemplateEngine.render_to_bytes(
+                        template_path,
+                        final_data
+                    )
+                )
+
+                if not word_bytes:
+                    raise ValueError(
+                        "Không tạo được file Word."
+                    )
+
+                # =================================================
+                # FLOW 8: LƯU SESSION STATE
+                # =================================================
+                st.session_state[
+                    "processed_matrix_data"
+                ] = final_data
+
+                st.session_state[
+                    "download_word_bytes"
+                ] = word_bytes
+
+                st.session_state[
+                    "mt_mon_hoc_file"
+                ] = mon_hoc
+
+                st.session_state[
+                    "mt_lop_file"
+                ] = lop
+
+                st.session_state[
+                    "mt_filename"
+                ] = Path(
+                    file_de.name
+                ).stem
+
+                st.success(
+                    "🎉 Phân tích đề và tạo dữ liệu ma trận thành công!"
+                )
+
+        except json.JSONDecodeError:
+
+            st.error(
+                "❌ AI trả về dữ liệu không đúng chuẩn JSON."
+            )
+
+        except ValueError as err:
+
+            st.error(
+                f"⚠️ Dữ liệu không hợp lệ: {err}"
+            )
+
+        except Exception as err:
+
+            st.error(
+                f"❌ Quá trình xử lý thất bại: {err}"
+            )
+
+    # ============================================================
+    # 5. HIỂN THỊ KẾT QUẢ
+    # ============================================================
+    if "processed_matrix_data" in st.session_state:
+
+        st.divider()
+
+        st.markdown(
+            "## 🎉 KẾT QUẢ PHÂN TÍCH"
+        )
+
+        data = (
+            st.session_state[
+                "processed_matrix_data"
+            ]
+        )
+
+        # ========================================================
+        # XEM TRƯỚC MA TRẬN
+        # ========================================================
+        st.markdown(
+            "### 📊 1. MA TRẬN ĐỀ KIỂM TRA"
+        )
+
+        if data.get("ma_tran"):
+
+            df_mt = pd.DataFrame(
+                data["ma_tran"]
+            )
+
+            st.dataframe(
+                df_mt,
+                use_container_width=True,
+                height=500
+            )
+
+        # ========================================================
+        # XEM TRƯỚC ĐẶC TẢ
+        # ========================================================
+        st.markdown(
+            "### 📝 2. BẢN ĐẶC TẢ"
+        )
+
+        if data.get("dac_ta"):
+
+            df_dt = pd.DataFrame(
+                data["dac_ta"]
+            )
+
+            st.dataframe(
+                df_dt,
+                use_container_width=True,
+                height=600
+            )
+
+        # ========================================================
+        # TỔNG HỢP
+        # ========================================================
+        if data.get("tong"):
+
+            st.markdown(
+                "### 🧮 3. TỔNG HỢP ĐIỂM"
+            )
+
+            tong = data["tong"]
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric(
+                "Câu TN",
+                tong.get(
+                    "cau_tn",
+                    0
+                )
+            )
+
+            col2.metric(
+                "Câu TL",
+                tong.get(
+                    "cau_tl",
+                    0
+                )
+            )
+
+            col3.metric(
+                "Điểm TN",
+                tong.get(
+                    "diem_tn",
+                    0
+                )
+            )
+
+            col4.metric(
+                "Điểm TL",
+                tong.get(
+                    "diem_tl",
+                    0
+                )
+            )
+
+        # ========================================================
+        # NÚT TẢI FILE WORD
+        # ========================================================
+        st.divider()
+
+        safe_mon = (
+            st.session_state.get(
+                "mt_mon_hoc_file",
+                "Mon"
+            )
+        )
+
+        safe_lop = (
+            st.session_state.get(
+                "mt_lop_file",
+                "Lop"
+            )
+        )
+
+        safe_filename = (
+            st.session_state.get(
+                "mt_filename",
+                "HoanChinh"
+            )
+        )
+
+        c_btn1, c_btn2 = st.columns(2)
+
+        c_btn1.download_button(
+            label=(
+                "📥 TẢI FILE WORD "
+                "MA TRẬN & ĐẶC TẢ"
+            ),
+
+            data=(
+                st.session_state[
+                    "download_word_bytes"
+                ]
+            ),
+
+            file_name=(
+                f"Ma_tran_Dac_ta_"
+                f"{safe_mon}_"
+                f"{safe_lop}_"
+                f"{safe_filename}.docx"
+            ),
+
+            mime=(
+                "application/vnd.openxmlformats-officedocument"
+                ".wordprocessingml.document"
+            ),
+
+            use_container_width=True,
+
+            type="primary"
+        )
+
+        # ========================================================
+        # XÓA KẾT QUẢ
+        # ========================================================
+        if c_btn2.button(
+            "🗑️ ĐÓNG & LÀM LẠI",
+            use_container_width=True
+        ):
+
+            for key in [
+                "processed_matrix_data",
+                "download_word_bytes",
+                "mt_mon_hoc_file",
+                "mt_lop_file",
+                "mt_filename"
+            ]:
+
+                st.session_state.pop(
+                    key,
+                    None
+                )
+
+            st.rerun()
+
+        # ========================================================
+        # RAW JSON
+        # ========================================================
+        with st.expander(
+            "🛠️ XEM DỮ LIỆU JSON GỐC"
+        ):
+
+            st.json(
+                data
+            )
