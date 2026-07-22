@@ -289,20 +289,55 @@ NHIỆM VỤ: {'Phân tích, chỉnh sửa và nâng cấp giáo án dựa trên
 
             except Exception as e:
                 st.error(f"❌ Có lỗi trong quá trình bóc tách tệp hoặc gọi AI: {str(e)}")
-
-    # =======================================================
+# =======================================================
     # 6. KHỐI GIAO DIỆN HIỂN THỊ KẾT QUẢ SAU KHI CHẠY
     # =======================================================
     if st.session_state.get("ket_qua_giao_an"):
         st.markdown("### 📝 Kết quả Giáo án đã xử lý")
         with st.container(border=True):
-            # Render Markdown giáo án tuyệt đẹp
+            # Render Markdown giáo án tuyệt đẹp trên giao diện web
             st.markdown(st.session_state["ket_qua_giao_an"])
             
-        # Nút cho phép tải thẳng giáo án về máy dạng .md (hoặc mở bằng Word)
+        # --- HÀM TỰ ĐỘNG CHUYỂN ĐỔI KẾT QUẢ AI SANG FILE WORD (.DOCX) ---
+        import io
+        import docx
+
+        def tao_file_word(van_ban):
+            doc = docx.Document()
+            
+            # Tách nội dung AI trả về thành từng dòng để đưa vào Word
+            for line in van_ban.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                # Xử lý các thẻ tiêu đề (Heading)
+                if line.startswith('### '):
+                    doc.add_heading(line.replace('### ', '').replace('**', ''), level=3)
+                elif line.startswith('## '):
+                    doc.add_heading(line.replace('## ', '').replace('**', ''), level=2)
+                elif line.startswith('# '):
+                    doc.add_heading(line.replace('# ', '').replace('**', ''), level=1)
+                # Xử lý gạch đầu dòng
+                elif line.startswith('- ') or line.startswith('* '):
+                    doc.add_paragraph(line[2:].replace('**', ''), style='List Bullet')
+                else:
+                    # Xóa các dấu ** in đậm của Markdown để văn bản Word sạch sẽ
+                    doc.add_paragraph(line.replace('**', ''))
+            
+            # Lưu file Word vào bộ nhớ đệm (BytesIO) để Streamlit tải về
+            bio = io.BytesIO()
+            doc.save(bio)
+            bio.seek(0)
+            return bio
+
+        # Chạy hàm tạo file Word
+        docx_file = tao_file_word(st.session_state["ket_qua_giao_an"])
+
+        # Nút tải xuống đã được nâng cấp thành file .docx
         st.download_button(
-            "📥 Tải xuống Giáo án (.md)", 
-            data=st.session_state["ket_qua_giao_an"], 
-            file_name="Giao_An_Thong_Minh.md", 
+            "📥 Tải xuống Giáo án (.docx)", 
+            data=docx_file, 
+            file_name="Giao_An_Thong_Minh.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
