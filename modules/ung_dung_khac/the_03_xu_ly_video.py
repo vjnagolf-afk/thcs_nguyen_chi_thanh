@@ -4,6 +4,7 @@ import re
 import tempfile
 import os
 import time
+import glob
 
 # =========================================================
 # KHỞI TẠO STATE
@@ -42,7 +43,15 @@ def get_youtube_transcript_new(url):
             transcript_list = ytt_api.list(video_id)
             fetched_transcript = next(iter(transcript_list)).fetch()
             
-        full_text = " ".join([item['text'] for item in fetched_transcript])
+        # SỬA LỖI 1: Tương thích cả dictionary và object
+        text_parts = []
+        for item in fetched_transcript:
+            if isinstance(item, dict) and 'text' in item:
+                text_parts.append(item['text'])
+            elif hasattr(item, 'text'):
+                text_parts.append(item.text)
+                
+        full_text = " ".join(text_parts)
         return full_text, None, False
         
     except ImportError:
@@ -75,27 +84,28 @@ def download_youtube_audio_fallback(url):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            ext = info.get('ext', 'm4a')
-            audio_path = os.path.join(temp_dir, f"yt_audio_{info['id']}.{ext}")
-            if os.path.exists(audio_path):
-                return audio_path, None
-            return None, "Lỗi: Không tìm thấy file âm thanh sau khi tải."
+            
+            # SỬA LỖI 2: Quét tìm file thực tế thay vì tự ghép chuỗi cứng
+            search_pattern = os.path.join(temp_dir, f"yt_audio_{info['id']}.*")
+            found_files = glob.glob(search_pattern)
+            
+            if found_files:
+                return found_files[0], None
+            return None, "❌ Lỗi: Không tìm thấy file âm thanh trên hệ thống sau khi tải."
     except Exception as e:
-        return None, f"Không thể tải âm thanh dự phòng: {str(e)}"
+        return None, f"❌ Không thể tải âm thanh dự phòng: {str(e)}"
 
 # =========================================================
 # HÀM XỬ LÝ ĐA PHƯƠNG TIỆN GEMINI
 # =========================================================
 def get_gemini_api_key():
-    """Lấy API Key thông minh (Bỏ chặn cứng AIza để nhận mọi Key Google hợp lệ)"""
     if st.session_state.get("is_admin_mode"):
         try:
             return st.secrets["GEMINI_API_KEY"]
         except Exception:
-            pass # Chuyển xuống dưới nếu Admin chưa cấu hình secrets
+            pass 
             
     key = st.session_state.get("user_api_key")
-    # Chấp nhận mọi Key không phải của OpenAI/OpenRouter (thường bắt đầu bằng sk-)
     if key and not key.startswith("sk-"): 
         return key
     return None
@@ -107,9 +117,8 @@ def show_missing_key_warning():
     Để AI có thể tự động "nghe" video dự phòng hoặc xử lý File tải lên, thầy cần cung cấp mã khóa API.
     
     💡 **CÁCH XỬ LÝ NHANH NHẤT:**
-    1. Truy cập [Google AI Studio](https://aistudio.google.com/app/apikey) để lấy 1 mã Key miễn phí (Dạng `AIza...`).
-    2. **Nếu thầy đang đăng nhập bằng mật khẩu Admin:** Thầy cần vào trang quản lý Streamlit Cloud -> Settings -> Secrets, thêm dòng: `GEMINI_API_KEY = "mã_AIza_của_thầy"`.
-    3. **Nếu thầy không muốn cài Secrets:** Hãy nhấn "Đăng xuất" ở Menu bên trái, sau đó dùng chính mã `AIza...` vừa tạo để Đăng nhập lại vào hệ thống!
+    1. Truy cập [Google AI Studio](https://aistudio.google.com/app/apikey) để lấy 1 mã Key (Dạng `AIza...`).
+    2. Nếu thầy không muốn cài vào file Secrets, hãy nhấn "Đăng xuất" ở Menu bên trái, sau đó dùng chính mã `AIza...` vừa tạo để Đăng nhập lại vào hệ thống!
     """)
 
 def process_multimodal_gemini(file_path, prompt, api_key):
@@ -120,14 +129,16 @@ def process_multimodal_gemini(file_path, prompt, api_key):
 
     genai.configure(api_key=api_key)
     
+    # SỬA LỖI 3: Chặn dùng gemini-1.5-flash làm mặc định, ưu tiên bản 2.5
     try:
-        model_name = st.secrets["GEMINI_VIDEO_MODEL"]
+        model_name = st.secrets.get("GEMINI_VIDEO_MODEL", "gemini-2.5-flash")
     except Exception:
-        model_name = "gemini-1.5-flash" # Tự động lùi về bản ổn định
+        model_name = "gemini-2.5-flash"
         
+    media_file = None
     try:
         status_text = st.empty()
-        status_text.info(f"⏳ Đang tải luồng âm thanh lên não bộ AI của Google ({model_name})...")
+        status_text.info(f"⏳ Đang tải luồng âm thanh lên AI ({model_name})...")
         media_file = genai.upload_file(path=file_path)
         
         status_text.info("🧠 AI đang 'nghe' toàn bộ video. Vui lòng đợi...")
@@ -142,12 +153,19 @@ def process_multimodal_gemini(file_path, prompt, api_key):
         model = genai.GenerativeModel(model_name=model_name)
         response = model.generate_content([prompt, media_file])
         
-        genai.delete_file(media_file.name)
         status_text.empty()
-        
         return response.text
+        
     except Exception as e:
         return f"❌ Lỗi xử lý Đa phương tiện AI: {str(e)}"
+    
+    # SỬA LỖI 4: Luôn luôn dọn dẹp file trên máy chủ Gemini bất chấp có lỗi hay không
+    finally:
+        if media_file:
+            try:
+                genai.delete_file(media_file.name)
+            except Exception:
+                pass
 
 # =========================================================
 # GIAO DIỆN CHÍNH
@@ -220,7 +238,7 @@ def render_the_03(ai_engine=None):
             """
 
             # ---------------------------------------------------------
-            # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng nghe trực tiếp)
+            # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng)
             # ---------------------------------------------------------
             if nguon_video == "Đường dẫn YouTube (URL)":
                 with st.spinner("🤖 Đang kết nối YouTube..."):
@@ -230,8 +248,14 @@ def render_the_03(ai_engine=None):
                         if ai_engine:
                             try:
                                 prompt_full = prompt_chung + f"\n\nDỮ LIỆU LỜI THOẠI TRÍCH XUẤT:\n{raw_text}"
-                                st.session_state["vproc_result"] = ai_engine.generate_text(prompt_full)
-                                st.success("🎉 Đã lấy lời thoại có sẵn trên YouTube thành công!")
+                                res_text = ai_engine.generate_text(prompt_full)
+                                
+                                # SỬA LỖI 5: Không báo thành công giả tạo
+                                if res_text and str(res_text).startswith("❌"):
+                                    st.error(res_text)
+                                else:
+                                    st.session_state["vproc_result"] = res_text
+                                    st.success("🎉 Đã lấy lời thoại có sẵn trên YouTube thành công!")
                             except Exception as e:
                                 st.error(f"❌ Lỗi AI Engine: {str(e)}")
                         else:
@@ -248,12 +272,18 @@ def render_the_03(ai_engine=None):
                                 
                             if audio_path:
                                 res = process_multimodal_gemini(audio_path, prompt_chung + "\nHãy lắng nghe nội dung âm thanh đính kèm.", gemini_key)
-                                st.session_state["vproc_result"] = res
-                                st.success("🎉 Quá trình AI nghe trực tiếp video đã thành công!")
+                                
+                                # SỬA LỖI 5: Kiểm tra lỗi Gemini trước khi cập nhật state
+                                if res and str(res).startswith("❌"):
+                                    st.error(res)
+                                else:
+                                    st.session_state["vproc_result"] = res
+                                    st.success("🎉 Quá trình AI nghe trực tiếp video đã thành công!")
+                                
                                 if os.path.exists(audio_path):
                                     os.remove(audio_path)
                             else:
-                                st.error(f"❌ Tải âm thanh thất bại: {dl_err}")
+                                st.error(dl_err)
                     else:
                         st.error(err_msg)
 
@@ -271,8 +301,13 @@ def render_the_03(ai_engine=None):
                             tmp_path = tmp.name
                             
                         res = process_multimodal_gemini(tmp_path, prompt_chung + "\nHãy phân tích dựa vào tệp đa phương tiện đính kèm.", gemini_key)
-                        st.session_state["vproc_result"] = res
-                        st.success("🎉 AI đã nghe/xem tệp tin thành công!")
+                        
+                        # SỬA LỖI 5: Kiểm tra kết quả
+                        if res and str(res).startswith("❌"):
+                            st.error(res)
+                        else:
+                            st.session_state["vproc_result"] = res
+                            st.success("🎉 AI đã nghe/xem tệp tin thành công!")
                         
                         if os.path.exists(tmp_path):
                             os.remove(tmp_path)
