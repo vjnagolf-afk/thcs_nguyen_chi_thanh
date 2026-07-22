@@ -13,7 +13,7 @@ def init_state():
         st.session_state["vproc_result"] = None
 
 # =========================================================
-# HÀM XỬ LÝ YOUTUBE (Cập nhật API mới >= 1.2.x)
+# HÀM XỬ LÝ YOUTUBE
 # =========================================================
 def extract_youtube_id(url):
     if not url: return None
@@ -28,10 +28,6 @@ def extract_youtube_id(url):
     return None
 
 def get_youtube_transcript_new(url):
-    """
-    Sử dụng API mới của youtube-transcript-api (>=1.2.4).
-    Trả về: (văn_bản, thông_báo_lỗi, có_thể_dùng_fallback_âm_thanh_không?)
-    """
     video_id = extract_youtube_id(url)
     if not video_id: 
         return None, "⚠️ Đường dẫn YouTube không hợp lệ.", False
@@ -40,11 +36,9 @@ def get_youtube_transcript_new(url):
         from youtube_transcript_api import YouTubeTranscriptApi
         ytt_api = YouTubeTranscriptApi()
         
-        # Cố gắng lấy phụ đề tiếng Việt hoặc tiếng Anh
         try:
             fetched_transcript = ytt_api.fetch(video_id, languages=["vi", "en"])
         except Exception:
-            # Nếu không có vi/en, lấy danh sách và chọn cái đầu tiên
             transcript_list = ytt_api.list(video_id)
             fetched_transcript = next(iter(transcript_list)).fetch()
             
@@ -55,19 +49,15 @@ def get_youtube_transcript_new(url):
         return None, "❌ Thư viện 'youtube-transcript-api' chưa được cài đặt.", False
     except Exception as e:
         error_msg = str(e).lower()
-        
-        # CHỈ TỪ CHỐI khi video yêu cầu đăng nhập / giới hạn độ tuổi (vì tool cũng không tải được)
         if "age restricted" in error_msg or "login" in error_msg:
-            return None, "🔒 Video có thể bị giới hạn quyền truy cập (giới hạn độ tuổi/riêng tư). Vui lòng thử video khác.", False
-            
-        # VỚI MỌI LỖI KHÁC: Bật cờ True để ép hệ thống chuyển sang tải File Âm thanh!
+            return None, "🔒 Video bị giới hạn quyền truy cập (giới hạn độ tuổi/riêng tư).", False
         else:
-            return None, f"⚠️ Không lấy được phụ đề chữ (Chi tiết: {str(e)[:80]}...).", True
+            return None, f"⚠️ Không lấy được phụ đề chữ từ YouTube.", True
+
 # =========================================================
-# HÀM DỰ PHÒNG: TẢI ÂM THANH TỪ YOUTUBE (Fallback)
+# HÀM DỰ PHÒNG: TẢI ÂM THANH
 # =========================================================
 def download_youtube_audio_fallback(url):
-    """Tải luồng âm thanh nhẹ nhất từ YouTube để nạp cho Gemini"""
     try:
         import yt_dlp
     except ImportError:
@@ -77,7 +67,7 @@ def download_youtube_audio_fallback(url):
     out_tmpl = os.path.join(temp_dir, 'yt_audio_%(id)s.%(ext)s')
     
     ydl_opts = {
-        'format': 'm4a/bestaudio/best', # Lấy trực tiếp m4a/webm cho nhẹ, không cần ffmpeg convert
+        'format': 'm4a/bestaudio/best',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
@@ -94,16 +84,35 @@ def download_youtube_audio_fallback(url):
         return None, f"Không thể tải âm thanh dự phòng: {str(e)}"
 
 # =========================================================
-# HÀM XỬ LÝ ĐA PHƯƠNG TIỆN VỚI GEMINI
+# HÀM XỬ LÝ ĐA PHƯƠNG TIỆN GEMINI
 # =========================================================
 def get_gemini_api_key():
-    if st.session_state.get("is_admin_mode"): return st.secrets.get("GEMINI_API_KEY")
+    """Lấy API Key thông minh (Bỏ chặn cứng AIza để nhận mọi Key Google hợp lệ)"""
+    if st.session_state.get("is_admin_mode"):
+        try:
+            return st.secrets["GEMINI_API_KEY"]
+        except Exception:
+            pass # Chuyển xuống dưới nếu Admin chưa cấu hình secrets
+            
     key = st.session_state.get("user_api_key")
-    if key and key.startswith("AIza"): return key
+    # Chấp nhận mọi Key không phải của OpenAI/OpenRouter (thường bắt đầu bằng sk-)
+    if key and not key.startswith("sk-"): 
+        return key
     return None
 
+def show_missing_key_warning():
+    st.error("""
+    ❌ **Hệ thống chưa tìm thấy mã API Key của Google Gemini!**
+    
+    Để AI có thể tự động "nghe" video dự phòng hoặc xử lý File tải lên, thầy cần cung cấp mã khóa API.
+    
+    💡 **CÁCH XỬ LÝ NHANH NHẤT:**
+    1. Truy cập [Google AI Studio](https://aistudio.google.com/app/apikey) để lấy 1 mã Key miễn phí (Dạng `AIza...`).
+    2. **Nếu thầy đang đăng nhập bằng mật khẩu Admin:** Thầy cần vào trang quản lý Streamlit Cloud -> Settings -> Secrets, thêm dòng: `GEMINI_API_KEY = "mã_AIza_của_thầy"`.
+    3. **Nếu thầy không muốn cài Secrets:** Hãy nhấn "Đăng xuất" ở Menu bên trái, sau đó dùng chính mã `AIza...` vừa tạo để Đăng nhập lại vào hệ thống!
+    """)
+
 def process_multimodal_gemini(file_path, prompt, api_key):
-    """Xử lý trực tiếp File Video/Audio bằng Gemini Multimodal"""
     try:
         import google.generativeai as genai
     except ImportError:
@@ -111,17 +120,17 @@ def process_multimodal_gemini(file_path, prompt, api_key):
 
     genai.configure(api_key=api_key)
     
-    # Lấy tên model từ cấu hình (Khắc phục lỗi hardcode model)
-    model_name = st.secrets.get("GEMINI_VIDEO_MODEL", "gemini-2.5-flash")
-    if "2.5" not in model_name: # Fallback an toàn nếu chưa có bản 2.5
-        model_name = "gemini-1.5-flash"
+    try:
+        model_name = st.secrets["GEMINI_VIDEO_MODEL"]
+    except Exception:
+        model_name = "gemini-1.5-flash" # Tự động lùi về bản ổn định
         
     try:
         status_text = st.empty()
-        status_text.info(f"⏳ Đang tải tệp lên hệ thống AI của Google ({model_name})...")
+        status_text.info(f"⏳ Đang tải luồng âm thanh lên não bộ AI của Google ({model_name})...")
         media_file = genai.upload_file(path=file_path)
         
-        status_text.info("🧠 AI đang phân tích dữ liệu âm thanh/hình ảnh. Vui lòng đợi...")
+        status_text.info("🧠 AI đang 'nghe' toàn bộ video. Vui lòng đợi...")
         while media_file.state.name == "PROCESSING":
             time.sleep(3)
             media_file = genai.get_file(media_file.name)
@@ -129,7 +138,7 @@ def process_multimodal_gemini(file_path, prompt, api_key):
         if media_file.state.name == "FAILED":
             raise Exception("Google AI từ chối xử lý tệp này.")
             
-        status_text.info("✍️ AI đang tổng hợp và viết kịch bản...")
+        status_text.info("✍️ AI đã nghe xong, đang tổng hợp và viết kịch bản...")
         model = genai.GenerativeModel(model_name=model_name)
         response = model.generate_content([prompt, media_file])
         
@@ -139,7 +148,6 @@ def process_multimodal_gemini(file_path, prompt, api_key):
         return response.text
     except Exception as e:
         return f"❌ Lỗi xử lý Đa phương tiện AI: {str(e)}"
-
 
 # =========================================================
 # GIAO DIỆN CHÍNH
@@ -163,7 +171,7 @@ def render_the_03(ai_engine=None):
         uploaded_video = None
 
         if nguon_video == "Đường dẫn YouTube (URL)":
-            yt_url = st.text_input("Nhập URL YouTube", placeholder="Ví dụ: https://www.youtube.com/watch?v=...", key="vproc_yt_url")
+            yt_url = st.text_input("Nhập URL YouTube", placeholder="Ví dụ: https://youtu.be/...", key="vproc_yt_url")
         else:
             uploaded_video = st.file_uploader(
                 "Tải lên tệp video/âm thanh (Dung lượng < 200MB)", 
@@ -192,7 +200,6 @@ def render_the_03(ai_engine=None):
         st.markdown("#### 📋 Kết quả xử lý văn bản")
 
         if btn_xu_ly:
-            # Validation
             if nguon_video == "Đường dẫn YouTube (URL)" and not yt_url.strip():
                 st.warning("⚠️ Vui lòng nhập đường dẫn URL YouTube.")
                 st.stop()
@@ -200,12 +207,10 @@ def render_the_03(ai_engine=None):
                 if not uploaded_video:
                     st.warning("⚠️ Vui lòng tải lên một tệp.")
                     st.stop()
-                # Kiểm tra dung lượng tệp (Khắc phục Nhược điểm 3)
                 if uploaded_video.size > 200 * 1024 * 1024:
-                    st.error("❌ Tệp vượt quá giới hạn dung lượng cho phép (200MB). Vui lòng thử tệp nhẹ hơn.")
+                    st.error("❌ Tệp vượt quá giới hạn 200MB. Vui lòng thử tệp nhẹ hơn.")
                     st.stop()
 
-            # BẮT ĐẦU XỬ LÝ
             gemini_key = get_gemini_api_key()
             
             prompt_chung = f"""
@@ -215,71 +220,65 @@ def render_the_03(ai_engine=None):
             """
 
             # ---------------------------------------------------------
-            # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng)
+            # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng nghe trực tiếp)
             # ---------------------------------------------------------
             if nguon_video == "Đường dẫn YouTube (URL)":
                 with st.spinner("🤖 Đang kết nối YouTube..."):
                     raw_text, err_msg, can_fallback = get_youtube_transcript_new(yt_url)
                     
                     if raw_text:
-                        # 1A. Có Transcript -> Dùng AI Engine chính
                         if ai_engine:
                             try:
-                                # Không hardcode [:20000] nữa, gửi toàn bộ text cho AI Engine phân mảnh/tự xử lý
                                 prompt_full = prompt_chung + f"\n\nDỮ LIỆU LỜI THOẠI TRÍCH XUẤT:\n{raw_text}"
                                 st.session_state["vproc_result"] = ai_engine.generate_text(prompt_full)
-                                st.success("🎉 Xử lý qua Phụ đề YouTube thành công!")
+                                st.success("🎉 Đã lấy lời thoại có sẵn trên YouTube thành công!")
                             except Exception as e:
                                 st.error(f"❌ Lỗi AI Engine: {str(e)}")
                         else:
                             st.error("❌ Không thể gọi AI (Chưa khởi tạo AI Engine).")
                             
                     elif can_fallback:
-                        # 1B. Không có Transcript -> Kích hoạt Fallback tải âm thanh
-                        st.warning(f"{err_msg}\n\n🔄 Đang kích hoạt phương án dự phòng: Tự động tải âm thanh và nghe trực tiếp (Speech-to-Text)...")
+                        st.warning(f"{err_msg}\n\n🔄 Đang kích hoạt AI tự động nghe video (Speech-to-Text)...")
                         
                         if not gemini_key:
-                            st.error("❌ Tính năng nghe âm thanh dự phòng yêu cầu API Key của Gemini. Vui lòng đăng nhập bằng API Key bắt đầu với 'AIza...'.")
+                            show_missing_key_warning()
                         else:
                             with st.spinner("📥 Đang tải luồng âm thanh từ YouTube..."):
                                 audio_path, dl_err = download_youtube_audio_fallback(yt_url)
                                 
                             if audio_path:
-                                # Đẩy file âm thanh cho Gemini Multimodal
-                                res = process_multimodal_gemini(audio_path, prompt_chung + "\nHãy dựa vào nội dung âm thanh đính kèm.", gemini_key)
+                                res = process_multimodal_gemini(audio_path, prompt_chung + "\nHãy lắng nghe nội dung âm thanh đính kèm.", gemini_key)
                                 st.session_state["vproc_result"] = res
-                                st.success("🎉 Xử lý thành công bằng phương án dự phòng (Nghe trực tiếp)!")
+                                st.success("🎉 Quá trình AI nghe trực tiếp video đã thành công!")
                                 if os.path.exists(audio_path):
-                                    os.remove(audio_path) # Dọn dẹp
+                                    os.remove(audio_path)
                             else:
-                                st.error(f"❌ Tải âm thanh dự phòng thất bại: {dl_err}")
+                                st.error(f"❌ Tải âm thanh thất bại: {dl_err}")
                     else:
-                        # 1C. Lỗi nghiêm trọng (Mạng, tuổi, chặn máy chủ)
                         st.error(err_msg)
 
             # ---------------------------------------------------------
-            # NHÁNH 2: XỬ LÝ FILE TẢI LÊN 
+            # NHÁNH 2: XỬ LÝ FILE TẢI LÊN
             # ---------------------------------------------------------
             else:
                 if not gemini_key:
-                    st.error("❌ Tính năng Phân tích File yêu cầu API Key Gemini (Bắt đầu bằng 'AIza...').")
+                    show_missing_key_warning()
                 else:
                     with st.spinner("🤖 Đang chuẩn bị tệp tin đa phương tiện..."):
-                        # Lưu file tạm ra đĩa để đẩy lên Google
                         file_ext = os.path.splitext(uploaded_video.name)[1]
                         with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
                             tmp.write(uploaded_video.read())
                             tmp_path = tmp.name
                             
-                        res = process_multimodal_gemini(tmp_path, prompt_chung + "\nHãy dựa vào tệp đa phương tiện đính kèm.", gemini_key)
+                        res = process_multimodal_gemini(tmp_path, prompt_chung + "\nHãy phân tích dựa vào tệp đa phương tiện đính kèm.", gemini_key)
                         st.session_state["vproc_result"] = res
-                        st.success("🎉 AI đã phân tích tệp tin thành công!")
+                        st.success("🎉 AI đã nghe/xem tệp tin thành công!")
                         
                         if os.path.exists(tmp_path):
                             os.remove(tmp_path)
 
         # ---------------------------------------------------------
-        # HIỂN THỊ KẾT QUẢ TỪ STATE CHUẨN
+        # HIỂN THỊ KẾT QUẢ
         # ---------------------------------------------------------
         if st.session_state["vproc_result"]:
             st.text_area("Văn bản kết xuất:", value=st.session_state["vproc_result"], height=450)
@@ -291,4 +290,4 @@ def render_the_03(ai_engine=None):
                 use_container_width=True
             )
         else:
-            st.info("💡 Tính năng đã được nâng cấp! Hệ thống tự động kích hoạt Nghe thông minh (Speech-to-Text) nếu video YouTube không có sẵn phụ đề.")
+            st.info("💡 Tính năng đã sẵn sàng! Đã cập nhật chế độ nhận diện File Âm thanh/Video thông minh.")
