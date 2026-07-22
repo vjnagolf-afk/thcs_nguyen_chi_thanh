@@ -183,17 +183,28 @@ def set_mode(mode: str):
 
 
 # ============================================================
-# HÀM ĐỌC FILE
+# HÀM ĐỌC FILE (HỖ TRỢ GIỚI HẠN TRANG)
 # ============================================================
 def safe_text(value):
     if value is None: return ""
     return str(value).replace("\x00", "").strip()
 
-def read_pdf(uploaded_file):
+def read_pdf(uploaded_file, range_str=""):
     result = []
     try:
         reader = PyPDF2.PdfReader(uploaded_file)
-        for index, page in enumerate(reader.pages, start=1):
+        total_pages = len(reader.pages)
+
+        start, end = 1, total_pages
+        if range_str and "-" in range_str:
+            try:
+                s, e = range_str.split("-")
+                start = max(1, int(s.strip()))
+                end = min(total_pages, int(e.strip()))
+            except: pass
+
+        for index in range(start, end + 1):
+            page = reader.pages[index - 1]
             text = page.extract_text() or ""
             if text.strip():
                 result.append(f"\n===== PDF - TRANG {index} =====\n{text.strip()}")
@@ -229,25 +240,25 @@ def read_excel(uploaded_file):
         result.append(f"[LỖI ĐỌC EXCEL: {str(e)}]")
     return "\n".join(result)
 
-def read_uploaded_file(uploaded_file):
+def read_uploaded_file(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
     filename = uploaded_file.name.lower()
     extension = Path(filename).suffix.lower()
     try:
-        if extension == ".pdf": return read_pdf(uploaded_file)
+        if extension == ".pdf": return read_pdf(uploaded_file, range_str)
         if extension == ".docx": return read_docx(uploaded_file)
         if extension in [".xlsx", ".xls"]: return read_excel(uploaded_file)
         return f"[Định dạng file: {extension}]"
     except Exception as e:
         return f"[LỖI ĐỌC FILE: {uploaded_file.name}]\n{str(e)}"
 
-def read_multiple_files(files):
+def read_multiple_files(files, range_str=""):
     result = []
     for uploaded_file in files or []:
         result.append(f"\n\n==================================================\n"
                       f"TỆP: {uploaded_file.name}\n"
                       f"==================================================\n")
-        result.append(read_uploaded_file(uploaded_file))
+        result.append(read_uploaded_file(uploaded_file, range_str))
     return "\n".join(result)
 
 def read_template_local(path="templates/KHBD_Mau.docx"):
@@ -341,49 +352,69 @@ def generate_ai(ai_engine, prompt):
 
 
 # ============================================================
-# PROMPT CHIẾN LƯỢC CAO CẤP (ÉP CHI TIẾT THEO MẪU & TT18)
+# PROMPT CHIẾN LƯỢC CAO CẤP (ÉP CHI TIẾT SƯ PHẠM THEO 5512)
 # ============================================================
 def build_prompt(
     thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung_mau,
     nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode
 ):
     if mode == "chinh_sua":
-        nhiem_vu = "Phân tích, chuẩn hóa và nâng cấp giáo án gốc theo Công văn 5512 và chuẩn mẫu trường cung cấp."
+        nhiem_vu = "Phân tích, chuẩn hóa và nâng cấp giáo án gốc theo Công văn 5512."
     else:
         nhiem_vu = "Soạn mới hoàn toàn Kế hoạch bài dạy từ Sách giáo khoa theo đúng cấu trúc mẫu chuẩn của trường."
 
     return f"""
-BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ THẨM ĐỊNH CHƯƠNG TRÌNH GIÁO DỤC PHỔ THÔNG 2018.
+BẠN LÀ CHUYÊN GIA SƯ PHẠM CAO CẤP.
 NHIỆM VỤ: {nhiem_vu}
 
-BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CÁC NGUYÊN TẮC SAU:
-1. KHÔNG VIẾT CHUNG CHUNG, SƠ SÀI. Mọi hoạt động phải cụ thể hóa tối đa (Ví dụ: Giáo viên nêu câu hỏi chính xác nào, Học sinh dự kiến trả lời ra sao, sản phẩm học tập là gì).
-2. TUÂN THỦ 100% CẤU TRÚC MẪU (Đề mục, tiểu mục, bảng biểu) lấy từ file mẫu gốc dưới đây. Không tự ý cắt bỏ hoặc thay đổi tên đề mục.
-3. TÍCH HỢP ĐẦY ĐỦ NĂNG LỰC SỐ (Theo TT 18/2026/TT-BGDĐT) và Năng lực AI vào đúng mục tiêu và tiến trình dạy học.
+==================================================
+🎯 YÊU CẦU BẮT BUỘC VỀ THỜI LƯỢNG VÀ NỘI DUNG SGK
+==================================================
+1. Phải soạn đúng thời lượng quy định: {thong_tin} (Ví dụ: Bài 2 tiết thì phải phân bổ lượng kiến thức và hoạt động đủ cho 90 phút).
+2. TUYỆT ĐỐI không được tóm tắt sơ sài. Phải trích xuất TOÀN BỘ kiến thức cốt lõi, định nghĩa, định lý, công thức, ví dụ từ "TÀI LIỆU NGUỒN CỐT LÕI" đưa vào giáo án. Không bỏ sót bất kỳ tiểu mục nào của bài học.
 
 ==================================================
-I. THÔNG TIN BÀI DẠY
+📋 TUÂN THỦ PHỤ LỤC 4 - CÔNG VĂN 5512
 ==================================================
-{thong_tin}
+Giáo án ĐẦU RA bắt buộc phải tổ chức theo đúng cấu trúc Phụ lục 4 sau đây (BẮT BUỘC BÁM SÁT MẪU ĐỀ MỤC):
+
+I. MỤC TIÊU (Ghi rõ Yêu cầu cần đạt về:)
+1. Về kiến thức
+2. Về năng lực (Năng lực đặc thù, Năng lực chung)
+3. Về phẩm chất
+
+II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
+(Liệt kê cụ thể máy chiếu, phiếu học tập số mấy, học liệu số nào...)
+
+III. TIẾN TRÌNH DẠY HỌC
+Mỗi bài học phải gồm 4 Hoạt động lớn. Trong MỖI HOẠT ĐỘNG, bắt buộc phải viết đầy đủ 4 mục nhỏ sau (KHÔNG ĐƯỢC GỘP, KHÔNG ĐƯỢC VIẾT CHUNG CHUNG):
+  a) Mục tiêu: (Nêu rõ mục tiêu của hoạt động này giải quyết cho YCCĐ nào ở phần I)
+  b) Nội dung: (Ghi chi tiết câu hỏi, bài tập, nhiệm vụ chuyển giao cho học sinh)
+  c) Sản phẩm: (Ghi ĐẦY ĐỦ, CHI TIẾT đáp án, lời giải, bài làm hoàn chỉnh của học sinh. Tuyệt đối không viết "HS hoàn thành vở bài tập")
+  d) Tổ chức thực hiện: (Triển khai bắt buộc theo 4 bước nhỏ:)
+     - Bước 1: Chuyển giao nhiệm vụ (Ghi rõ GV nói gì, giao phiếu học tập nào, thời gian bao nhiêu phút)
+     - Bước 2: Thực hiện nhiệm vụ (Mô tả chi tiết cách HS làm việc cá nhân/nhóm, GV theo dõi, hỗ trợ nhóm nào, xử lý tình huống gì)
+     - Bước 3: Báo cáo, thảo luận (Chỉ định rõ cách chọn nhóm báo cáo, cách phản biện, nhận xét chéo giữa các học sinh)
+     - Bước 4: Kết luận, nhận định (Ghi rõ nội dung kiến thức GV chốt lại để HS ghi vở. Nội dung này phải là kiến thức khoa học chi tiết, không ghi chung chung)
 
 ==================================================
-II. MẪU GIÁO ÁN GỐC (BẮT BUỘC BÁM SÁT CẤU TRÚC ĐỀ MỤC NÀY)
-==================================================
-{noi_dung_mau}
-
-==================================================
-III. TÀI LIỆU NGUỒN CỐT LÕI (SGK / GIÁO ÁN)
+IV. TÀI LIỆU NGUỒN CỐT LÕI (SGK / GIÁO ÁN)
 ==================================================
 {noi_dung_chinh}
 
 ==================================================
-IV. TÀI LIỆU CHỈ ĐẠO BỔ SUNG
+V. MẪU GIÁO ÁN GỐC (BÁM SÁT CẤU TRÚC BẢNG BIỂU NẾU CÓ)
+==================================================
+{noi_dung_mau}
+
+==================================================
+VI. TÀI LIỆU CHỈ ĐẠO BỔ SUNG
 ==================================================
 - PPCT: {noi_dung_ppct}
 - Tích hợp AI: {noi_dung_ai}
 
 ==================================================
-V. YÊU CẦU TÍCH HỢP ĐẶC BIỆT
+VII. YÊU CẦU TÍCH HỢP ĐẶC BIỆT
 ==================================================
 1. Năng lực số (Chuẩn TT 18/2026):
 {nls}
@@ -392,17 +423,17 @@ V. YÊU CẦU TÍCH HỢP ĐẶC BIỆT
 {'Có tích hợp AI. Phải thể hiện rõ phần hướng dẫn học sinh sử dụng công cụ AI, cách học sinh kiểm chứng kết quả và sản phẩm AI tạo ra trong hoạt động.' if tich_hop_ai else 'Không bắt buộc tích hợp AI chuyên sâu.'}
 
 3. Dạy học hòa nhập:
-{f'Hỗ trợ học sinh khuyết tật/nhu cầu đặc biệt ({nhu_cau_hoa_nhap}): Phải có giải pháp điều chỉnh nội dung, nhiệm vụ, phương tiện hoặc thời gian phù hợp.' if tich_hop_hoa_nhap else 'Không yêu cầu điều chỉnh đặc biệt.'}
+{f'Hỗ trợ học sinh khuyết tật/nhu cầu đặc biệt ({nhu_cau_hoa_nhap}): Phải có giải pháp ĐIỀU CHỈNH TRỰC TIẾP vào hoạt động dạy học (câu hỏi dễ hơn, hình ảnh to hơn, thêm thời gian...).' if tich_hop_hoa_nhap else 'Không yêu cầu điều chỉnh đặc biệt.'}
 
 4. Hoạt động giáo viên yêu cầu thêm:
 {hoat_dong}
 
 ==================================================
-VI. QUY TẮC ĐỊNH DẠNG ĐẦU RA (MARKDOWN)
+VIII. QUY TẮC ĐỊNH DẠNG ĐẦU RA (MARKDOWN)
 ==================================================
 - Trả về nội dung dạng Markdown chuẩn, sạch sẽ. Các tiêu đề bài học dùng Heading chuẩn (#, ##, ###).
 - Dùng cấu trúc bảng Markdown (| Cột 1 | Cột 2 |) nếu file mẫu yêu cầu bảng.
-- KHÔNG SỬ DỤNG MÃ LATEX phức tạp. Dùng kí hiệu Unicode hoặc văn bản thường cho công thức (vd: a/b, x^2, H₂O, CO₂).
+- KHÔNG SỬ DỤNG MÃ LATEX phức tạp (tránh dùng \frac, \left, \right). Dùng kí hiệu Unicode hoặc văn bản thường cho công thức (vd: a/b, x^2, H₂O, CO₂).
 - KHÔNG VIẾT LỜI CHÀO HỎI, KHÔNG GIẢI THÍCH NGOÀI LỀ. Trả thẳng nội dung giáo án hoàn chỉnh từ dòng đầu tiên.
 """
 
@@ -429,53 +460,70 @@ def render_xd_khbd(ai_engine=None):
     # CHẾ ĐỘ
     # --------------------------------------------------------
     st.subheader("✨ Chế độ soạn")
-    mode = st.radio("Chọn chế độ", ["chinh_sua", "tu_dong"], format_func=lambda x: "📄 Chỉnh sửa giáo án gốc" if x == "chinh_sua" else "⚡ Tự động soạn từ SGK", key="khbd_mode")
+    mode = st.radio("Chọn chế độ", ["chinh_sua", "tu_dong"], format_func=lambda x: "📄 Chỉnh sửa giáo án gốc" if x == "chinh_sua" else "⚡ Tự động soạn từ SGK", key="khbd_mode", horizontal=True)
 
     # --------------------------------------------------------
-    # TÍCH HỢP
-    # --------------------------------------------------------
-    st.subheader("🔧 Tích hợp chuyên sâu")
-    c1, c2, c3 = st.columns(3)
-    with c1: tich_hop_nls = st.checkbox("Năng lực số (TT18)", key="khbd_tich_hop_nls")
-    with c2: tich_hop_ai = st.checkbox("Năng lực AI", key="khbd_tich_hop_ai")
-    with c3: tich_hop_hoa_nhap = st.checkbox("Dạy học hòa nhập", key="khbd_tich_hop_hoa_nhap")
-
-    # --------------------------------------------------------
-    # FILE TẢI LÊN
+    # FILE TẢI LÊN (GOM THÀNH 1 DÒNG DUY NHẤT VÀ THÊM LỌC TRANG)
     # --------------------------------------------------------
     st.subheader("📤 Tài liệu đầu vào")
+    col_up1, col_up2, col_up3, col_up4 = st.columns(4)
     
+    range_trang = ""
     if mode == "chinh_sua":
-        file_ga = st.file_uploader("Giáo án gốc", type=["docx", "pdf"], accept_multiple_files=True, key="khbd_file_ga")
+        file_ga = col_up1.file_uploader("Giáo án gốc", type=["docx", "pdf"], accept_multiple_files=True, key="khbd_file_ga")
         file_sgk = []
     else:
         file_ga = []
-        file_sgk = st.file_uploader("SGK / Tài liệu bài học", type=["pdf", "docx"], accept_multiple_files=True, key="khbd_file_sgk")
+        file_sgk = col_up1.file_uploader("SGK / Tài liệu", type=["pdf", "docx"], accept_multiple_files=True, key="khbd_file_sgk")
+        with col_up1:
+            st.markdown("<p style='font-size: 0.8rem; color: #888; margin-top:-10px;'>⚠️ <i>Nên giới hạn trang để AI phân tích chuẩn.</i></p>", unsafe_allow_html=True)
+            range_trang = st.text_input("Phạm vi trang (VD: 12-15)", key="khbd_range_trang")
     
-    file_ppct = st.file_uploader("PPCT", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ppct")
-    file_ai = st.file_uploader("Bảng tích hợp AI", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ai")
-    file_template = st.file_uploader("File mẫu giáo án DOCX của trường (Nếu trống dùng templates/KHBD_Mau.docx)", type=["docx"], key="khbd_file_template")
+    file_ppct = col_up2.file_uploader("PPCT (Tùy chọn)", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ppct")
+    file_ai = col_up3.file_uploader("Bảng AI (Tùy chọn)", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ai")
+    file_template = col_up4.file_uploader("Mẫu KHBD trường", type=["docx"], key="khbd_file_template")
 
     # --------------------------------------------------------
     # THÔNG TIN CHI TIẾT
     # --------------------------------------------------------
-    st.subheader("📚 Thông tin bài học")
-    col1, col2 = st.columns(2)
-    with col1: ten_bai = st.text_input("Tên bài dạy", key="khbd_ten_bai")
-    with col2: so_tiet = st.text_input("Thời lượng", value="1 tiết", key="khbd_so_tiet")
+    st.subheader("📚 Thông tin chi tiết")
+    col_td1, col_td2 = st.columns(2)
+    with col_td1: ten_bai = st.text_input("Tên bài dạy", key="khbd_ten_bai")
+    with col_td2: so_tiet = st.text_input("Thời lượng", value="1 tiết", key="khbd_so_tiet")
+
+    # --------------------------------------------------------
+    # TÍCH HỢP CHUYÊN SÂU & HÒA NHẬP (CỐ ĐỊNH GIAO DIỆN)
+    # --------------------------------------------------------
+    st.subheader("🔧 Tích hợp chuyên sâu")
+    c_th1, c_th2, c_th3 = st.columns(3)
+    with c_th1: tich_hop_nls = st.checkbox("Năng lực số (TT18)", key="khbd_tich_hop_nls")
+    with c_th2: tich_hop_ai = st.checkbox("Năng lực AI", key="khbd_tich_hop_ai")
+    with c_th3: tich_hop_hoa_nhap = st.checkbox("Dạy học hòa nhập", key="khbd_tich_hop_hoa_nhap")
+
+    # NẾU CHỌN DẠY HỌC HÒA NHẬP -> HIỂN THỊ MULTISELECT CHỌN KHUYẾT TẬT
+    nhu_cau_hoa_nhap = []
+    if tich_hop_hoa_nhap:
+        with st.container(border=True):
+            st.markdown("##### 🫂 Lựa chọn loại khuyết tật/nhu cầu cần hỗ trợ:")
+            nhu_cau_hoa_nhap = st.multiselect(
+                "Chọn đối tượng học sinh", 
+                ["Vận động", "Nghe", "Nói", "Nhìn", "Thần kinh", "Tâm thần", "Trí tuệ", "Tự kỷ", "Khác"], 
+                default=["Nhìn"],
+                key="khbd_nhu_cau_hoa_nhap"
+            )
 
     # --------------------------------------------------------
     # HOẠT ĐỘNG
     # --------------------------------------------------------
-    st.subheader("📌 Hoạt động giáo viên mong muốn")
-    c1, c2 = st.columns([5, 1])
-    with c1: st.text_input("Hoạt động", placeholder="VD: Thí nghiệm, trò chơi, mô phỏng...", key="khbd_new_activity", label_visibility="collapsed", on_change=add_activity)
-    with c2: st.button("➕ Thêm", on_click=add_activity, use_container_width=True)
+    st.subheader("📌 Hoạt động giáo viên mong muốn thêm")
+    c_hd1, c_hd2 = st.columns([5, 1])
+    with c_hd1: st.text_input("Hoạt động", placeholder="VD: Thí nghiệm, trò chơi, mô phỏng...", key="khbd_new_activity", label_visibility="collapsed", on_change=add_activity)
+    with c_hd2: st.button("➕ Thêm", on_click=add_activity, use_container_width=True)
 
     for index, activity in enumerate(st.session_state.khbd_hoat_dong_list):
-        c1, c2 = st.columns([10, 1])
-        with c1: st.info(activity)
-        with c2:
+        c_i1, c_i2 = st.columns([10, 1])
+        with c_i1: st.info(activity)
+        with c_i2:
             if st.button("Xóa", key=f"khbd_del_activity_{index}"):
                 st.session_state.khbd_hoat_dong_list.pop(index)
                 st.rerun()
@@ -484,49 +532,43 @@ def render_xd_khbd(ai_engine=None):
     # NĂNG LỰC SỐ (THÔNG TƯ 18 MỞ RỘNG)
     # --------------------------------------------------------
     if tich_hop_nls:
-        st.subheader("🎯 Cấu hình Năng lực số (Theo Thông tư 18/2026)")
+        with st.container(border=True):
+            st.markdown("#### 🎯 Cấu hình Năng lực số (Theo Thông tư 18/2026)")
 
-        loai_khung = st.radio("Chọn chuẩn Năng lực số:", ["Giáo viên (Thông tư 18)", "Học sinh (DigComp)"], horizontal=True, key="khbd_loai_khung_nls")
-        current_khung = KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
+            loai_khung = st.radio("Chọn chuẩn Năng lực số:", ["Giáo viên (Thông tư 18)", "Học sinh (DigComp)"], horizontal=True, key="khbd_loai_khung_nls")
+            current_khung = KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
 
-        col_lv, col_tp, col_md = st.columns([2, 2, 1])
-        with col_lv: linh_vuc = st.selectbox("Lĩnh vực", list(current_khung.keys()), key="khbd_nls_linh_vuc")
-        with col_tp: thanh_phan = st.selectbox("Thành phần", list(current_khung[linh_vuc].keys()), key="khbd_nls_thanh_phan")
-        with col_md: muc_do = st.selectbox("Mức độ", list(current_khung[linh_vuc][thanh_phan].keys()), key="khbd_nls_muc_do")
+            col_lv, col_tp, col_md = st.columns([2, 2, 1])
+            with col_lv: linh_vuc = st.selectbox("Lĩnh vực", list(current_khung.keys()), key="khbd_nls_linh_vuc")
+            with col_tp: thanh_phan = st.selectbox("Thành phần", list(current_khung[linh_vuc].keys()), key="khbd_nls_thanh_phan")
+            with col_md: muc_do = st.selectbox("Mức độ", list(current_khung[linh_vuc][thanh_phan].keys()), key="khbd_nls_muc_do")
 
-        if "last_khung_state" not in st.session_state: st.session_state.last_khung_state = loai_khung
-        if "last_lv_state" not in st.session_state: st.session_state.last_lv_state = linh_vuc
-        if "last_tp_state" not in st.session_state: st.session_state.last_tp_state = thanh_phan
-        if "last_md_state" not in st.session_state: st.session_state.last_md_state = muc_do
+            if "last_khung_state" not in st.session_state: st.session_state.last_khung_state = loai_khung
+            if "last_lv_state" not in st.session_state: st.session_state.last_lv_state = linh_vuc
+            if "last_tp_state" not in st.session_state: st.session_state.last_tp_state = thanh_phan
+            if "last_md_state" not in st.session_state: st.session_state.last_md_state = muc_do
 
-        if (st.session_state.last_khung_state != loai_khung or
-            st.session_state.last_lv_state != linh_vuc or
-            st.session_state.last_tp_state != thanh_phan or
-            st.session_state.last_md_state != muc_do):
-            
-            st.session_state.last_khung_state = loai_khung
-            st.session_state.last_lv_state = linh_vuc
-            st.session_state.last_tp_state = thanh_phan
-            st.session_state.last_md_state = muc_do
-            
-            st.session_state.khbd_nls_noi_dung = current_khung[linh_vuc][thanh_phan][muc_do]
+            if (st.session_state.last_khung_state != loai_khung or
+                st.session_state.last_lv_state != linh_vuc or
+                st.session_state.last_tp_state != thanh_phan or
+                st.session_state.last_md_state != muc_do):
+                
+                st.session_state.last_khung_state = loai_khung
+                st.session_state.last_lv_state = linh_vuc
+                st.session_state.last_tp_state = thanh_phan
+                st.session_state.last_md_state = muc_do
+                
+                st.session_state.khbd_nls_noi_dung = current_khung[linh_vuc][thanh_phan][muc_do]
 
-        st.text_area("Yêu cầu cần đạt (Auto-fill chuẩn Thông tư 18)", key="khbd_nls_noi_dung", height=130)
-        st.button("➕ Thêm năng lực số vào danh sách", on_click=add_nls, use_container_width=True)
+            st.text_area("Yêu cầu cần đạt (Auto-fill)", key="khbd_nls_noi_dung", height=130)
+            st.button("➕ Thêm năng lực số vào danh sách", on_click=add_nls, use_container_width=True)
 
-        for index, item in enumerate(st.session_state.khbd_nls_list):
-            with st.container(border=True):
-                st.markdown(f"**{index + 1}. [{item['van_ban']}] {item['linh_vuc']}**\n\n**Thành phần:** {item['thanh_phan']} ({item['muc_do']})\n\n**Yêu cầu:** {item['noi_dung']}")
-                if st.button("Xóa", key=f"khbd_del_nls_{index}"):
-                    st.session_state.khbd_nls_list.pop(index)
-                    st.rerun()
-
-    # --------------------------------------------------------
-    # HÒA NHẬP
-    # --------------------------------------------------------
-    nhu_cau_hoa_nhap = []
-    if tich_hop_hoa_nhap:
-        nhu_cau_hoa_nhap = st.multiselect("Nhu cầu hỗ trợ", ["Vận động", "Nghe", "Nói", "Nhìn", "Thần kinh", "Tâm thần", "Trí tuệ", "Tự kỷ", "Khác"], key="khbd_nhu_cau_hoa_nhap")
+            for index, item in enumerate(st.session_state.khbd_nls_list):
+                with st.container(border=True):
+                    st.markdown(f"**{index + 1}. [{item['van_ban']}] {item['linh_vuc']}**\n\n**Thành phần:** {item['thanh_phan']} ({item['muc_do']})\n\n**Yêu cầu:** {item['noi_dung']}")
+                    if st.button("Xóa", key=f"khbd_del_nls_{index}"):
+                        st.session_state.khbd_nls_list.pop(index)
+                        st.rerun()
 
     # --------------------------------------------------------
     # NGÔN NGỮ
@@ -549,9 +591,14 @@ def render_xd_khbd(ai_engine=None):
             st.error("⚠️ Vui lòng tải SGK hoặc tài liệu bài học.")
             st.stop()
 
-        with st.spinner("🧠 AI đang phân tích sâu tài liệu và xây dựng KHBD chi tiết theo chuẩn 5512..."):
+        with st.spinner("🧠 AI đang phân tích sâu tài liệu và xây dựng KHBD siêu chi tiết theo chuẩn 5512..."):
             try:
-                noi_dung_chinh = read_multiple_files(file_ga) if mode == "chinh_sua" else read_multiple_files(file_sgk)
+                # Xử lý giới hạn trang cho PDF
+                if mode == "chinh_sua":
+                    noi_dung_chinh = read_multiple_files(file_ga)
+                else:
+                    noi_dung_chinh = read_multiple_files(file_sgk, range_trang)
+                    
                 noi_dung_ppct = read_uploaded_file(file_ppct)
                 noi_dung_ai = read_uploaded_file(file_ai)
                 
