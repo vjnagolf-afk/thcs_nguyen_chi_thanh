@@ -2,27 +2,8 @@
 """
 ============================================================
 DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY
-KIẾN TRÚC KNOWLEDGE SCOPE + OCR + 5512
-============================================================
-
-FILE:
-views/xd_khbd_data.py
-
-MỤC TIÊU KIẾN TRÚC:
-
-1. Đọc được PDF có lớp text.
-2. Phát hiện PDF scan.
-3. OCR PDF scan khi có công cụ OCR.
-4. Không gửi tài liệu rỗng / tài liệu lỗi cho AI.
-5. Tách rõ:
-   - SGK / nguồn kiến thức chính
-   - Giáo án gốc
-   - PPCT
-   - Tài liệu AI bổ sung
-6. Xây dựng Knowledge Scope trước khi gọi AI.
-7. Ép AI bám nội dung thực tế của SGK.
-8. Bảo đảm giáo án 1, 2, 3, 4 tiết được phân bổ đúng.
-9. Giữ tương thích với UI hiện tại.
+KIẾN TRÚC: SOURCE PIPELINE → KNOWLEDGE SCOPE → LESSON PLAN
+FILE: views/xd_khbd_data.py
 ============================================================
 """
 
@@ -31,24 +12,12 @@ import os
 import re
 import json
 import math
-import logging
-import tempfile
-import subprocess
-import shutil
-
 import pandas as pd
 import PyPDF2
 
 from docx import Document
 from pathlib import Path
 from io import BytesIO
-
-
-# ============================================================
-# 0. LOGGING
-# ============================================================
-
-logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -60,19 +29,16 @@ NLS_GV_VAN_BAN_MAC_DINH = "18/2026/TT-BGDĐT"
 MODE_LABELS = {
     "chinh_sua": "Chỉnh sửa và nâng cấp giáo án gốc",
     "tao_moi": "Soạn mới hoàn toàn từ tài liệu SGK",
-    "tu_dong": "Soạn mới hoàn toàn từ tài liệu SGK",
+    "tu_dong": "Soạn mới hoàn toàn từ tài liệu SGK"
 }
 
-# Ngưỡng chất lượng nguồn
-MIN_SOURCE_CHARS = 800
-MIN_SOURCE_WORDS = 120
+# Ngưỡng tối thiểu để tránh gửi nguồn rỗng cho AI
+MIN_SOURCE_CHARS = 1000
+MIN_SOURCE_WORDS = 150
 
-# Nếu PDF ít hơn ngưỡng này, xem xét OCR
-PDF_TEXT_MIN_CHARS = 500
-
-# Chunk cho các tài liệu dài
-DEFAULT_CHUNK_SIZE = 18000
-DEFAULT_CHUNK_OVERLAP = 1000
+# Ngưỡng cảnh báo
+WARNING_SOURCE_CHARS = 3000
+WARNING_SOURCE_WORDS = 500
 
 
 # ============================================================
@@ -83,17 +49,17 @@ KHUNG_NLS_GV = {
     "1. Miền 1: Tổ chức dạy học, giáo dục trong môi trường số": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
             "Cơ bản": (
-                "Sử dụng thiết bị cơ bản như máy tính, máy chiếu, "
-                "bảng tương tác; dùng ứng dụng di động giáo dục đơn giản."
+                "Sử dụng thiết bị cơ bản (máy tính, máy chiếu, bảng tương tác); "
+                "Dùng ứng dụng di động giáo dục đơn giản."
             ),
             "Thành thạo": (
                 "Lựa chọn, tích hợp học liệu số vào kế hoạch hoạt động; "
-                "thiết kế hoạt động học tập tương tác."
+                "Thiết kế hoạt động học tập tương tác."
             ),
             "Nâng cao": (
                 "Sáng tạo mô hình giáo dục ứng dụng công nghệ mới; "
-                "hướng dẫn đồng nghiệp sử dụng thiết bị số."
-            ),
+                "Hướng dẫn đồng nghiệp sử dụng thiết bị số."
+            )
         },
         "1.2. Hướng dẫn, hỗ trợ học tập": {
             "Cơ bản": (
@@ -102,38 +68,40 @@ KHUNG_NLS_GV = {
             ),
             "Thành thạo": (
                 "Quan sát, hỗ trợ kịp thời khi học sinh gặp khó khăn "
-                "trong tương tác với công nghệ."
+                "tương tác công nghệ."
             ),
             "Nâng cao": (
-                "Phát triển phương pháp hỗ trợ học tập trên nền tảng "
-                "công nghệ tại nhà."
-            ),
-        },
+                "Phát triển phương pháp hỗ trợ học tập trên nền tảng công nghệ "
+                "tại nhà."
+            )
+        }
     },
+
     "2. Miền 2: Kiểm tra, đánh giá": {
         "2.1. Phương thức đánh giá": {
             "Cơ bản": (
-                "Sử dụng thiết bị số ghi lại sản phẩm hoặc khoảnh khắc "
-                "học tập của học sinh."
+                "Sử dụng thiết bị số ghi lại sản phẩm/khoảnh khắc học tập "
+                "của học sinh."
             ),
             "Thành thạo": (
                 "Thiết kế hoạt động đánh giá kĩ năng qua công nghệ "
                 "và lưu trữ minh chứng."
-            ),
+            )
         }
     },
+
     "6. Miền 6: Trí tuệ nhân tạo (AI)": {
         "6.1. Tư duy lấy con người làm trung tâm": {
             "Cơ bản": (
-                "Sử dụng công cụ AI tạo sinh cơ bản hỗ trợ soạn thảo "
-                "và tìm kiếm ý tưởng."
+                "Sử dụng công cụ AI tạo sinh cơ bản hỗ trợ soạn thảo, "
+                "tìm kiếm ý tưởng."
             ),
             "Thành thạo": (
-                "Khai thác công cụ AI chuyên biệt tạo học liệu tương tác "
-                "và cá nhân hóa."
-            ),
+                "Khai thác công cụ AI chuyên biệt tạo học liệu tương tác, "
+                "cá nhân hóa."
+            )
         }
-    },
+    }
 }
 
 
@@ -145,9 +113,9 @@ KHUNG_NLS_HS = {
                 "trong môi trường số."
             ),
             "Mức 2": (
-                "Sử dụng kĩ thuật tìm kiếm nâng cao để lấy dữ liệu "
-                "và thông tin chính xác."
-            ),
+                "Sử dụng kĩ thuật tìm kiếm nâng cao để lấy dữ liệu, "
+                "thông tin chính xác."
+            )
         }
     }
 }
@@ -158,9 +126,11 @@ KHUNG_NLS_HS = {
 # ============================================================
 
 def get_nls_framework(loai_khung):
-    if loai_khung == "Giáo viên (Thông tư 18)":
-        return KHUNG_NLS_GV
-    return KHUNG_NLS_HS
+    return (
+        KHUNG_NLS_GV
+        if loai_khung == "Giáo viên (Thông tư 18)"
+        else KHUNG_NLS_HS
+    )
 
 
 def get_nls_domains(loai_khung):
@@ -186,20 +156,16 @@ def get_nls_content(
     loai_khung,
     linh_vuc,
     thanh_phan,
-    muc_do,
+    muc_do
 ):
     framework = get_nls_framework(loai_khung)
 
-    try:
-        return framework[
-            linh_vuc
-        ][
-            thanh_phan
-        ][
-            muc_do
-        ]
-    except Exception:
-        return ""
+    return (
+        framework
+        .get(linh_vuc, {})
+        .get(thanh_phan, {})
+        .get(muc_do, "")
+    )
 
 
 # ============================================================
@@ -216,37 +182,37 @@ def init_session_state():
         "khbd_processing": False,
         "khbd_nls_noi_dung": "",
         "khbd_source_quality": None,
-        "khbd_source_diagnostics": None,
     }
 
     for key, value in defaults.items():
-
         if key not in st.session_state:
-
             st.session_state[key] = value
 
 
 def reset_ket_qua():
-
     st.session_state["khbd_result"] = None
+    st.session_state["khbd_source_quality"] = None
 
 
 def reset_toan_bo_khbd():
 
-    st.session_state["khbd_result"] = None
-    st.session_state["khbd_nls_list"] = []
-    st.session_state["khbd_hoat_dong_list"] = []
-    st.session_state["khbd_nls_noi_dung"] = ""
-    st.session_state["khbd_mode"] = "tu_dong"
-    st.session_state["khbd_processing"] = False
-    st.session_state["khbd_source_quality"] = None
-    st.session_state["khbd_source_diagnostics"] = None
+    keys_to_reset = {
+        "khbd_result": None,
+        "khbd_nls_list": [],
+        "khbd_hoat_dong_list": [],
+        "khbd_nls_noi_dung": "",
+        "khbd_mode": "tu_dong",
+        "khbd_processing": False,
+        "khbd_source_quality": None,
+    }
+
+    for key, value in keys_to_reset.items():
+        st.session_state[key] = value
 
 
 def set_mode(mode: str):
 
     if mode not in MODE_LABELS:
-
         raise ValueError(
             f"Chế độ soạn không hợp lệ: {mode}"
         )
@@ -255,69 +221,39 @@ def set_mode(mode: str):
 
 
 # ============================================================
-# 5. CHUẨN HÓA VĂN BẢN
+# 5. LÀM SẠCH VĂN BẢN
 # ============================================================
 
 def safe_text(value):
 
     if value is None:
-
         return ""
 
-    if not isinstance(value, str):
+    if isinstance(value, float):
+        if math.isnan(value):
+            return ""
 
+    if not isinstance(value, str):
         value = str(value)
 
     text = value.replace("\x00", "")
 
-    text = text.replace("\ufeff", "")
-
-    text = text.replace("\u200b", "")
-
-    text = re.sub(r"[\r\t]+", " ", text)
+    text = re.sub(
+        r"[\r\t]+",
+        " ",
+        text
+    )
 
     text = re.sub(
         r"[ ]{2,}",
         " ",
-        text,
+        text
     )
 
     text = re.sub(
         r"\n{3,}",
         "\n\n",
-        text,
-    )
-
-    return text.strip()
-
-
-def normalize_source_text(text):
-
-    text = safe_text(text)
-
-    if not text:
-
-        return ""
-
-    # Ghép các dòng bị ngắt bất thường
-    text = re.sub(
-        r"(?<![.!?:;])\n(?=[a-zà-ỹA-ZÀ-Ỹ0-9])",
-        " ",
-        text,
-    )
-
-    # Chuẩn hóa khoảng trắng
-    text = re.sub(
-        r"[ ]{2,}",
-        " ",
-        text,
-    )
-
-    # Giữ khoảng cách đoạn
-    text = re.sub(
-        r"\n{3,}",
-        "\n\n",
-        text,
+        text
     )
 
     return text.strip()
@@ -325,351 +261,81 @@ def normalize_source_text(text):
 
 def count_words(text):
 
-    if not text:
+    text = safe_text(text)
 
+    if not text:
         return 0
 
     return len(
         re.findall(
             r"\S+",
             text,
+            flags=re.UNICODE
         )
     )
 
 
 # ============================================================
-# 6. CHẨN ĐOÁN CHẤT LƯỢNG TÀI LIỆU
+# 6. ĐỌC PDF
 # ============================================================
 
-def diagnose_source_quality(
-    text,
-    source_name="Tài liệu nguồn",
-):
+def _parse_page_range(range_str, total_pages):
 
-    text = safe_text(text)
+    start = 1
+    end = total_pages
 
-    chars = len(text)
+    if not range_str:
+        return start, end
 
-    words = count_words(text)
-
-    has_error = (
-        "[LỖI ĐỌC"
-        in text.upper()
+    match = re.match(
+        r"^\s*(\d+)\s*-\s*(\d+)\s*$",
+        str(range_str)
     )
 
-    is_too_short = (
-        chars < MIN_SOURCE_CHARS
-        or words < MIN_SOURCE_WORDS
-    )
+    if match:
 
-    if has_error:
-
-        status = "error"
-
-        message = (
-            f"{source_name} có lỗi khi đọc."
+        start = max(
+            1,
+            int(match.group(1))
         )
 
-    elif is_too_short:
-
-        status = "insufficient"
-
-        message = (
-            f"{source_name} không đủ dữ liệu."
+        end = min(
+            total_pages,
+            int(match.group(2))
         )
 
-    else:
-
-        status = "valid"
-
-        message = (
-            f"{source_name} đủ dữ liệu."
-        )
-
-    return {
-        "source_name": source_name,
-        "chars": chars,
-        "words": words,
-        "status": status,
-        "message": message,
-    }
+    return start, end
 
 
-# ============================================================
-# 7. OCR PDF
-# ============================================================
-
-def is_ocr_available():
-
-    return (
-        shutil.which("tesseract")
-        is not None
-    )
-
-
-def is_ocrmypdf_available():
-
-    return (
-        shutil.which("ocrmypdf")
-        is not None
-    )
-
-
-def ocr_pdf_with_ocrmypdf(
+def _extract_pdf_text_pypdf2(
     uploaded_file,
-):
-
-    if not is_ocrmypdf_available():
-
-        return ""
-
-    temp_input = None
-
-    temp_output = None
-
-    try:
-
-        suffix = ".pdf"
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=suffix,
-        ) as f:
-
-            content = uploaded_file.read()
-
-            f.write(content)
-
-            temp_input = f.name
-
-        temp_output = (
-            temp_input
-            + "_ocr.pdf"
-        )
-
-        command = [
-            "ocrmypdf",
-            "--skip-text",
-            "--force-ocr",
-            "--deskew",
-            temp_input,
-            temp_output,
-        ]
-
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=300,
-            check=False,
-        )
-
-        if not os.path.exists(
-            temp_output
-        ):
-
-            return ""
-
-        with open(
-            temp_output,
-            "rb",
-        ) as f:
-
-            reader = PyPDF2.PdfReader(f)
-
-            pages = []
-
-            for index, page in enumerate(
-                reader.pages,
-                start=1,
-            ):
-
-                text = page.extract_text() or ""
-
-                text = safe_text(text)
-
-                if text:
-
-                    pages.append(
-                        f"\n[PDF OCR - Trang {index}]\n"
-                        f"{text}"
-                    )
-
-            return "\n".join(pages)
-
-    except Exception as e:
-
-        logger.warning(
-            "OCR PDF lỗi: %s",
-            e,
-        )
-
-        return ""
-
-    finally:
-
-        for path in [
-            temp_input,
-            temp_output,
-        ]:
-
-            if path and os.path.exists(path):
-
-                try:
-
-                    os.remove(path)
-
-                except Exception:
-
-                    pass
-
-
-def ocr_pdf_with_pytesseract(
-    uploaded_file,
-    range_str="",
-):
-
-    try:
-
-        import pytesseract
-
-        from pdf2image import convert_from_bytes
-
-    except ImportError:
-
-        return ""
-
-    if not is_ocr_available():
-
-        return ""
-
-    try:
-
-        content = uploaded_file.read()
-
-        start = 1
-
-        end = None
-
-        if range_str and "-" in range_str:
-
-            try:
-
-                s, e = range_str.split("-")
-
-                start = max(
-                    1,
-                    int(s.strip()),
-                )
-
-                end = int(
-                    e.strip()
-                )
-
-            except Exception:
-
-                pass
-
-        images = convert_from_bytes(
-            content,
-            dpi=200,
-            first_page=start,
-            last_page=end,
-        )
-
-        pages = []
-
-        for index, image in enumerate(
-            images,
-            start=start,
-        ):
-
-            text = pytesseract.image_to_string(
-                image,
-                lang="vie+eng",
-            )
-
-            text = safe_text(text)
-
-            if text:
-
-                pages.append(
-                    f"\n[PDF OCR - Trang {index}]\n"
-                    f"{text}"
-                )
-
-        return "\n".join(pages)
-
-    except Exception as e:
-
-        logger.warning(
-            "Pytesseract OCR lỗi: %s",
-            e,
-        )
-
-        return ""
-
-
-# ============================================================
-# 8. ĐỌC PDF NHIỀU TẦNG
-# ============================================================
-
-def read_pdf(
-    uploaded_file,
-    range_str="",
-    enable_ocr=True,
+    range_str=""
 ):
 
     result = []
 
     try:
 
-        # ----------------------------------------------------
-        # TẦNG 1: ĐỌC TEXT GỐC
-        # ----------------------------------------------------
-
-        content = uploaded_file.read()
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
 
         reader = PyPDF2.PdfReader(
-            BytesIO(content)
+            uploaded_file
         )
 
-        total_pages = len(
-            reader.pages
+        total_pages = len(reader.pages)
+
+        start, end = _parse_page_range(
+            range_str,
+            total_pages
         )
-
-        start = 1
-
-        end = total_pages
-
-        if range_str and "-" in range_str:
-
-            try:
-
-                s, e = range_str.split("-")
-
-                start = max(
-                    1,
-                    int(s.strip()),
-                )
-
-                end = min(
-                    total_pages,
-                    int(e.strip()),
-                )
-
-            except ValueError:
-
-                pass
 
         for index in range(
             start,
-            end + 1,
+            end + 1
         ):
 
-            page = reader.pages[
-                index - 1
-            ]
+            page = reader.pages[index - 1]
 
             text = page.extract_text() or ""
 
@@ -678,118 +344,138 @@ def read_pdf(
             if text:
 
                 result.append(
-                    f"\n[PDF - Trang {index}]\n"
-                    f"{text}"
+                    f"\n[PDF - Trang {index}]\n{text}"
                 )
 
-        text_result = "\n".join(result)
+        return "\n".join(result)
 
-        # ----------------------------------------------------
-        # KIỂM TRA TEXT
-        # ----------------------------------------------------
+    except Exception:
 
-        quality = diagnose_source_quality(
-            text_result,
-            "PDF",
+        return ""
+
+
+def _ocr_pdf(
+    uploaded_file,
+    range_str=""
+):
+
+    """
+    OCR fallback.
+
+    Cần cài:
+
+    pip install pdf2image pytesseract
+
+    Đồng thời máy chủ cần có Tesseract OCR.
+    """
+
+    try:
+
+        from pdf2image import convert_from_bytes
+        import pytesseract
+
+    except ImportError:
+
+        return ""
+
+    try:
+
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
+
+        pdf_bytes = uploaded_file.read()
+
+        if not pdf_bytes:
+            return ""
+
+        reader = PyPDF2.PdfReader(
+            BytesIO(pdf_bytes)
         )
 
-        if quality["status"] == "valid":
+        total_pages = len(reader.pages)
 
-            return normalize_source_text(
-                text_result
-            )
+        start, end = _parse_page_range(
+            range_str,
+            total_pages
+        )
 
-        # ----------------------------------------------------
-        # TẦNG 2: OCRmyPDF
-        # ----------------------------------------------------
+        images = convert_from_bytes(
+            pdf_bytes,
+            dpi=200,
+            first_page=start,
+            last_page=end
+        )
 
-        if enable_ocr:
+        result = []
+
+        for offset, image in enumerate(images):
+
+            page_number = start + offset
 
             try:
 
-                uploaded_file.seek(0)
-
-                ocr_result = (
-                    ocr_pdf_with_ocrmypdf(
-                        uploaded_file
-                    )
+                text = pytesseract.image_to_string(
+                    image,
+                    lang="vie+eng"
                 )
-
-                if len(ocr_result) > len(
-                    text_result
-                ):
-
-                    ocr_quality = (
-                        diagnose_source_quality(
-                            ocr_result,
-                            "PDF OCR",
-                        )
-                    )
-
-                    if (
-                        ocr_quality[
-                            "status"
-                        ]
-                        == "valid"
-                    ):
-
-                        return normalize_source_text(
-                            ocr_result
-                        )
 
             except Exception:
 
-                pass
-
-        # ----------------------------------------------------
-        # TẦNG 3: PYTESSERACT
-        # ----------------------------------------------------
-
-        if enable_ocr:
-
-            try:
-
-                uploaded_file.seek(0)
-
-                ocr_result = (
-                    ocr_pdf_with_pytesseract(
-                        uploaded_file,
-                        range_str,
-                    )
+                text = pytesseract.image_to_string(
+                    image
                 )
 
-                if len(ocr_result) > len(
-                    text_result
-                ):
+            text = safe_text(text)
 
-                    return normalize_source_text(
-                        ocr_result
-                    )
+            if text:
 
-            except Exception:
+                result.append(
+                    f"\n[OCR - PDF - Trang {page_number}]\n{text}"
+                )
 
-                pass
+        return "\n".join(result)
 
-        # ----------------------------------------------------
-        # KHÔNG ĐỌC ĐƯỢC
-        # ----------------------------------------------------
+    except Exception:
 
-        return (
-            "[PDF KHÔNG CÓ LỚP VĂN BẢN]\n"
-            f"Số ký tự đọc được: {len(text_result)}\n"
-            f"Số từ đọc được: {count_words(text_result)}\n"
-            "Cần OCR hoặc PDF có lớp văn bản."
-        )
+        return ""
 
-    except Exception as e:
 
-        return (
-            f"[LỖI ĐỌC PDF: {str(e)}]"
-        )
+def read_pdf(
+    uploaded_file,
+    range_str=""
+):
+
+    """
+    Pipeline đọc PDF:
+
+    1. PyPDF2
+    2. Nếu text quá ngắn → OCR fallback
+    3. Trả về nguồn có chất lượng tốt hơn
+    """
+
+    text_result = _extract_pdf_text_pypdf2(
+        uploaded_file,
+        range_str
+    )
+
+    if len(text_result) >= MIN_SOURCE_CHARS:
+
+        return text_result
+
+    ocr_result = _ocr_pdf(
+        uploaded_file,
+        range_str
+    )
+
+    if len(ocr_result) > len(text_result):
+
+        return ocr_result
+
+    return text_result
 
 
 # ============================================================
-# 9. ĐỌC DOCX BẢO TOÀN THỨ TỰ
+# 7. ĐỌC DOCX
 # ============================================================
 
 def read_docx_ordered(source):
@@ -798,27 +484,18 @@ def read_docx_ordered(source):
 
     try:
 
-        if isinstance(
-            source,
-            (str, Path),
-        ):
+        if isinstance(source, (str, Path)):
 
-            doc = Document(
-                source
-            )
+            doc = Document(source)
 
-        elif hasattr(
-            source,
-            "read",
-        ):
+        elif hasattr(source, "read"):
+
+            if hasattr(source, "seek"):
+                source.seek(0)
 
             content = source.read()
 
-            if isinstance(
-                content,
-                str,
-            ):
-
+            if isinstance(content, str):
                 content = content.encode(
                     "utf-8"
                 )
@@ -829,26 +506,19 @@ def read_docx_ordered(source):
 
         else:
 
-            doc = Document(
-                source
-            )
+            doc = Document(source)
 
         for element in doc.element.body:
 
-            if (
-                element.tag.endswith(
-                    "p"
-                )
-                or element.tag.endswith(
-                    "}p"
-                )
-            ):
+            tag = element.tag
+
+            if tag.endswith("}p") or tag.endswith("p"):
 
                 from docx.text.paragraph import Paragraph
 
                 paragraph = Paragraph(
                     element,
-                    doc,
+                    doc
                 )
 
                 text = safe_text(
@@ -856,25 +526,15 @@ def read_docx_ordered(source):
                 )
 
                 if text:
+                    result.append(text)
 
-                    result.append(
-                        text
-                    )
-
-            elif (
-                element.tag.endswith(
-                    "tbl"
-                )
-                or element.tag.endswith(
-                    "}tbl"
-                )
-            ):
+            elif tag.endswith("}tbl") or tag.endswith("tbl"):
 
                 from docx.table import Table
 
                 table = Table(
                     element,
-                    doc,
+                    doc
                 )
 
                 result.append(
@@ -883,20 +543,23 @@ def read_docx_ordered(source):
 
                 for row in table.rows:
 
-                    cells = [
-                        safe_text(
+                    cells = []
+
+                    for cell in row.cells:
+
+                        cell_text = safe_text(
                             cell.text
                         ).replace(
                             "\n",
-                            " ",
+                            " "
                         )
-                        for cell in row.cells
-                    ]
 
-                    row_text = (
-                        " | ".join(
-                            cells
+                        cells.append(
+                            cell_text
                         )
+
+                    row_text = " | ".join(
+                        cells
                     )
 
                     if row_text.strip():
@@ -905,42 +568,40 @@ def read_docx_ordered(source):
                             row_text
                         )
 
-        return normalize_source_text(
-            "\n".join(result)
-        )
+        return "\n".join(result)
 
     except Exception as e:
 
         return (
-            f"[LỖI ĐỌC DOCX: {str(e)}]"
+            "[LỖI ĐỌC DOCX: "
+            + str(e)
+            + "]"
         )
 
 
 # ============================================================
-# 10. ĐỌC EXCEL CÓ CẤU TRÚC
+# 8. ĐỌC EXCEL
 # ============================================================
 
-def read_excel_structured(
-    uploaded_file,
-):
+def read_excel_structured(uploaded_file):
 
     result = []
 
     try:
 
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
+
         sheets = pd.read_excel(
             uploaded_file,
-            sheet_name=None,
+            sheet_name=None
         )
 
-        for (
-            sheet_name,
-            dataframe,
-        ) in sheets.items():
+        for sheet_name, dataframe in sheets.items():
 
             result.append(
-                f"\n[PHÂN PHỐI CHƯƠNG TRÌNH - "
-                f"SHEET: {sheet_name}]"
+                f"\n[PHÂN PHỐI CHƯƠNG TRÌNH - SHEET: "
+                f"{sheet_name}]"
             )
 
             dataframe = dataframe.fillna("")
@@ -949,56 +610,52 @@ def read_excel_structured(
                 orient="records"
             )
 
-            for idx, rec in enumerate(
+            for index, record in enumerate(
                 records,
-                start=1,
+                start=1
             ):
 
-                clean_rec = {}
+                clean_record = {}
 
-                for key, value in rec.items():
+                for key, value in record.items():
 
-                    key = safe_text(
-                        key
-                    )
-
-                    value = safe_text(
-                        value
-                    )
+                    value = safe_text(value)
 
                     if value:
 
-                        clean_rec[key] = value
+                        clean_record[
+                            str(key).strip()
+                        ] = value
 
-                if clean_rec:
+                if clean_record:
 
                     result.append(
-                        f"Dòng {idx}: "
+                        f"Dòng {index}: "
                         + json.dumps(
-                            clean_rec,
-                            ensure_ascii=False,
+                            clean_record,
+                            ensure_ascii=False
                         )
                     )
 
-        return normalize_source_text(
-            "\n".join(result)
-        )
+        return "\n".join(result)
 
     except Exception as e:
 
         return (
-            f"[LỖI ĐỌC EXCEL: {str(e)}]"
+            "[LỖI ĐỌC EXCEL: "
+            + str(e)
+            + "]"
         )
 
 
 # ============================================================
-# 11. ĐỌC FILE
+# 9. ĐỌC FILE CHUNG
 # ============================================================
 
 def read_uploaded_file(
     uploaded_file,
     range_str="",
-    is_pdf_target=False,
+    is_pdf_target=False
 ):
 
     if uploaded_file is None:
@@ -1008,12 +665,12 @@ def read_uploaded_file(
     filename = getattr(
         uploaded_file,
         "name",
-        "file.docx",
-    ).lower()
+        "file"
+    )
 
     extension = Path(
-        filename
-    ).suffix.lower()
+        filename.lower()
+    ).suffix
 
     try:
 
@@ -1023,8 +680,7 @@ def read_uploaded_file(
                 uploaded_file,
                 range_str
                 if is_pdf_target
-                else "",
-                enable_ocr=True,
+                else ""
             )
 
         if extension == ".docx":
@@ -1035,7 +691,7 @@ def read_uploaded_file(
 
         if extension in [
             ".xlsx",
-            ".xls",
+            ".xls"
         ]:
 
             return read_excel_structured(
@@ -1047,45 +703,46 @@ def read_uploaded_file(
     except Exception as e:
 
         return (
-            f"[LỖI ĐỌC FILE: {e}]"
+            "[LỖI ĐỌC FILE: "
+            + str(e)
+            + "]"
         )
 
 
 def read_multiple_files(
     files,
     range_str="",
-    is_pdf_target=False,
+    is_pdf_target=False
 ):
 
     result = []
 
     for uploaded_file in files or []:
 
-        fname = getattr(
+        filename = getattr(
             uploaded_file,
             "name",
-            "Tài liệu",
+            "Tài liệu"
         )
 
         result.append(
-            f"\n--- TÀI LIỆU NGUỒN: {fname} ---"
+            f"\n--- TÀI LIỆU NGUỒN: "
+            f"{filename} ---"
         )
 
-        result.append(
-            read_uploaded_file(
-                uploaded_file,
-                range_str,
-                is_pdf_target,
-            )
+        content = read_uploaded_file(
+            uploaded_file,
+            range_str,
+            is_pdf_target
         )
 
-    return normalize_source_text(
-        "\n".join(result)
-    )
+        result.append(content)
+
+    return "\n".join(result)
 
 
 def read_template_local(
-    path="templates/KHBD_Mau.docx",
+    path="templates/KHBD_Mau.docx"
 ):
 
     if not os.path.exists(path):
@@ -1094,9 +751,7 @@ def read_template_local(
 
     try:
 
-        return read_docx_ordered(
-            path
-        )
+        return read_docx_ordered(path)
 
     except Exception:
 
@@ -1104,7 +759,103 @@ def read_template_local(
 
 
 # ============================================================
-# 12. SESSION CALLBACKS
+# 10. KIỂM ĐỊNH CHẤT LƯỢNG NGUỒN
+# ============================================================
+
+def inspect_source_quality(
+    text,
+    source_name="Tài liệu nguồn"
+):
+
+    text = safe_text(text)
+
+    chars = len(text)
+
+    words = count_words(text)
+
+    has_error = (
+        text.startswith("[LỖI")
+        or "LỖI ĐỌC" in text[:500]
+    )
+
+    if has_error:
+
+        return {
+            "valid": False,
+            "level": "error",
+            "chars": chars,
+            "words": words,
+            "message": (
+                f"{source_name} có lỗi khi đọc."
+            )
+        }
+
+    if chars < MIN_SOURCE_CHARS:
+
+        return {
+            "valid": False,
+            "level": "error",
+            "chars": chars,
+            "words": words,
+            "message": (
+                f"{source_name} không đủ dữ liệu "
+                f"để xây dựng giáo án.\n\n"
+                f"Số ký tự: {chars}\n"
+                f"Số từ: {words}\n\n"
+                "Nguyên nhân thường gặp:\n"
+                "• PDF là bản scan;\n"
+                "• PDF không có lớp văn bản;\n"
+                "• Phạm vi trang được chọn quá hẹp;\n"
+                "• Tài liệu tải lên không phải nội dung SGK."
+            )
+        }
+
+    if words < MIN_SOURCE_WORDS:
+
+        return {
+            "valid": False,
+            "level": "error",
+            "chars": chars,
+            "words": words,
+            "message": (
+                f"{source_name} có quá ít từ "
+                "để xây dựng giáo án chi tiết."
+            )
+        }
+
+    if (
+        chars < WARNING_SOURCE_CHARS
+        or words < WARNING_SOURCE_WORDS
+    ):
+
+        return {
+            "valid": True,
+            "level": "warning",
+            "chars": chars,
+            "words": words,
+            "message": (
+                f"Nguồn đọc được nhưng khá ngắn.\n"
+                f"Số ký tự: {chars}\n"
+                f"Số từ: {words}\n"
+                "Nên kiểm tra lại phạm vi trang."
+            )
+        }
+
+    return {
+        "valid": True,
+        "level": "ok",
+        "chars": chars,
+        "words": words,
+        "message": (
+            f"Nguồn đạt yêu cầu.\n"
+            f"Số ký tự: {chars}\n"
+            f"Số từ: {words}"
+        )
+    }
+
+
+# ============================================================
+# 11. CALLBACKS
 # ============================================================
 
 def add_nls():
@@ -1112,28 +863,28 @@ def add_nls():
     linh_vuc = safe_text(
         st.session_state.get(
             "khbd_nls_linh_vuc",
-            "",
+            ""
         )
     )
 
     thanh_phan = safe_text(
         st.session_state.get(
             "khbd_nls_thanh_phan",
-            "",
+            ""
         )
     )
 
     muc_do = safe_text(
         st.session_state.get(
             "khbd_nls_muc_do",
-            "",
+            ""
         )
     )
 
     noi_dung = safe_text(
         st.session_state.get(
             "khbd_nls_noi_dung",
-            "",
+            ""
         )
     )
 
@@ -1141,33 +892,23 @@ def add_nls():
 
         return
 
-    if (
-        st.session_state.get(
-            "khbd_loai_khung_nls"
-        )
-        == "Giáo viên (Thông tư 18)"
-    ):
+    loai_khung = st.session_state.get(
+        "khbd_loai_khung_nls",
+        ""
+    )
 
-        van_ban = (
-            NLS_GV_VAN_BAN_MAC_DINH
-        )
-
-    else:
-
-        van_ban = "DigComp"
+    van_ban = (
+        NLS_GV_VAN_BAN_MAC_DINH
+        if loai_khung == "Giáo viên (Thông tư 18)"
+        else "DigComp"
+    )
 
     item = {
-
         "van_ban": van_ban,
-
         "linh_vuc": linh_vuc,
-
         "thanh_phan": thanh_phan,
-
         "muc_do": muc_do,
-
         "noi_dung": noi_dung,
-
     }
 
     if item not in st.session_state.khbd_nls_list:
@@ -1191,22 +932,20 @@ def format_nls():
 
     for index, item in enumerate(
         items,
-        start=1,
+        start=1
     ):
 
         result.append(
             f"{index}. "
-            f"[{item['van_ban']}] "
-            f"{item['linh_vuc']} - "
+            f"[{item.get('van_ban', '')}] "
+            f"{item.get('linh_vuc', '')} - "
             f"Thành phần: "
-            f"{item['thanh_phan']} "
-            f"({item['muc_do']}): "
-            f"{item['noi_dung']}"
+            f"{item.get('thanh_phan', '')} "
+            f"({item.get('muc_do', '')}): "
+            f"{item.get('noi_dung', '')}"
         )
 
-    return "\n".join(
-        result
-    )
+    return "\n".join(result)
 
 
 def add_activity():
@@ -1214,14 +953,14 @@ def add_activity():
     value = safe_text(
         st.session_state.get(
             "khbd_new_activity",
-            "",
+            ""
         )
     )
 
     if (
         value
-        and value
-        not in st.session_state.khbd_hoat_dong_list
+        and value not in
+        st.session_state.khbd_hoat_dong_list
     ):
 
         st.session_state.khbd_hoat_dong_list.append(
@@ -1232,7 +971,7 @@ def add_activity():
 
 
 # ============================================================
-# 13. AI ENGINE
+# 12. AI ENGINE
 # ============================================================
 
 def load_task_config():
@@ -1241,19 +980,21 @@ def load_task_config():
         "prompts/task_config_khbd.txt"
     )
 
-    if os.path.exists(
-        config_path
-    ):
+    if os.path.exists(config_path):
 
         try:
 
             with open(
                 config_path,
                 "r",
-                encoding="utf-8",
-            ) as f:
+                encoding="utf-8"
+            ) as file:
 
-                return f.read().strip()
+                content = file.read().strip()
+
+                if content:
+
+                    return content
 
         except Exception:
 
@@ -1261,7 +1002,8 @@ def load_task_config():
 
     return (
         "BẠN LÀ CHUYÊN GIA SƯ PHẠM "
-        "CHUẨN PHỤ LỤC 4 CÔNG VĂN 5512."
+        "THIẾT KẾ KẾ HOẠCH BÀI DẠY "
+        "THEO PHỤ LỤC 4 CÔNG VĂN 5512."
     )
 
 
@@ -1271,91 +1013,104 @@ def normalize_ai_result(result):
 
         return ""
 
-    if isinstance(
-        result,
-        str,
-    ):
+    if isinstance(result, str):
 
         return result.strip()
 
-    if isinstance(
-        result,
-        dict,
-    ):
+    if isinstance(result, dict):
 
+        # OpenAI / OpenRouter
         try:
 
-            if (
-                "choices"
-                in result
-                and result["choices"]
-            ):
+            choices = result.get(
+                "choices",
+                []
+            )
 
-                message = (
-                    result[
-                        "choices"
-                    ][0].get(
-                        "message",
-                        {},
-                    )
+            if choices:
+
+                message = choices[0].get(
+                    "message",
+                    {}
                 )
 
                 content = message.get(
                     "content"
                 )
 
-                if content:
+                if isinstance(
+                    content,
+                    str
+                ):
 
-                    return str(
-                        content
-                    ).strip()
+                    return content.strip()
+
+                if isinstance(
+                    content,
+                    list
+                ):
+
+                    parts = []
+
+                    for item in content:
+
+                        if isinstance(
+                            item,
+                            dict
+                        ) and item.get(
+                            "type"
+                        ) == "text":
+
+                            parts.append(
+                                item.get(
+                                    "text",
+                                    ""
+                                )
+                            )
+
+                    if parts:
+
+                        return "\n".join(
+                            parts
+                        ).strip()
 
         except Exception:
 
             pass
 
+        # Gemini
         try:
 
-            if (
-                "candidates"
-                in result
-                and result["candidates"]
-            ):
+            candidates = result.get(
+                "candidates",
+                []
+            )
 
-                parts = (
-                    result[
-                        "candidates"
-                    ][0]
-                    .get(
-                        "content",
-                        {},
-                    )
-                    .get(
-                        "parts",
-                        [],
-                    )
+            if candidates:
+
+                content = candidates[0].get(
+                    "content",
+                    {}
+                )
+
+                parts = content.get(
+                    "parts",
+                    []
                 )
 
                 texts = []
 
                 for part in parts:
 
-                    if (
-                        isinstance(
-                            part,
-                            dict,
-                        )
-                        and part.get(
-                            "text"
-                        )
+                    if isinstance(
+                        part,
+                        dict
+                    ) and part.get(
+                        "text"
                     ):
 
                         texts.append(
-                            str(
-                                part[
-                                    "text"
-                                ]
-                            )
+                            part["text"]
                         )
 
                 if texts:
@@ -1368,12 +1123,13 @@ def normalize_ai_result(result):
 
             pass
 
+        # Generic
         for key in [
             "text",
             "content",
             "response",
             "output",
-            "answer",
+            "answer"
         ]:
 
             if key not in result:
@@ -1384,37 +1140,32 @@ def normalize_ai_result(result):
 
             if isinstance(
                 value,
-                str,
+                str
             ):
 
                 return value.strip()
 
             if isinstance(
                 value,
-                list,
+                list
             ):
 
                 texts = []
 
                 for item in value:
 
-                    if (
-                        isinstance(
-                            item,
-                            dict,
-                        )
-                        and item.get(
-                            "text"
-                        )
+                    if isinstance(
+                        item,
+                        dict
                     ):
 
-                        texts.append(
-                            str(
-                                item[
-                                    "text"
-                                ]
+                        if item.get("text"):
+
+                            texts.append(
+                                str(
+                                    item["text"]
+                                )
                             )
-                        )
 
                 if texts:
 
@@ -1422,14 +1173,12 @@ def normalize_ai_result(result):
                         texts
                     ).strip()
 
-    return str(
-        result
-    ).strip()
+    return str(result).strip()
 
 
 def generate_ai(
     ai_engine,
-    prompt,
+    prompt
 ):
 
     if ai_engine is None:
@@ -1440,7 +1189,7 @@ def generate_ai(
 
     if hasattr(
         ai_engine,
-        "generate_text",
+        "generate_text"
     ):
 
         return normalize_ai_result(
@@ -1451,7 +1200,7 @@ def generate_ai(
 
     if hasattr(
         ai_engine,
-        "generate",
+        "generate"
     ):
 
         return normalize_ai_result(
@@ -1466,175 +1215,88 @@ def generate_ai(
 
 
 # ============================================================
-# 14. XÂY DỰNG KNOWLEDGE SCOPE
+# 13. KIỂM TRA SỐ TIẾT
 # ============================================================
 
-def build_knowledge_scope(
-    noi_dung_chinh,
-    noi_dung_ga="",
-    noi_dung_ppct="",
-    noi_dung_ai="",
+def extract_lesson_count(
+    thong_tin
 ):
 
-    source = safe_text(
-        noi_dung_chinh
+    text = safe_text(
+        thong_tin
     )
 
-    if not source:
+    patterns = [
+        r"Số tiết\s*:\s*(\d+)",
+        r"(\d+)\s*tiết",
+    ]
 
-        raise ValueError(
-            "Nguồn kiến thức chính đang rỗng."
+    for pattern in patterns:
+
+        match = re.search(
+            pattern,
+            text,
+            flags=re.IGNORECASE
         )
 
-    diagnostics = diagnose_source_quality(
-        source,
-        "Nguồn kiến thức chính",
-    )
+        if match:
 
-    if (
-        diagnostics["status"]
-        != "valid"
-    ):
+            try:
 
-        raise ValueError(
-            "Tài liệu nguồn không đủ dữ liệu "
-            "để xây dựng giáo án.\n\n"
-            f"{diagnostics['message']}\n"
-            f"Số ký tự: {diagnostics['chars']}\n"
-            f"Số từ: {diagnostics['words']}"
-        )
+                return max(
+                    1,
+                    int(
+                        match.group(1)
+                    )
+                )
 
-    return {
-        "source": source,
+            except Exception:
 
-        "source_chars": diagnostics[
-            "chars"
-        ],
+                pass
 
-        "source_words": diagnostics[
-            "words"
-        ],
-
-        "source_quality": diagnostics,
-
-        "original_lesson_plan": safe_text(
-            noi_dung_ga
-        ),
-
-        "curriculum": safe_text(
-            noi_dung_ppct
-        ),
-
-        "ai_reference": safe_text(
-            noi_dung_ai
-        ),
-    }
+    return 1
 
 
 # ============================================================
-# 15. CHUNK TÀI LIỆU
-# ============================================================
-
-def split_text_chunks(
-    text,
-    chunk_size=DEFAULT_CHUNK_SIZE,
-    overlap=DEFAULT_CHUNK_OVERLAP,
-):
-
-    text = safe_text(text)
-
-    if len(text) <= chunk_size:
-
-        return [
-            text
-        ]
-
-    chunks = []
-
-    start = 0
-
-    while start < len(text):
-
-        end = min(
-            start + chunk_size,
-            len(text),
-        )
-
-        if end < len(text):
-
-            boundary = text.rfind(
-                "\n\n",
-                start,
-                end,
-            )
-
-            if boundary > start:
-
-                end = boundary
-
-        chunk = text[
-            start:end
-        ].strip()
-
-        if chunk:
-
-            chunks.append(
-                chunk
-            )
-
-        if end >= len(text):
-
-            break
-
-        start = max(
-            end - overlap,
-            start + 1,
-        )
-
-    return chunks
-
-
-# ============================================================
-# 16. VALIDATION GIÁO ÁN
+# 14. VALIDATE KHBD
 # ============================================================
 
 def validate_khbd_result(
     text,
+    expected_lessons=1
 ):
 
-    text = safe_text(
-        text
-    )
+    text = safe_text(text)
 
-    if len(text) < 1000:
+    if len(text) < 100:
 
         return (
             False,
-            "Nội dung giáo án quá ngắn."
+            "Nội dung trả về quá ngắn."
         )
 
-    upper = text.upper()
-
-    required_keywords = [
+    required_sections = [
         "MỤC TIÊU",
         "THIẾT BỊ DẠY HỌC",
         "TIẾN TRÌNH DẠY HỌC",
     ]
 
-    for keyword in required_keywords:
+    upper_text = text.upper()
 
-        if keyword not in upper:
+    for section in required_sections:
+
+        if section not in upper_text:
 
             return (
                 False,
-                f"Thiếu phần bắt buộc: "
-                f"{keyword}",
+                f"Thiếu mục bắt buộc: {section}"
             )
 
     activity_count = len(
         re.findall(
-            r"HOẠT ĐỘNG\s+[1-9]",
-            upper,
+            r"Hoạt động\s+\d+",
+            text,
+            flags=re.IGNORECASE
         )
     )
 
@@ -1645,14 +1307,35 @@ def validate_khbd_result(
             "Giáo án có quá ít hoạt động."
         )
 
+    if expected_lessons > 1:
+
+        lesson_count = len(
+            re.findall(
+                r"(^|\n)#+\s*TIẾT\s+\d+",
+                text,
+                flags=re.IGNORECASE
+            )
+        )
+
+        if lesson_count < expected_lessons:
+
+            return (
+                False,
+                (
+                    f"Yêu cầu {expected_lessons} tiết "
+                    f"nhưng chỉ phát hiện "
+                    f"{lesson_count} phần tiết."
+                )
+            )
+
     return (
         True,
-        "Hợp lệ",
+        "Hợp lệ"
     )
 
 
 # ============================================================
-# 17. BUILD PROMPT CHUYÊN SÂU
+# 15. BUILD PROMPT
 # ============================================================
 
 def build_prompt(
@@ -1667,7 +1350,7 @@ def build_prompt(
     tich_hop_hoa_nhap,
     nhu_cau_hoa_nhap,
     hoat_dong,
-    mode,
+    mode
 ):
 
     if mode not in MODE_LABELS:
@@ -1676,251 +1359,275 @@ def build_prompt(
             f"Chế độ soạn không hợp lệ: {mode}"
         )
 
-    mode_text = MODE_LABELS[
-        mode
-    ]
+    source_quality = inspect_source_quality(
+        noi_dung_chinh,
+        "Nguồn kiến thức chính"
+    )
 
-    source = safe_text(
+    if mode != "chinh_sua" and not source_quality["valid"]:
+
+        raise ValueError(
+            source_quality["message"]
+        )
+
+    lesson_count = extract_lesson_count(
+        thong_tin
+    )
+
+    task_config = load_task_config()
+
+    safe_source = safe_text(
         noi_dung_chinh
     )
 
-    quality = diagnose_source_quality(
-        source,
-        "SGK",
+    safe_ga = safe_text(
+        noi_dung_ga
     )
 
-    if quality["status"] != "valid":
-
-        raise ValueError(
-            "Tài liệu nguồn không đủ dữ liệu "
-            "để xây dựng giáo án.\n"
-            f"Số ký tự: {quality['chars']}\n"
-            f"Số từ: {quality['words']}"
-        )
-
-    task_config = load_task_config()
+    safe_ppct = safe_text(
+        noi_dung_ppct
+    )
 
     safe_ai = safe_text(
         noi_dung_ai
     )
+
+    safe_template = safe_text(
+        noi_dung_mau
+    )
+
+    safe_nhu_cau = safe_text(
+        nhu_cau_hoa_nhap
+    )
+
+    safe_activities = safe_text(
+        hoat_dong
+    )
+
+    if mode == "chinh_sua" and safe_ga:
+
+        source_block = f"""
+============================================================
+GIÁO ÁN GỐC CẦN CHỈNH SỬA
+============================================================
+{safe_ga}
+
+YÊU CẦU:
+- Kế thừa những điểm tốt của giáo án gốc.
+- Không được làm mất các nội dung kiến thức đúng.
+- Bổ sung chi tiết nếu giáo án gốc còn sơ sài.
+"""
+
+    else:
+
+        source_block = f"""
+============================================================
+NGUỒN KIẾN THỨC CHÍNH
+============================================================
+{safe_source}
+"""
 
     ai_block = ""
 
     if safe_ai:
 
         ai_block = f"""
-------------------------------------------------------------
-TÀI LIỆU / HƯỚNG DẪN AI BỔ SUNG
-------------------------------------------------------------
+============================================================
+TÀI LIỆU AI / YÊU CẦU BỔ SUNG
+============================================================
 {safe_ai}
 """
 
-    safe_need = safe_text(
-        nhu_cau_hoa_nhap
+    ppct_block = ""
+
+    if safe_ppct:
+
+        ppct_block = f"""
+============================================================
+PHÂN PHỐI CHƯƠNG TRÌNH
+============================================================
+{safe_ppct}
+"""
+
+    hoa_nhap_block = (
+        safe_nhu_cau
+        if tich_hop_hoa_nhap
+        and safe_nhu_cau
+        else "Không yêu cầu đặc thù."
     )
 
-    if (
-        tich_hop_hoa_nhap
-        and safe_need
-    ):
-
-        inclusion_block = f"""
-Học sinh cần hỗ trợ hòa nhập:
-{safe_need}
-
-Bắt buộc điều chỉnh trực tiếp trong từng hoạt động:
-- Câu hỏi.
-- Phiếu học tập.
-- Thời gian.
-- Mức độ nhiệm vụ.
-- Hình thức hỗ trợ.
-"""
-
-    else:
-
-        inclusion_block = (
-            "Không có yêu cầu hòa nhập đặc thù."
-        )
-
-    safe_activity = safe_text(
-        hoat_dong
+    activities_block = (
+        safe_activities
+        if safe_activities
+        else "Không có yêu cầu bổ sung."
     )
-
-    activity_block = ""
-
-    if safe_activity:
-
-        activity_block = f"""
-------------------------------------------------------------
-HOẠT ĐỘNG BỔ SUNG THEO YÊU CẦU GIÁO VIÊN
-------------------------------------------------------------
-{safe_activity}
-"""
-
-    ga_block = ""
-
-    if (
-        mode == "chinh_sua"
-        and safe_text(noi_dung_ga)
-    ):
-
-        ga_block = f"""
-------------------------------------------------------------
-GIÁO ÁN GỐC
-------------------------------------------------------------
-Chỉ được kế thừa cấu trúc và các ý tưởng phù hợp.
-Không được thay thế hoặc làm mất nội dung kiến thức SGK.
-
-{safe_text(noi_dung_ga)}
-"""
 
     return f"""
 {task_config}
 
-================================================================
-VAI TRÒ
-================================================================
+################################################################
+# VAI TRÒ
+################################################################
 
-Bạn là chuyên gia xây dựng kế hoạch bài dạy Khoa học tự nhiên
-theo Chương trình GDPT 2018 và cấu trúc Phụ lục 4 Công văn 5512.
+Bạn là chuyên gia cao cấp thiết kế Kế hoạch bài dạy
+theo Chương trình GDPT 2018 và Phụ lục 4 Công văn 5512.
 
-Nhiệm vụ của bạn là xây dựng một giáo án CHI TIẾT, CỤ THỂ,
-CÓ THỂ DÙNG TRỰC TIẾP TRONG LỚP HỌC.
+Bạn phải tạo một giáo án thực sự có thể sử dụng trong lớp học.
 
-================================================================
-CHẾ ĐỘ SOẠN
-================================================================
+Không được viết giáo án chung chung.
 
-{mode_text}
+################################################################
+# THÔNG TIN BÀI DẠY
+################################################################
 
-Thông tin bài học và thời lượng:
 {thong_tin}
 
-================================================================
-QUY TẮC PHÂN BỔ THỜI LƯỢNG
-================================================================
+SỐ TIẾT BẮT BUỘC: {lesson_count}
 
-Đây là quy tắc bắt buộc:
+################################################################
+# NGUYÊN TẮC TỐI QUAN TRỌNG
+################################################################
 
-1. Xác định chính xác bài có bao nhiêu tiết.
+NGUỒN KIẾN THỨC LÀ NGUỒN SỰ THẬT DUY NHẤT.
 
-2. Nếu bài có 1 tiết:
-   - Xây dựng tiến trình cho 1 tiết.
+Bạn phải đọc và phân tích toàn bộ nội dung nguồn được cung cấp.
 
-3. Nếu bài có 2 tiết:
-   - Bắt buộc có:
-     ### TIẾT 1
-     ### TIẾT 2
+Không được coi phần nguồn kiến thức là một đoạn văn tham khảo hình thức.
 
-4. Nếu bài có 3 tiết:
-   - Bắt buộc có:
-     ### TIẾT 1
-     ### TIẾT 2
-     ### TIẾT 3
-
-5. Nếu bài có 4 tiết:
-   - Bắt buộc có:
-     ### TIẾT 1
-     ### TIẾT 2
-     ### TIẾT 3
-     ### TIẾT 4
-
-KHÔNG ĐƯỢC viết một đoạn tiến trình chung chung cho toàn bộ bài.
-
-Mỗi tiết phải có:
-- Nội dung kiến thức cụ thể.
-- Hoạt động học cụ thể.
-- Câu hỏi / nhiệm vụ cụ thể.
-- Sản phẩm học tập cụ thể.
-- Đánh giá cụ thể.
-
-================================================================
-KNOWLEDGE SCOPE
-================================================================
-
-NGUỒN KIẾN THỨC CHÍNH DUY NHẤT:
-
----------------- SGK / TÀI LIỆU BÀI HỌC ----------------
-
-{source}
-
----------------- KẾT THÚC NGUỒN KIẾN THỨC ----------------
-
-QUY TẮC:
-
-- Chỉ sử dụng kiến thức có trong nguồn trên.
-- Không tự thêm kiến thức ngoài phạm vi.
-- Không viết nội dung chung chung.
-- Không được tạo ví dụ không có căn cứ từ nguồn.
-- Không được bỏ qua các mục kiến thức quan trọng trong nguồn.
-
-================================================================
-BẮT BUỘC LẬP BẢN ĐỒ KIẾN THỨC TRƯỚC KHI SOẠN
-================================================================
-
-Trước khi viết giáo án, hãy âm thầm phân tích nguồn SGK
-và xác định:
+Bạn phải thực sự trích xuất:
 
 1. Tên bài học.
-2. Các mục lớn.
-3. Các tiểu mục.
-4. Khái niệm / định nghĩa.
-5. Công thức / quy tắc.
-6. Thí nghiệm / quan sát.
-7. Hình ảnh / bảng biểu được mô tả trong văn bản.
-8. Câu hỏi hình thành kiến thức.
-9. Bài tập luyện tập.
-10. Nhiệm vụ vận dụng.
+2. Các khái niệm.
+3. Các định nghĩa.
+4. Các đặc điểm.
+5. Các quy tắc.
+6. Các công thức.
+7. Các đơn vị đo.
+8. Các ví dụ.
+9. Các thí nghiệm.
+10. Các câu hỏi.
+11. Các bảng số liệu.
+12. Các hình ảnh hoặc mô tả thí nghiệm nếu có văn bản.
+13. Các bài tập.
+14. Các kết luận.
+15. Các hoạt động học tập trong SGK.
 
-Sau đó phân bổ các đơn vị kiến thức này vào đúng số tiết.
+################################################################
+# QUY TRÌNH BẮT BUỘC
+################################################################
 
-KHÔNG ĐƯỢC trả về bản đồ kiến thức.
-Chỉ sử dụng bản đồ đó để tạo giáo án.
+BƯỚC 1 — ĐỌC NGUỒN
 
-================================================================
-YÊU CẦU CHỐNG SOẠN SƠ SÀI
-================================================================
+Đọc toàn bộ nguồn kiến thức chính.
 
-Trong mỗi hoạt động:
+BƯỚC 2 — LẬP BẢN ĐỒ KIẾN THỨC NỘI BỘ
 
-NỘI DUNG phải:
-- Nêu rõ học sinh học phần kiến thức nào.
-- Ghi rõ câu hỏi / nhiệm vụ.
-- Nêu tên thí nghiệm / quan sát nếu có.
-- Nêu dữ liệu, hiện tượng hoặc vấn đề cần xử lý.
+Trước khi viết giáo án, phải xác định:
 
-SẢN PHẨM phải:
-- Có câu trả lời cụ thể.
-- Có kết luận cụ thể.
-- Có công thức / quy tắc nếu có.
-- Có bảng kết quả nếu hoạt động yêu cầu.
-- Có đáp án hoặc kết quả mong đợi.
+- Chủ đề/bài học chính.
+- Các đơn vị kiến thức.
+- Các khái niệm then chốt.
+- Các công thức hoặc quy tắc.
+- Các thí nghiệm.
+- Các câu hỏi và bài tập.
+- Mối liên hệ giữa các đơn vị kiến thức.
 
-TUYỆT ĐỐI KHÔNG dùng các câu:
+BƯỚC 3 — PHÂN BỔ KIẾN THỨC THEO SỐ TIẾT
 
-- "Học sinh hoàn thành nhiệm vụ."
-- "Học sinh hiểu bài."
-- "Học sinh nắm được kiến thức."
-- "Học sinh thảo luận nhóm."
-- "Học sinh trình bày sản phẩm."
+Bài có {lesson_count} tiết.
 
-nếu không kèm nội dung cụ thể.
+Bắt buộc phân bổ kiến thức thực tế vào từng tiết.
 
-================================================================
-TÀI LIỆU PHỤ
-================================================================
+Mỗi tiết phải có nội dung riêng.
 
-PHÂN PHỐI CHƯƠNG TRÌNH:
+Không được viết một giáo án ngắn rồi ghi thêm "tiết 1, tiết 2".
 
-{safe_text(noi_dung_ppct)}
+Ví dụ nếu có 4 tiết:
 
-{ga_block}
+### TIẾT 1
+Các nội dung SGK cụ thể thuộc phần đầu.
+
+### TIẾT 2
+Các nội dung SGK cụ thể tiếp theo.
+
+### TIẾT 3
+Các nội dung SGK cụ thể tiếp theo.
+
+### TIẾT 4
+Luyện tập, vận dụng và tổng kết dựa trên nội dung đã học.
+
+Nếu nguồn kiến thức không đủ để phân bổ đủ {lesson_count} tiết,
+phải khai thác sâu hơn các ví dụ, câu hỏi, thí nghiệm, bài tập
+và hoạt động thực tế đã có trong nguồn.
+
+TUYỆT ĐỐI KHÔNG ĐƯỢC tự thêm kiến thức ngoài nguồn.
+
+################################################################
+# QUY TẮC KNOWLEDGE SCOPE
+################################################################
+
+ĐƯỢC PHÉP:
+
+- Diễn đạt lại kiến thức trong nguồn bằng ngôn ngữ sư phạm.
+- Chia một nội dung lớn thành nhiều nhiệm vụ học tập.
+- Chuyển câu hỏi SGK thành nhiệm vụ học tập.
+- Tạo câu hỏi mới nhưng chỉ sử dụng kiến thức đã xuất hiện trong nguồn.
+- Tạo đáp án và lời giải dựa trên nguồn.
+- Thiết kế hoạt động nhóm dựa trên nội dung nguồn.
+
+KHÔNG ĐƯỢC:
+
+- Bịa khái niệm.
+- Bịa công thức.
+- Bịa số liệu.
+- Bịa thí nghiệm.
+- Đưa thêm nội dung thuộc bài khác.
+- Dùng kiến thức ngoài nguồn để làm nền cho giáo án.
+- Viết nội dung chung chung thay cho kiến thức thực tế.
+
+################################################################
+# YÊU CẦU CHI TIẾT CHO TỪNG HOẠT ĐỘNG
+################################################################
+
+Mỗi hoạt động phải có:
+
+- Mục tiêu cụ thể.
+- Nội dung kiến thức cụ thể.
+- Nhiệm vụ cụ thể.
+- Sản phẩm cụ thể.
+- Đáp án hoặc kết luận cụ thể.
+- Tổ chức thực hiện theo 4 bước.
+
+Không được viết:
+
+"Học sinh hoàn thành nhiệm vụ."
+
+"Học sinh hiểu bài."
+
+"Học sinh nắm được kiến thức."
+
+Thay vào đó phải viết cụ thể:
+
+- Học sinh trả lời câu hỏi nào.
+- Dựa vào dữ kiện nào.
+- Thực hiện thao tác nào.
+- Tính đại lượng nào.
+- Rút ra kết luận nào.
+- Sản phẩm cuối cùng là gì.
+
+################################################################
+# NGUỒN DỮ LIỆU
+################################################################
+
+{source_block}
+
+{ppct_block}
 
 {ai_block}
 
-================================================================
-TÍCH HỢP
-================================================================
+################################################################
+# TÍCH HỢP
+################################################################
 
 NĂNG LỰC SỐ:
 
@@ -1929,104 +1636,98 @@ NĂNG LỰC SỐ:
 TÍCH HỢP AI:
 
 {
-    "Có tích hợp công cụ AI hỗ trợ hoạt động nhận thức của học sinh."
+    "Có tích hợp công cụ AI vào hoạt động nhận thức của học sinh."
     if tich_hop_ai
     else
-    "Không bắt buộc."
+    "Không bắt buộc tích hợp AI."
 }
 
 GIÁO DỤC HÒA NHẬP:
 
-{inclusion_block}
+{hoa_nhap_block}
 
-{activity_block}
+HOẠT ĐỘNG GIÁO VIÊN YÊU CẦU:
 
-================================================================
-SCHEMA ĐẦU RA BẮT BUỘC
-================================================================
+{activities_block}
+
+################################################################
+# CẤU TRÚC ĐẦU RA BẮT BUỘC
+################################################################
 
 # [TÊN BÀI HỌC]
 
 ## I. MỤC TIÊU
 
 ### 1. Về kiến thức
-...
+
+Phải nêu đúng kiến thức thực tế của bài.
 
 ### 2. Về năng lực
-...
 
 ### 3. Về phẩm chất
-...
 
 ## II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
 
 ### 1. Đối với giáo viên
-...
 
 ### 2. Đối với học sinh
-...
 
 ## III. TIẾN TRÌNH DẠY HỌC
 
-### TIẾT 1
+"""
 
-#### Hoạt động 1: Khởi động
+for lesson in range(1, lesson_count + 1):
 
-- Mục tiêu:
-- Nội dung:
-- Sản phẩm:
-- Tổ chức thực hiện:
+    pass
 
-  + Bước 1: Chuyển giao nhiệm vụ:
-  + Bước 2: Thực hiện nhiệm vụ:
-  + Bước 3: Báo cáo, thảo luận:
-  + Bước 4: Kết luận, nhận định:
+return f"""
+{task_config}
 
-#### Hoạt động 2: Hình thành kiến thức mới
+################################################################
+# YÊU CẦU ĐẦU RA THỰC TẾ
+################################################################
 
-...
+Hãy viết giáo án hoàn chỉnh ngay bây giờ.
 
-#### Hoạt động 3: Luyện tập
+Bắt buộc:
 
-...
+- Có đủ {lesson_count} tiết.
+- Mỗi tiết có nội dung kiến thức riêng.
+- Nội dung phải dựa trực tiếp vào nguồn.
+- Không viết chung chung.
+- Có câu hỏi cụ thể.
+- Có nhiệm vụ cụ thể.
+- Có sản phẩm cụ thể.
+- Có đáp án/kết luận cụ thể.
+- Có 4 bước tổ chức thực hiện.
+- Bám sát Phụ lục 4 Công văn 5512.
 
-#### Hoạt động 4: Vận dụng
+Mỗi tiết cần có thể sử dụng các hoạt động:
 
-...
+### Hoạt động 1: Khởi động
 
-### TIẾT 2
+### Hoạt động 2: Hình thành kiến thức mới
 
-...
+### Hoạt động 3: Luyện tập
 
-### TIẾT 3
+### Hoạt động 4: Vận dụng
 
-...
+Tùy nội dung thực tế của nguồn, có thể chia hoạt động thành
+nhiều nhiệm vụ nhỏ hơn.
 
-### TIẾT 4
+Không được rút gọn toàn bộ bài thành một đoạn tóm tắt.
 
-...
+Không được chào hỏi.
 
-Chỉ giữ lại số tiết thực tế của bài.
+Không giải thích ngoài lề.
 
-## IV. HỒ SƠ DẠY HỌC
+Bắt đầu ngay bằng:
 
-Nếu phù hợp, bổ sung:
-- Phiếu học tập.
-- Câu hỏi.
-- Bảng dữ liệu.
-- Đáp án.
-- Rubric đánh giá.
+# [TÊN BÀI HỌC]
 
-================================================================
-QUY TẮC CUỐI CÙNG
-================================================================
+################################################################
+# MẪU KHBD THAM KHẢO
+################################################################
 
-- Trả về Markdown sạch.
-- Bắt đầu ngay bằng # TÊN BÀI HỌC.
-- Không chào hỏi.
-- Không giải thích.
-- Không nói về quá trình suy luận.
-- Không trả về bản đồ kiến thức.
-- Không viết giáo án ngắn nếu nguồn SGK có nhiều nội dung.
-- Giáo án 4 tiết phải có 4 phần TIẾT riêng biệt.
+{safe_template}
 """
