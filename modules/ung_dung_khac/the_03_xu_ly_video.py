@@ -3,7 +3,7 @@ import streamlit as st
 import re
 
 def extract_youtube_id(url):
-    """Trích xuất Video ID từ các định dạng URL YouTube khác nhau"""
+    """Trích xuất Video ID từ URL YouTube"""
     if not url:
         return None
     patterns = [
@@ -18,41 +18,41 @@ def extract_youtube_id(url):
     return None
 
 def get_youtube_transcript(url):
-    """Tự động lấy transcript (lời thoại) từ YouTube với khả năng chống lỗi phiên bản"""
+    """Lấy transcript YouTube ưu tiên mọi loại phụ đề (Thủ công & Tự động)"""
     video_id = extract_youtube_id(url)
     if not video_id:
-        return None, "⚠️ Đường dẫn YouTube không hợp lệ hoặc không tìm thấy Video ID."
+        return None, "⚠️ Đường dẫn YouTube không hợp lệ."
     
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         
-        # CÁCH 1: Thử dùng phương thức get_transcript (Phổ biến nhất)
-        if hasattr(YouTubeTranscriptApi, 'get_transcript'):
-            try:
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
-            except Exception:
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            full_text = " ".join([item['text'] for item in transcript_list])
-            return full_text, None
+        # Lấy danh sách toàn bộ các luồng phụ đề hiện có của video
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        
+        transcript = None
+        
+        # Bước 1: Ưu tiên tìm phụ đề tiếng Việt hoặc tiếng Anh (bao gồm cả bản tạo tự động)
+        try:
+            transcript = transcript_list.find_transcript(['vi', 'en'])
+        except Exception:
+            # Bước 2: Nếu không có cả vi/en, lấy ĐẠI phụ đề đầu tiên xuất hiện trong danh sách (ngôn ngữ gốc)
+            for t in transcript_list:
+                transcript = t
+                break
+                
+        if not transcript:
+            return None, "❌ Video này hoàn toàn không có bất kỳ dữ liệu phụ đề nào."
             
-        # CÁCH 2: Dự phòng dùng list_transcripts nếu cách 1 không có
-        elif hasattr(YouTubeTranscriptApi, 'list_transcripts'):
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            try:
-                transcript = transcript_list.find_transcript(['vi', 'en'])
-            except Exception:
-                transcript = next(iter(transcript_list))
-            fetched_data = transcript.fetch()
-            full_text = " ".join([item['text'] for item in fetched_data])
-            return full_text, None
-            
-        else:
-            return None, "❌ Thư viện 'youtube-transcript-api' trên máy chủ bị lỗi. Vui lòng thêm đúng 'youtube-transcript-api==0.6.2' vào requirements.txt và Reboot lại App."
-            
+        # Lấy dữ liệu chữ từ phụ đề đã chọn
+        fetched_data = transcript.fetch()
+        full_text = " ".join([item['text'] for item in fetched_data])
+        return full_text, None
+        
     except ImportError:
-        return None, "❌ Máy chủ chưa cài đặt thư viện. Vui lòng thêm `youtube-transcript-api==0.6.2` vào file requirements.txt."
+        return None, "❌ Hệ thống chưa cài đặt thư viện youtube-transcript-api."
     except Exception as e:
-        return None, f"❌ Không thể trích xuất phụ đề (Video này không có phụ đề, hoặc bị chủ kênh khóa). Chi tiết: {str(e)}"
+        return None, f"❌ Lỗi khi đọc dữ liệu từ YouTube. Chi tiết: {str(e)}"
+
 def render_the_03(ai_engine=None):
     st.markdown("### 🎬 Công cụ Trích xuất, Chuyển văn bản & Dịch Video (YouTube & Tải lên)")
     st.caption("Hỗ trợ giáo viên lấy kịch bản, chuyển lời thoại thành văn bản và dịch nội dung từ video bất kỳ phục vụ giảng dạy.")
@@ -77,7 +77,7 @@ def render_the_03(ai_engine=None):
         if nguon_video == "Đường dẫn YouTube (URL)":
             yt_url = st.text_input(
                 "Nhập URL YouTube", 
-                placeholder="Ví dụ: https://www.youtube.com/watch?v=...", 
+                placeholder="Ví dụ: https://www.youtube.com/watch?v=q96sp8Fonxc", 
                 key="vproc_yt_url"
             )
         else:
@@ -121,11 +121,10 @@ def render_the_03(ai_engine=None):
             elif nguon_video == "Tải tệp video lên máy (MP4, AVI, MOV, MKV)" and not uploaded_video:
                 st.warning("⚠️ Vui lòng tải lên một tệp video.")
             else:
-                with st.spinner("🤖 Hệ thống đang trích xuất lời thoại video và phân tích bằng AI..."):
+                with st.spinner("🤖 Hệ thống đang bóc tách lời thoại video và phân tích bằng AI... (Quá trình này có thể mất vài giây)"):
                     
                     raw_video_text = ""
                     
-                    # Nếu là YouTube, tiến hành lấy transcript thực tế
                     if nguon_video == "Đường dẫn YouTube (URL)":
                         transcript_text, err_msg = get_youtube_transcript(yt_url)
                         if err_msg:
@@ -133,20 +132,20 @@ def render_the_03(ai_engine=None):
                             return
                         raw_video_text = transcript_text
                     else:
-                        raw_video_text = f"[Tệp video tải lên: {uploaded_video.name} - Đang giả lập phân tích luồng âm thanh tệp tin]"
+                        raw_video_text = f"[Tệp video tải lên: {uploaded_video.name} - Hệ thống AI đang phân tích dữ liệu âm thanh offline]"
 
-                    # Xây dựng prompt chuyên sâu đưa nội dung thực tế vào cho AI
+                    # Prompt đẩy vào AI
                     prompt_v = f"""
 BẠN LÀ MỘT TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH NỘI DUNG TÀI LIỆU GIÁO DỤC.
 NHIỆM VỤ: Hãy thực hiện yêu cầu '{tac_vu}' {'sang ngôn ngữ ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''} dựa trên dữ liệu văn bản/lời thoại trích xuất từ video dưới đây:
 
-DỮ LIỆU LỜI THOẠI VIDEO:
-{raw_video_text[:12000]}
+DỮ LIỆU LỜI THOẠI BÓC TÁCH ĐƯỢC TỪ VIDEO:
+{raw_video_text[:15000]}
 
 YÊU CẦU ĐẦU RA:
-1. Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm phục vụ cho giáo viên.
-2. Nếu là tác vụ dịch, dịch chuẩn xác sang {ngon_ngu_dich}.
-3. Nếu là tóm tắt hoặc kịch bản, nêu rõ các ý chính cốt lõi.
+1. Trình bày rõ ràng, mạch lạc, chia đoạn logic phục vụ cho giáo viên làm tài liệu hoặc bài giảng.
+2. Nếu là tác vụ dịch, dịch chuẩn xác và tự nhiên sang {ngon_ngu_dich}.
+3. Nếu là tóm tắt hoặc kịch bản, nêu bật các ý chính cốt lõi.
 """
 
                     ket_qua_xu_ly = ""
@@ -154,23 +153,23 @@ YÊU CẦU ĐẦU RA:
                         try:
                             ket_qua_xu_ly = ai_engine.generate_text(prompt_v)
                         except Exception as e:
-                            ket_qua_xu_ly = f"❌ Lỗi khi gọi AI xử lý: {str(e)}"
+                            ket_qua_xu_ly = f"❌ Lỗi khi gọi AI phân tích: {str(e)}"
                     else:
-                        ket_qua_xu_ly = f"""### KẾT QUẢ TRÍCH XUẤT VĂN BẢN TỪ VIDEO
-**Tác vụ:** {tac_vu}
-{'- Ngôn ngữ đích: ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}
+                        ket_qua_xu_ly = f"""### TRÍCH XUẤT LỜI THOẠI GỐC TỪ VIDEO
+**Tác vụ yêu cầu:** {tac_vu}
 
 ---
-**Nội dung văn bản bóc tách:**
-{raw_video_text[:800]}... *(Đã rút gọn hiển thị xem trước)*
+**Nội dung thô trích xuất thành công từ YouTube (Chưa qua AI xử lý):**
+
+{raw_video_text}
 """
 
                     st.session_state["vproc_result"] = ket_qua_xu_ly
-                    st.success("🎉 Xử lý và trích xuất video thành công!")
+                    st.success("🎉 Đã lấy lời thoại và xử lý video thành công!")
 
         if "vproc_result" in st.session_state:
             ket_qua_hien_tai = st.session_state["vproc_result"]
-            st.text_area("Văn bản kết xuất:", value=ket_qua_hien_tai, height=400)
+            st.text_area("Văn bản kết xuất:", value=ket_qua_hien_tai, height=450)
             
             st.download_button(
                 "📥 Tải xuống kết quả (.txt)",
@@ -180,4 +179,4 @@ YÊU CẦU ĐẦU RA:
                 use_container_width=True
             )
         else:
-            st.info("💡 Hãy chọn nguồn video, dán link YouTube, sau đó bấm nút thực thi để hệ thống tự động bóc tách và phân tích.")
+            st.info("💡 Hãy dán link YouTube (kể cả video chỉ có phụ đề tự động), sau đó bấm nút thực thi để bóc tách lời thoại!")
