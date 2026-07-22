@@ -4,7 +4,12 @@ import PyPDF2
 import docx
 import pandas as pd
 import io
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+# =========================================================
+# CÁC HÀM TIỆN ÍCH VÀ QUẢN LÝ TRẠNG THÁI (STATE)
+# =========================================================
 def init_session_state():
     if "hoat_dong_list" not in st.session_state:
         st.session_state.hoat_dong_list = []
@@ -43,38 +48,92 @@ def doc_noi_dung_file(uploaded_file):
                 if extracted: text += extracted + "\n"
         
         elif ext == "docx":
-            doc = docx.Document(uploaded_file)
-            for para in doc.paragraphs:
+            doc_file = docx.Document(uploaded_file)
+            for para in doc_file.paragraphs:
                 text += para.text + "\n"
-            # Sửa Lỗi 6: Quét đọc toàn bộ nội dung trong BẢNG của Word
-            for table in doc.tables:
+            for table in doc_file.tables:
                 for row in table.rows:
                     row_data = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
                     text += " | ".join(row_data) + "\n"
                     
         elif ext in ["xlsx", "xls"]:
-            # Sửa Lỗi 7: Đọc toàn bộ các Sheet thay vì chỉ sheet đầu
             all_sheets = pd.read_excel(uploaded_file, sheet_name=None)
             for sheet_name, df in all_sheets.items():
                 text += f"\n--- SHEET: {sheet_name} ---\n"
                 text += df.to_string(index=False) + "\n"
                 
         elif ext in ["jpg", "png", "jpeg"]:
-            # Sửa Lỗi 5: Tự động dùng AI OCR bóc tách chữ từ ảnh SGK
             try:
                 import google.generativeai as genai
                 import PIL.Image
                 img = PIL.Image.open(uploaded_file)
+                # Dùng model nhẹ, đa phương tiện để OCR bóc chữ từ ảnh ra Text (Giải pháp khắc phục AI text engine không đọc được ảnh)
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 response = model.generate_content(["Hãy trích xuất chính xác toàn bộ văn bản có trong bức ảnh tài liệu này:", img])
                 text += f"\n[Nội dung chữ trích xuất từ ảnh {uploaded_file.name}]:\n{response.text}\n"
             except Exception as e:
-                text += f"[⚠️ Không thể đọc chữ từ ảnh {uploaded_file.name}. Lỗi: {str(e)}]"
+                text += f"[⚠️ Không thể bóc tách chữ từ ảnh {uploaded_file.name}. Lỗi: {str(e)}]\n"
                 
         return text
     except Exception as e:
-        return f"[⚠️ Có lỗi khi đọc file {uploaded_file.name}. Lỗi: {str(e)}]"
+        # Hỗ trợ hiển thị rõ lỗi đọc file để debug
+        return f"[⚠️ Có lỗi khi đọc file {uploaded_file.name}. Chi tiết lỗi: {str(e)}]\n"
 
+def tao_file_word_hoan_hao(van_ban):
+    """Chuyển đổi Markdown AI thành file Word cực đẹp, có kẻ bảng"""
+    doc_word = docx.Document()
+    style = doc_word.styles['Normal']
+    style.font.name = 'Times New Roman'
+    style.font.size = Pt(13)
+
+    lines = van_ban.split('\n')
+    table_data = []
+    
+    for line in lines:
+        line_str = line.strip()
+        if line_str.startswith('|') and line_str.endswith('|'):
+            if '---' in line_str: continue
+            row_cells = [cell.strip().replace('**', '') for cell in line_str.strip('|').split('|')]
+            table_data.append(row_cells)
+            continue
+        else:
+            if table_data:
+                table = doc_word.add_table(rows=len(table_data), cols=len(table_data[0]))
+                table.style = 'Table Grid'
+                for i, row in enumerate(table_data):
+                    for j, cell_text in enumerate(row):
+                        if j < len(table.columns): table.cell(i, j).text = cell_text
+                table_data = []
+        
+        if not line_str: continue
+        clean_line = line_str.replace('**', '').replace('*', '').replace('`', '')
+        
+        if clean_line.startswith('### '):
+            p = doc_word.add_paragraph(clean_line.replace('### ', '')); p.runs[0].bold = True
+        elif clean_line.startswith('## '):
+            p = doc_word.add_paragraph(clean_line.replace('## ', '')); p.runs[0].bold = True; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif clean_line.startswith('# '):
+            p = doc_word.add_heading(clean_line.replace('# ', ''), level=1); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif clean_line.startswith('- '):
+            doc_word.add_paragraph(clean_line[2:], style='List Bullet')
+        else:
+            doc_word.add_paragraph(clean_line)
+            
+    if table_data:
+        table = doc_word.add_table(rows=len(table_data), cols=len(table_data[0]))
+        table.style = 'Table Grid'
+        for i, row in enumerate(table_data):
+            for j, cell_text in enumerate(row):
+                if j < len(table.columns): table.cell(i, j).text = cell_text
+
+    bio = io.BytesIO()
+    doc_word.save(bio)
+    bio.seek(0)
+    return bio
+
+# =========================================================
+# GIAO DIỆN CHÍNH (RENDER)
+# =========================================================
 def render_xd_khbd(ai_engine=None):
     init_session_state()
 
@@ -92,7 +151,8 @@ def render_xd_khbd(ai_engine=None):
         .upload-desc { font-size: 0.85rem; color: #6b7280; line-height: 1.4; }
         </style>
     ''', unsafe_allow_html=True)
-THANH_PHAN_NLS = ["1.1. Duyệt, tìm kiếm, lọc dữ liệu", "1.2. Đánh giá dữ liệu", "1.3. Quản lý dữ liệu", "2.1. Tương tác công nghệ số", "2.2. Chia sẻ thông tin", "2.3. Thực hiện trách nhiệm công dân", "2.4. Hợp tác công nghệ số", "2.5. Quy tắc ứng xử", "2.6. Quản lý danh tính số", "3.1. Phát triển nội dung", "3.2. Tích hợp nội dung", "3.3. Bản quyền, giấy phép", "3.4. Lập trình", "4.1. Bảo vệ thiết bị", "4.2. Bảo vệ dữ liệu cá nhân", "4.3. Bảo vệ sức khỏe", "4.4. Bảo vệ môi trường", "5.1. Giải quyết vấn đề kỹ thuật", "5.2. Giải pháp công nghệ", "5.3. Sáng tạo công nghệ", "5.4. Xác định vấn đề NLS", "6.1. Hiểu biết AI", "6.2. Sử dụng AI", "6.3. Đánh giá AI"]
+
+    THANH_PHAN_NLS = ["1.1. Duyệt, tìm kiếm, lọc dữ liệu", "1.2. Đánh giá dữ liệu", "1.3. Quản lý dữ liệu", "2.1. Tương tác công nghệ số", "2.2. Chia sẻ thông tin", "2.3. Thực hiện trách nhiệm công dân", "2.4. Hợp tác công nghệ số", "2.5. Quy tắc ứng xử", "2.6. Quản lý danh tính số", "3.1. Phát triển nội dung", "3.2. Tích hợp nội dung", "3.3. Bản quyền, giấy phép", "3.4. Lập trình", "4.1. Bảo vệ thiết bị", "4.2. Bảo vệ dữ liệu cá nhân", "4.3. Bảo vệ sức khỏe", "4.4. Bảo vệ môi trường", "5.1. Giải quyết vấn đề kỹ thuật", "5.2. Giải pháp công nghệ", "5.3. Sáng tạo công nghệ", "5.4. Xác định vấn đề NLS", "6.1. Hiểu biết AI", "6.2. Sử dụng AI", "6.3. Đánh giá AI"]
     MUC_DO_NLS = ["-- Tự nhập --", "CB1a", "CB1b", "CB1c", "CB2a", "CB2b", "CB2c", "TC1a", "TC1b", "TC1c", "TC2a", "TC2b", "NC1a", "NC1b"]
     
     st.markdown("### 🎛️ Thông tin bài dạy")
@@ -117,7 +177,8 @@ THANH_PHAN_NLS = ["1.1. Duyệt, tìm kiếm, lọc dữ liệu", "1.2. Đánh g
     with c_btn1: st.button("📄 CHỈNH SỬA GIÁO ÁN GỐC", type="primary" if st.session_state.soan_mode == "chinh_sua" else "secondary", use_container_width=True, on_click=set_mode, args=("chinh_sua",))
     with c_btn2: st.button("⚡ TỰ ĐỘNG SOẠN TỪ SGK", type="primary" if st.session_state.soan_mode == "tu_dong" else "secondary", use_container_width=True, on_click=set_mode, args=("tu_dong",))
     st.divider()
-if st.session_state.soan_mode == "chinh_sua":
+
+    if st.session_state.soan_mode == "chinh_sua":
         with st.container(border=True):
             st.markdown("### 📤 Tài liệu đầu vào (Chỉ nên tải lên giáo án 1 tiết hoặc 1 bài)")
             c_up1, c_up2, c_up3 = st.columns(3)
@@ -193,128 +254,89 @@ if st.session_state.soan_mode == "chinh_sua":
                             with c_info: st.write(f"**{item['thanh_phan']}** (`{item['muc_do']}`) 👉 *{item['noi_dung']}*")
                             with c_del:
                                 if st.button("❌", key=f"del_nls_{i}"): st.session_state.nls_list.pop(i); st.rerun()
-st.write("")
+
+    st.write("")
     with st.container(border=True):
         is_english = st.checkbox("Giáo án viết bằng ngôn ngữ Tiếng Anh")
 
     st.write("")
     if st.button("⚡ KÍCH HOẠT XỬ LÝ AI", type="primary", use_container_width=True):
+        # Dọn dẹp kết quả phiên trước
+        st.session_state.pop("ket_qua_giao_an", None)
+        
         if not ai_engine:
-            st.error("❌ Chưa cấu hình AI Engine."); st.stop()
+            st.error("❌ Chưa cấu hình AI Engine. Vui lòng kiểm tra lại luồng truyền dữ liệu từ app.py."); st.stop()
 
-        with st.spinner("🧠 AI đang đọc tài liệu và xử lý... (Sẽ mất khoảng 1-2 phút)"):
+        # Kiểm tra tính hợp lệ của File trước khi cho vòng quay chạy
+        if st.session_state.soan_mode == "chinh_sua" and not st.session_state.get("file_ga"):
+            st.error("⚠️ Vui lòng tải lên ít nhất 1 Giáo án gốc để AI có cơ sở phân tích!")
+            st.stop()
+        elif st.session_state.soan_mode == "tu_dong" and not st.session_state.get("file_sgk"):
+            st.error("⚠️ Vui lòng tải lên Sách Giáo Khoa (PDF/Ảnh) để AI biên soạn!")
+            st.stop()
+
+        with st.spinner("🧠 AI đang phân tích dữ liệu và thiết kế giáo án... (Có thể mất 1-2 phút)"):
             try:
                 noi_dung_chinh = ""
-                # Sửa Lỗi 1: Gán đúng file tương ứng chế độ
                 noi_dung_ppct = doc_noi_dung_file(st.session_state.get("file_ppct" if st.session_state.soan_mode == "chinh_sua" else "file_ppct_tu_dong"))
                 noi_dung_ai_file = doc_noi_dung_file(st.session_state.get("file_ai" if st.session_state.soan_mode == "chinh_sua" else "file_ai_tu_dong"))
 
                 if st.session_state.soan_mode == "chinh_sua":
                     files_ga = st.session_state.get("file_ga", [])
-                    if files_ga:
-                        for f in files_ga: noi_dung_chinh += f"\n--- GIÁO ÁN GỐC ({f.name}) ---\n" + doc_noi_dung_file(f)
-                    else:
-                        st.error("⚠️ Vui lòng tải lên Giáo án gốc!"); st.stop()
+                    for f in files_ga: noi_dung_chinh += f"\n--- GIÁO ÁN GỐC ({f.name}) ---\n" + doc_noi_dung_file(f)
                 else:
                     files_sgk = st.session_state.get("file_sgk", [])
-                    if files_sgk:
-                        for f in files_sgk: noi_dung_chinh += f"\n--- SÁCH GIÁO KHOA ({f.name}) ---\n" + doc_noi_dung_file(f)
-                    else:
-                        st.error("⚠️ Vui lòng tải lên file SGK!"); st.stop()
+                    for f in files_sgk: noi_dung_chinh += f"\n--- SÁCH GIÁO KHOA ({f.name}) ---\n" + doc_noi_dung_file(f)
 
-                # SỬA LỖI 8 & LỖI 2: Đưa toàn bộ Thông tin nền tảng vào Prompt & Ép cấm dùng LaTeX
-                prompt = f"""BẠN LÀ MỘT CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO TẠI VIỆT NAM.
+                # Lấy toàn bộ thông tin nền tảng bài dạy
+                thong_tin_bai_day = f"""
+                - Cấp học: {st.session_state.get('khbd_cap_hoc', 'Không xác định')}
+                - Khối lớp: {st.session_state.get('khbd_khoi_lop', 'Không xác định')}
+                - Môn học: {st.session_state.get('khbd_mon_hoc', 'Không xác định')}
+                - Tên bài dạy: {st.session_state.get('khbd_ten_bai', 'Không cung cấp. Tự lấy theo nội dung SGK')}
+                - Thời lượng: {st.session_state.get('khbd_so_tiet', '1 tiết')}
+                - Mẫu giáo án: {st.session_state.get('khbd_mau_giao_an', 'Công văn 5512 (Chuẩn Bộ)')}
+                - Ngôn ngữ: {'Tiếng Anh' if is_english else 'Tiếng Việt'}
+                """
 
-NHIỆM VỤ: {'Chỉnh sửa, bổ sung Giáo án dựa trên bản gốc' if st.session_state.soan_mode == 'chinh_sua' else 'Soạn mới Giáo án DỰA TRỰC TIẾP VÀO SÁCH GIÁO KHOA'}.
+                prompt = f"""BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO VIỆT NAM.
 
-🚨 QUY TẮC BẮT BUỘC:
-1. ĐÚNG CHỦ ĐỀ: Bám sát 100% nội dung sách/bài. Cấm bịa tên bài khác.
+NHIỆM VỤ: {'Phân tích, chỉnh sửa Giáo án dựa trên bản gốc' if st.session_state.soan_mode == 'chinh_sua' else 'Soạn Giáo án MỚI CHI TIẾT dựa TRỰC TIẾP vào file Sách Giáo Khoa đính kèm'}.
+
+🚨 QUY TẮC BẮT BUỘC (NẾU VI PHẠM SẼ BỊ PHẠT):
+1. ĐÚNG CHỦ ĐỀ & KIẾN THỨC: Bám sát 100% nội dung sách/bài. Cấm bịa tên bài khác.
 2. XỬ LÝ TOÁN HỌC: TUYỆT ĐỐI KHÔNG DÙNG MÃ LATEX. Phải viết bằng văn bản thường (Ví dụ: phân số a/b, x^2) để không lỗi font Word.
-3. CHI TIẾT SƯ PHẠM: Phân rõ Giáo viên làm gì, Học sinh làm gì, Sản phẩm dự kiến. Sử dụng Bảng Markdown để trình bày các hoạt động nếu cần.
+3. CHI TIẾT SƯ PHẠM: Phân rõ Hoạt động của Giáo viên, Hoạt động của Học sinh, Sản phẩm dự kiến. Sử dụng Bảng Markdown (dạng cột | |) để trình bày.
 
-🔹 [THÔNG TIN BÀI DẠY (CỐT LÕI)]
-- Cấp học: {st.session_state.get('khbd_cap_hoc', 'Không xác định')}
-- Khối lớp: {st.session_state.get('khbd_khoi_lop', 'Không xác định')}
-- Môn học: {st.session_state.get('khbd_mon_hoc', 'Không xác định')}
-- Tên bài dạy: {st.session_state.get('khbd_ten_bai', 'Theo SGK tải lên')}
-- Thời lượng: {st.session_state.get('khbd_so_tiet', '1 tiết')}
-- Mẫu giáo án: {st.session_state.get('khbd_mau_giao_an', 'Công văn 5512')}
-- Ngôn ngữ: {'Tiếng Anh' if is_english else 'Tiếng Việt'}
+🔹 [THÔNG TIN NỀN TẢNG BÀI DẠY (CỰC KỲ QUAN TRỌNG)]
+{thong_tin_bai_day}
 
-🔹 [DỮ LIỆU ĐẦU VÀO]
+🔹 [DỮ LIỆU ĐẦU VÀO CỐT LÕI]
 {noi_dung_chinh}
-- PPCT/Bảng AI/Yêu cầu khác: Đã được ghi nhận.
+- Nội dung PPCT / Bảng AI / Yêu cầu NLS: Đã được hệ thống ghi nhận.
 
-Hãy viết ngay giáo án chuyên nghiệp, không dạo đầu.
+Hãy trả lời thẳng vào nội dung giáo án chuyên nghiệp, không cần dạo đầu hay chào hỏi.
 """
                 ket_qua_ai = ai_engine.generate_text(prompt)
-                if ket_qua_ai and not str(ket_qua_ai).startswith("❌"):
+                
+                # Kiểm tra kết quả trả về có lỗi (Exception catch), hoặc bị rỗng (None/dict)
+                if ket_qua_ai and isinstance(ket_qua_ai, str) and not ket_qua_ai.startswith("❌"):
                     st.session_state["ket_qua_giao_an"] = ket_qua_ai
                     st.success("🎉 Soạn Giáo án thành công!")
                 else:
-                    st.error(f"❌ Lỗi từ AI: {ket_qua_ai}")
+                    st.error(f"❌ Lỗi từ AI Engine (Kết quả không hợp lệ hoặc lỗi API): {str(ket_qua_ai)}")
+                    
             except Exception as e:
-                st.error(f"❌ Có lỗi: {str(e)}")
+                st.error(f"❌ Có lỗi trong luồng xử lý hoặc gọi API: {str(e)}")
 
     if st.session_state.get("ket_qua_giao_an"):
         st.markdown("### 📝 Kết quả Giáo án đã xử lý")
         with st.container(border=True): st.markdown(st.session_state["ket_qua_giao_an"])
             
-        import io, docx
-        from docx.shared import Pt
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-        def tao_file_word_hoan_hao(van_ban):
-            doc = docx.Document()
-            style = doc.styles['Normal']
-            style.font.name = 'Times New Roman'
-            style.font.size = Pt(13)
-
-            lines = van_ban.split('\n')
-            table_data = []
-            
-            for line in lines:
-                line_str = line.strip()
-                # SỬA LỖI 11: THUẬT TOÁN ĐỌC VÀ VẼ BẢNG TỪ MARKDOWN SANG WORD
-                if line_str.startswith('|') and line_str.endswith('|'):
-                    if '---' in line_str: continue
-                    row_cells = [cell.strip().replace('**', '') for cell in line_str.strip('|').split('|')]
-                    table_data.append(row_cells)
-                    continue
-                else:
-                    if table_data:
-                        table = doc.add_table(rows=len(table_data), cols=len(table_data[0]))
-                        table.style = 'Table Grid'
-                        for i, row in enumerate(table_data):
-                            for j, cell_text in enumerate(row):
-                                if j < len(table.columns): table.cell(i, j).text = cell_text
-                        table_data = []
-                
-                if not line_str: continue
-                clean_line = line_str.replace('**', '').replace('*', '').replace('`', '')
-                
-                if clean_line.startswith('### '):
-                    p = doc.add_paragraph(clean_line.replace('### ', '')); p.runs[0].bold = True
-                elif clean_line.startswith('## '):
-                    p = doc.add_paragraph(clean_line.replace('## ', '')); p.runs[0].bold = True; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                elif clean_line.startswith('# '):
-                    p = doc.add_heading(clean_line.replace('# ', ''), level=1); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                elif clean_line.startswith('- '):
-                    doc.add_paragraph(clean_line[2:], style='List Bullet')
-                else:
-                    doc.add_paragraph(clean_line)
-                    
-            if table_data:
-                table = doc.add_table(rows=len(table_data), cols=len(table_data[0]))
-                table.style = 'Table Grid'
-                for i, row in enumerate(table_data):
-                    for j, cell_text in enumerate(row):
-                        if j < len(table.columns): table.cell(i, j).text = cell_text
-
-            bio = io.BytesIO(); doc.save(bio); bio.seek(0)
-            return bio
-
-        st.download_button("📥 Tải xuống Giáo án chuẩn (.docx)", data=tao_file_word_hoan_hao(st.session_state["ket_qua_giao_an"]), file_name="Giao_An_Thong_Minh.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-
-
-
+        st.download_button(
+            "📥 Tải xuống Giáo án chuẩn (.docx)", 
+            data=tao_file_word_hoan_hao(st.session_state["ket_qua_giao_an"]), 
+            file_name="Giao_An_Thong_Minh.docx", 
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+            use_container_width=True
+        )
