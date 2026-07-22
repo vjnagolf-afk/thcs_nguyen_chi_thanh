@@ -156,12 +156,7 @@ KHUNG_NLS_HS = {
         }
     }
 }
----
 
-### PHẦN 2: ENGINE TRÍCH XUẤT FILE CO ĐỌNG THEO PHẠM VI TRANG (TỐI ƯU CỐT LÕI)
-Đoạn mã này tích hợp tính năng lọc trang nâng cao, ngăn chặn việc AI đọc thừa thãi và tập trung tối đa dữ liệu thô từ SGK phục vụ quá trình biên soạn.
-
-```python
 # ============================================================
 # SESSION STATE & TRỢ THỦ ĐỌC FILE TỐI ƯU
 # ============================================================
@@ -278,6 +273,7 @@ def read_template_local(path="templates/KHBD_Mau.docx"):
             return "\n".join(result)
     except Exception:
         return ""
+
 # ============================================================
 # CẤU HÌNH VÀ ENGINE XỬ LÝ PROMPT CHIẾN LƯỢC CAO CẤP
 # ============================================================
@@ -367,7 +363,8 @@ Tuyệt đối KHÔNG sử dụng câu văn mang tính tóm tắt, bao quát mơ
 ==================================================================================
 📐 QUY TẮC ĐỊNH DẠNG CÔNG THỨC TOÁN, LÝ, HÓA (ĐỂ XUẤT FILE WORD CHUẨN)
 ==================================================================================
-- TUYỆT ĐỐI KHÔNG dùng mã LaTeX phức tạp (ví dụ: cấm dùng \frac, \left, \right, \delta, \rightarrow).
+- TUYỆT ĐỐI KHÔNG dùng mã LaTeX phức tạp (ví dụ: cấm dùng rac, \left, ight, \delta, 
+ightarrow).
 - BẮT BUỘC DÙNG KÝ TỰ UNICODE VÀ PHƯƠNG PHÁP VIẾT TUYẾN TÍNH TRUYỀN THỐNG:
   + Công thức Toán/Lý: x^2 + 2x - 1 = 0; Phân số ghi dạng a/b (Ví dụ: (x + 1)/(x - 1)); Căn bậc hai ghi là căn(x) hoặc dùng ký tự √x.
   + Công thức Hóa học/Đơn vị (Dùng sub/superscript chuẩn): H₂O, CO₂, H₂SO₄, Fe + CuSO₄ -> FeSO₄ + Cu, m/s², kg/m³.
@@ -407,6 +404,7 @@ V. YÊU CẦU ĐẶC BIỆT TÍCH HỢP:
 
 Trả về thẳng nội dung giáo án hoàn chỉnh dưới dạng Markdown sạch sẽ từ dòng đầu tiên, không chào hỏi, không giải thích ngoài lề.
 """
+
 # ============================================================
 # GIAO DIỆN ĐIỀU KHIỂN CHÍNH (RENDER VIEW) - PHẦN UI FORM
 # ============================================================
@@ -429,6 +427,7 @@ def render_xd_khbd(ai_engine=None):
         st.info("💡 Nên giới hạn phạm vi trang để AI trích xuất siêu chi tiết.")
         range_trang = st.text_input("Phạm vi trang SGK cần soạn (Ví dụ: 45-48)", key="khbd_range_trang")
 
+    # Đã sửa lỗi: Gán đúng 4 biến tải file vào 4 cột tương ứng trên cùng 1 dòng
     st.subheader("📤 Tài liệu đầu vào")
     col_up1, col_up2, col_up3, col_up4 = st.columns(4)
     if mode == "chinh_sua":
@@ -453,6 +452,7 @@ def render_xd_khbd(ai_engine=None):
     with c_th2: tich_hop_ai = st.checkbox("Năng lực AI", key="khbd_tich_hop_ai")
     with c_th3: tich_hop_hoa_nhap = st.checkbox("Dạy học hòa nhập", key="khbd_tich_hop_hoa_nhap")
 
+    # Đã sửa lỗi: Khôi phục khung lựa chọn Khuyết tật (Sử dụng if block hiển thị khi tick)
     nhu_cau_hoa_nhap = []
     if tich_hop_hoa_nhap:
         with st.container(border=True):
@@ -471,6 +471,7 @@ def render_xd_khbd(ai_engine=None):
             if st.button("Xóa", key=f"khbd_del_activity_{index}"):
                 st.session_state.khbd_hoat_dong_list.pop(index)
                 st.rerun()
+
     # --------------------------------------------------------
     # ĐỒNG BỘ NĂNG LỰC SỐ PHẢN HỒI NHANH VÀ XỬ LÝ AI
     # --------------------------------------------------------
