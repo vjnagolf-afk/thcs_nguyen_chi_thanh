@@ -4,9 +4,13 @@ import PyPDF2
 import docx
 import pandas as pd
 import io
+import os
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+# =========================================================
+# 1. CÁC HÀM TIỆN ÍCH VÀ QUẢN LÝ TRẠNG THÁI (STATE)
+# =========================================================
 def init_session_state():
     if "hoat_dong_list" not in st.session_state:
         st.session_state.hoat_dong_list = []
@@ -64,7 +68,25 @@ def doc_noi_dung_file(uploaded_file, ai_engine=None):
                 
         return text
     except Exception as e:
-        return f"\n[ Cảnh Báo Có lỗi khi đọc file {uploaded_file.name}. Chi tiết lỗi: {str(e)}]\n"
+        return f"\n[⚠️ Có lỗi khi đọc file {uploaded_file.name}. Chi tiết lỗi: {str(e)}]\n"
+
+def doc_file_mau_local():
+    """Hàm tự động đọc file mẫu KHBD trên máy chủ (templates/KHBD_Mau.docx)"""
+    path = "templates/KHBD_Mau.docx"
+    if os.path.exists(path):
+        try:
+            doc_file = docx.Document(path)
+            text = ""
+            for para in doc_file.paragraphs:
+                text += para.text + "\n"
+            for table in doc_file.tables:
+                for row in table.rows:
+                    row_data = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
+                    text += " | ".join(row_data) + "\n"
+            return text
+        except Exception:
+            return ""
+    return ""
 
 def tao_file_word_hoan_hao(van_ban):
     doc_word = docx.Document()
@@ -145,6 +167,9 @@ def tao_file_word_hoan_hao(van_ban):
     bio.seek(0)
     return bio
 
+# =========================================================
+# 2. GIAO DIỆN CHÍNH (RENDER)
+# =========================================================
 def render_xd_khbd(ai_engine=None):
     init_session_state()
 
@@ -226,6 +251,11 @@ def render_xd_khbd(ai_engine=None):
         with st.container(border=True):
             st.file_uploader("Kéo thả hoặc Nhấn để tải lên Sách Giáo Khoa", type=["pdf", "jpg", "jpeg", "png"], accept_multiple_files=True, key="file_sgk")
 
+        # Nâng cấp: Tùy chọn cho giáo viên tải lên File Mẫu riêng của trường nếu không muốn dùng mẫu chung
+        st.markdown("**📄 Tải lên File Mẫu Giáo Án (Tùy chọn)** *(Nếu không tải lên, AI sẽ tự động đọc file templates/KHBD_Mau.docx trên hệ thống)*")
+        with st.container(border=True):
+            st.file_uploader("Kéo thả File Word (.docx) chứa bộ khung mẫu của trường", type=["docx"], key="file_template_custom")
+
         st.markdown("**Kế hoạch Hoạt động (Tùy chọn)**")
         c_input, c_add = st.columns([4, 1])
         with c_input: st.text_input("Nhập hoạt động", placeholder="VD: Tìm hiểu cấu trúc...", key="new_hoat_dong", label_visibility="collapsed", on_change=add_hoat_dong)
@@ -298,9 +328,11 @@ def render_xd_khbd(ai_engine=None):
             st.error("⚠️ Vui lòng tải lên Sách Giáo Khoa (PDF/Ảnh) để AI biên soạn!")
             st.stop()
 
-        with st.spinner("🧠 AI đang đọc, xử lý dữ liệu và thiết kế giáo án... (Sẽ mất khoảng 1-2 phút)"):
+        with st.spinner("🧠 AI đang đọc, xử lý dữ liệu và thiết kế giáo án... (Xin đợi 1-3 phút để AI viết thật chi tiết)"):
             try:
                 noi_dung_chinh = ""
+                noi_dung_mau_khbd = ""
+                
                 if st.session_state.soan_mode == "chinh_sua":
                     noi_dung_ppct = doc_noi_dung_file(st.session_state.get("file_ppct"))
                     noi_dung_ai_file = doc_noi_dung_file(st.session_state.get("file_ai"))
@@ -309,6 +341,13 @@ def render_xd_khbd(ai_engine=None):
                     noi_dung_ppct = doc_noi_dung_file(st.session_state.get("file_ppct_tu_dong"))
                     noi_dung_ai_file = doc_noi_dung_file(st.session_state.get("file_ai_tu_dong"))
                     for f in st.session_state.get("file_sgk", []): noi_dung_chinh += f"\n--- SÁCH GIÁO KHOA ({f.name}) ---\n" + doc_noi_dung_file(f)
+                    
+                    # Ưu tiên đọc File Mẫu do GV tải lên, nếu không có thì tự tìm đọc file Mẫu local
+                    file_template_custom = st.session_state.get("file_template_custom")
+                    if file_template_custom:
+                        noi_dung_mau_khbd = doc_noi_dung_file(file_template_custom)
+                    else:
+                        noi_dung_mau_khbd = doc_file_mau_local()
 
                 if len(noi_dung_chinh) > 80000:
                     st.warning("⚠️ Tài liệu đầu vào rất dài. AI sẽ tự động cô đọng thông tin để xử lý.")
@@ -324,8 +363,21 @@ def render_xd_khbd(ai_engine=None):
                 
                 thong_tin_bai_day = f"Cấp học: {cap_hoc}, Khối lớp: {khoi_lop}, Môn học: {mon_hoc}, Tên bài dạy: {ten_bai}, Thời lượng: {so_tiet}, Mẫu giáo án: {mau_giao_an}, Ngôn ngữ: {ngon_ngu}"
                 
-                lenh_chinh_sua = "1. TUYỆT ĐỐI BẢO TOÀN KIẾN THỨC VÀ TÊN BÀI GỐC: Không được thay đổi tên bài, không tự ý thêm bớt kiến thức ngoài SGK.\n2. BẢO TỒN NỘI DUNG TỐT: Giữ lại những hoạt động, nội dung hay của giáo án gốc.\n3. NÂNG CẤP CHUYÊN MÔN: Phát hiện và âm thầm sửa các lỗi sai kiến thức, thiếu sót logic. Cải tiến mục tiêu, hoạt động cho khoa học hơn.\n4. CHI TIẾT HÓA: Bổ sung rõ ràng Hoạt động của Giáo viên, Hoạt động của Học sinh và Sản phẩm học tập mong đợi."
-                lenh_tu_dong = "1. Xây dựng Kế hoạch bài dạy HOÀN TOÀN MỚI, đầy đủ chi tiết dựa TRỰC TIẾP vào nội dung SGK đính kèm.\n2. Tuân thủ tuyệt đối cấu trúc 4 hoạt động: Khởi động, Hình thành kiến thức mới, Luyện tập, Vận dụng.\n3. Viết rõ từng bước: Mục tiêu, Nội dung, Sản phẩm, Tổ chức thực hiện."
+                lenh_chinh_sua = """
+1. TUYỆT ĐỐI BẢO TOÀN KIẾN THỨC VÀ TÊN BÀI GỐC: Không được thay đổi tên bài, không tự ý thêm bớt kiến thức ngoài SGK.
+2. BẢO TỒN NỘI DUNG TỐT: Giữ lại những hoạt động, nội dung hay của giáo án gốc.
+3. NÂNG CẤP CHUYÊN MÔN: Phát hiện và âm thầm sửa các lỗi sai kiến thức, thiếu sót logic. Cải tiến mục tiêu, hoạt động cho khoa học hơn.
+4. CHI TIẾT HÓA TỐI ĐA (CHỐNG LƯỜI): Không được viết sơ sài, tóm tắt. Bổ sung rõ ràng Hoạt động của Giáo viên (giáo viên nói câu gì, đặt câu hỏi gì), Hoạt động của Học sinh (dự kiến học sinh trả lời ra sao) và Sản phẩm học tập mong đợi.
+"""
+                lenh_tu_dong = """
+1. Xây dựng Kế hoạch bài dạy HOÀN TOÀN MỚI, SIÊU CHI TIẾT DẠNG KỊCH BẢN LÊN LỚP (Ít nhất 2000 - 3000 từ) dựa TRỰC TIẾP vào nội dung SGK đính kèm.
+2. CHỐNG BỆNH LƯỜI: TUYỆT ĐỐI KHÔNG VIẾT TẮT, KHÔNG TÓM TẮT. Trong mỗi hoạt động (Khởi động, Hình thành KT, Luyện tập, Vận dụng) phải mô tả chi tiết:
+   - GIÁO VIÊN: Nói câu gì để dẫn dắt? Đặt câu hỏi gì? (Viết chi tiết trong ngoặc kép).
+   - HỌC SINH: Thực hiện thao tác gì? Dự kiến trả lời câu hỏi ra sao?
+   - SẢN PHẨM: Kết quả cụ thể học sinh đạt được.
+"""
+
+                chuoi_khung_mau = f"\n\n🔹 [CẤU TRÚC MẪU GIÁO ÁN BẮT BUỘC]\nBẠN BẮT BUỘC PHẢI SAO CHÉP Y HỆT 100% CÁC ĐỀ MỤC LỚN, NHỎ VÀ BẢNG BIỂU của File Mẫu dưới đây. Chỉ thay thế nội dung chuyên môn vào các mục tương ứng:\n{noi_dung_mau_khbd}\n" if noi_dung_mau_khbd else ""
 
                 tich_hop_nls_str = 'CÓ. ' + str(st.session_state.nls_list) if tich_hop_nls else 'KHÔNG'
                 tich_hop_ai_str = 'CÓ. Phải thiết kế rõ học sinh dùng AI làm gì, ở hoạt động nào, tạo ra sản phẩm AI gì.' if tich_hop_ai else 'KHÔNG'
@@ -334,8 +386,35 @@ def render_xd_khbd(ai_engine=None):
                 ppct_str = noi_dung_ppct if noi_dung_ppct else 'Không cung cấp.'
                 ai_file_str = noi_dung_ai_file if noi_dung_ai_file else 'Không cung cấp.'
 
-                prompt = f"BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO VIỆT NAM.\n\nNHIỆM VỤ CỐT LÕI: {lenh_chinh_sua if st.session_state.soan_mode == 'chinh_sua' else lenh_tu_dong}\n\n[QUY TẮC BẮT BUỘC (CẤM VI PHẠM)]:\n1. Bám sát 100% nội dung tài liệu gốc. Không bịa kiến thức bài khác.\n2. TUYỆT ĐỐI KHÔNG DÙNG MÃ LATEX. Viết công thức Toán/Lý/Hóa bằng văn bản thường (vd: a/b, x^2, can bac hai) để chống lỗi font Word.\n3. BẢO TOÀN THỜI LƯỢNG: Phân bổ thời gian cho các hoạt động khớp với tổng số tiết đã khai báo.\n4. HOẠT ĐỘNG BẮT BUỘC: Nếu có [Danh sách Hoạt động mong muốn], BẮT BUỘC phải ưu tiên tích hợp chúng vào các pha dạy học phù hợp. Không được bỏ qua.\n5. Sử dụng Markdown phân cấp rõ ràng. Nếu dùng Bảng, đảm bảo chuẩn cấu trúc | Cột 1 | Cột 2 |.\n\n[THÔNG TIN NỀN TẢNG]\n{thong_tin_bai_day}\n\n[YÊU CẦU TÍCH HỢP]\n- Tích hợp Năng lực số: {tich_hop_nls_str}\n- Tích hợp Năng lực AI: {tich_hop_ai_str}\n- Dạy học hòa nhập Khuyết tật: {tich_hop_kt_str}\n- Danh sách Hoạt động mong muốn của Giáo viên: {hoat_dong_str}\n\n[DỮ LIỆU ĐẦU VÀO CỐT LÕI (SÁCH/GIÁO ÁN)]\n{noi_dung_chinh}\n\n[TÀI LIỆU CHỈ ĐẠO BỔ SUNG]\n- Nội dung PPCT (Nếu có, dùng để xác định đúng bài và năng lực): {ppct_str}\n- Nội dung Bảng AI (Nếu có, CHỈ sử dụng các yêu cầu AI trong bảng này): {ai_file_str}\n\nViết ngay giáo án chi tiết (chuẩn cấu trúc Markdown), KHÔNG dạo đầu, KHÔNG chào hỏi."
-                
+                prompt = f"""BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO TẠI VIỆT NAM.
+
+NHIỆM VỤ CỐT LÕI: {lenh_chinh_sua if st.session_state.soan_mode == 'chinh_sua' else lenh_tu_dong}
+
+🚨 QUY TẮC BẮT BUỘC (CẤM VI PHẠM - NẾU VI PHẠM BẠN SẼ BỊ ĐÁNH GIÁ 0 ĐIỂM):
+1. Bám sát 100% nội dung tài liệu gốc. Không bịa kiến thức bài khác.
+2. TUYỆT ĐỐI KHÔNG DÙNG MÃ LATEX. Viết công thức Toán/Lý/Hóa bằng văn bản thường (vd: a/b, x^2, can bac hai) để chống lỗi font Word.
+3. BẢO TOÀN THỜI LƯỢNG: Phân bổ thời gian cho các hoạt động khớp với tổng số tiết đã khai báo.
+4. HOẠT ĐỘNG BẮT BUỘC: Nếu có [Danh sách Hoạt động mong muốn], BẮT BUỘC phải ưu tiên tích hợp chúng vào các pha dạy học phù hợp. Không được bỏ qua.
+5. VIẾT DÀI, SÂU SẮC, ĐẦY ĐỦ CHI TIẾT KỊCH BẢN. Không dùng các từ chung chung như "GV hướng dẫn HS", mà phải ghi rõ "GV yêu cầu HS làm bài tập X trang Y...".{chuoi_khung_mau}
+
+🔹 [THÔNG TIN NỀN TẢNG]
+{thong_tin_bai_day}
+
+🔹 [YÊU CẦU TÍCH HỢP ĐẶC BIỆT]
+- Tích hợp Năng lực số: {tich_hop_nls_str}
+- Tích hợp Năng lực AI: {tich_hop_ai_str}
+- Dạy học hòa nhập Khuyết tật: {tich_hop_kt_str}
+- Danh sách Hoạt động mong muốn của Giáo viên: {hoat_dong_str}
+
+🔹 [DỮ LIỆU ĐẦU VÀO CỐT LÕI (SÁCH/GIÁO ÁN)]
+{noi_dung_chinh}
+
+🔹 [TÀI LIỆU CHỈ ĐẠO BỔ SUNG]
+- Nội dung PPCT: {ppct_str}
+- Nội dung Bảng AI: {ai_file_str}
+
+Hãy viết ngay giáo án cực kỳ chi tiết (chuẩn Markdown), KHÔNG dạo đầu, KHÔNG chào hỏi.
+"""
                 ket_qua_ai = ai_engine.generate_text(prompt)
                 
                 if not ket_qua_ai:
