@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP TASK_CONFIG & 5512)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (SIÊU CHI TIẾT SƯ PHẠM SGK)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -148,7 +148,7 @@ def read_uploaded_file(uploaded_file, range_str=""):
 def read_multiple_files(files, range_str=""):
     result = []
     for uploaded_file in files or []:
-        result.append(f"\n--- TÀI LIỆU: {uploaded_file.name} ---")
+        result.append(f"\n--- TÀI LIỆU NGUỒN: {uploaded_file.name} ---")
         result.append(read_uploaded_file(uploaded_file, range_str))
     return "\n".join(result)
 
@@ -199,7 +199,7 @@ def add_activity():
     st.session_state.khbd_new_activity = ""
 
 # ============================================================
-# 5. ĐỌC TASK CONFIG & XÂY DỰNG PROMPT THÔNG MINH
+# 5. ĐỌC TASK CONFIG & XÂY DỰNG PROMPT TRÍCH XUẤT SÂU TỪ SGK
 # ============================================================
 def load_task_config():
     config_path = "prompts/task_config_khbd.txt"
@@ -209,7 +209,7 @@ def load_task_config():
                 return f.read().strip()
         except Exception:
             pass
-    return "BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ THẢM ĐỊNH CHƯƠNG TRÌNH GDPT 2018. BẮT BUỘC SOẠN GIÁO ÁN CHUẨN PHỤ LỤC 4 CÔNG VĂN 5512."
+    return "BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ THẨM ĐỊNH CHƯƠNG TRÌNH GDPT 2018. BẮT BUỘC SOẠN GIÁO ÁN CHUẨN PHỤ LỤC 4 CÔNG VĂN 5512."
 
 def normalize_ai_result(result):
     if result is None: return ""
@@ -228,19 +228,23 @@ def generate_ai(ai_engine, prompt):
     raise RuntimeError("AI Engine không phản hồi.")
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
-    # Nạp nội dung cấu hình chuẩn từ tệp bên ngoài
     task_config_content = load_task_config()
 
     return f"""
 {task_config_content}
 
 ==================================================================================
-🎯 ĐIỀU KHIỂN THỜI LƯỢNG VÀ PHÂN BỔ TIẾT DẠY (BẮT BUỘC TUÂN THỦ)
+🔎 QUY TẮC BẮT BUỘC: TRÍCH DẪN TRỰC TIẾP VÀ SẢN PHẨM HÓA TỪ SGK
+==================================================================================
+1. BẠN PHẢI ĐỌC KỸ "TÀI LIỆU SGK / NGUỒN CỐT LÕI" DƯỚI ĐÂY. 
+2. TRONG TỪNG HOẠT ĐỘNG, BẮT BUỘC PHẢI TRÍCH XUẤT CÁC VÍ DỤ, HĐTP (Hoạt động thực hiện/khám phá), CÂU HỎI HOẠT ĐỘNG (Ví dụ: Hoạt động 1, Câu hỏi..., Ví dụ 1...) CÓ THẬT TRONG SÁCH vào phần **Nội dung**.
+3. TỪ DỮ LIỆU ĐÓ, PHẢI XÂY DỰNG PHẦN **Sản phẩm** LÀ LỜI GIẢI, ĐÁP ÁN HOÀN CHỈNH, CHI TIẾT TỪNG BƯỚC cho các câu hỏi và ví dụ vừa trích xuất đó. Tuyệt đối không được tóm tắt chung chung.
+
+==================================================================================
+🎯 ĐIỀU KHIỂN THỜI LƯỢNG VÀ PHÂN BỔ TIẾT DẠY
 ==================================================================================
 - Thông tin thời lượng bài học: {thong_tin}
-- Phân bổ khối lượng kiến thức, số lượng hoạt động khớp tuyệt đối với số tiết được giao. 
-  + Nếu bài dạy **1 tiết (45 phút)**: Phân bổ 4 hoạt động chuẩn gọn gàng.
-  + Nếu bài dạy **2 tiết trở lên (90+ phút)**: Phải chia rõ ràng nội dung phân bổ chi tiết theo từng tiết trong phần Tiến trình dạy học.
+- Phân bổ khối lượng kiến thức, số lượng hoạt động khớp tuyệt đối với số tiết được giao (Ví dụ 3 tiết thì phải chia rõ các phần kiến thức trọng tâm cho Tiết 1, Tiết 2, Tiết 3).
 
 ==================================================================================
 📐 QUY TẮC ĐỊNH DẠNG TƯƠNG THÍCH BỘ XUẤT FILE WORD VÀ MẪU TRƯỜNG
@@ -252,9 +256,13 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung
 {noi_dung_mau}
 
 ==================================================================================
+TÀI LIỆU SGK / NGUỒN CỐT LÕI (BẮT BUỘC PHẢI BÓC TÁCH NỘI DUNG TỪ ĐÂY):
+==================================================================================
+{noi_dung_chinh}
+
+==================================================================================
 DỮ LIỆU ĐẦU VÀO ĐỂ BIÊN SOẠN:
 - Thông tin chung: {thong_tin}
-- Tài liệu SGK / Nguồn cốt lõi: {noi_dung_chinh}
 - PPCT: {noi_dung_ppct}
 - Tích hợp Năng lực số: {nls}
 - Tích hợp AI / Hòa nhập: {'Tích hợp AI sư phạm' if tich_hop_ai else ''} | Đối tượng hòa nhập ({nhu_cau_hoa_nhap})
