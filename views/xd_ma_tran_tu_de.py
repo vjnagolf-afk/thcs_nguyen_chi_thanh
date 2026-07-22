@@ -720,13 +720,12 @@ CHỈ TRẢ VỀ JSON.
                 f"❌ Lỗi xử lý: {e}"
             )
 
-    if (
-        "processed_matrix_data"
-        in st.session_state
-    ):
-        data = st.session_state[
-            "processed_matrix_data"
-        ]
+    # ========================================================
+    # HIỂN THỊ KẾT QUẢ (ĐÃ BỌC AN TOÀN CHỐNG LỖI NONETYPE)
+    # ========================================================
+
+    data = st.session_state.get("processed_matrix_data")
+    if data:
 
         st.divider()
 
@@ -734,6 +733,9 @@ CHỈ TRẢ VỀ JSON.
             "#### 👁️ Xem trước dữ liệu"
         )
 
+        # ====================================================
+        # MA TRẬN
+        # ====================================================
         if data.get(
             "MA_TRAN"
         ):
@@ -749,6 +751,9 @@ CHỈ TRẢ VỀ JSON.
                 use_container_width=True
             )
 
+        # ====================================================
+        # ĐẶC TẢ
+        # ====================================================
         if data.get(
             "DAC_TA"
         ):
@@ -764,6 +769,9 @@ CHỈ TRẢ VỀ JSON.
                 use_container_width=True
             )
 
+        # ====================================================
+        # DOWNLOAD (SỬ DỤNG .GET ĐỂ TRÁNH KEYERROR)
+        # ====================================================
         safe_mon = st.session_state.get(
             "mt_mon_hoc_file",
             "Mon"
