@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-VIEW: XÂY DỰNG KẾ HOẠCH BÀI DẠY
+VIEW: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUYÊN SÂU - TT18 & CV5512)
 FILE: views/xd_khbd_view.py
 ============================================================
 """
@@ -15,9 +15,6 @@ import pandas as pd
 import PyPDF2
 from docx import Document
 
-# ============================================================
-# IMPORT EXPORT WORD TỪ LÕI CỦA DỰ ÁN
-# ============================================================
 try:
     from export.word_export_engine import WordExportEngine
     from export.template_loader import TemplateLoader
@@ -28,187 +25,136 @@ except ImportError as e:
 
 
 # ============================================================
-# KHUNG NĂNG LỰC SỐ
+# DICTIONARY NĂNG LỰC SỐ THÔNG TƯ 18/2026 ĐẦY ĐỦ 6 MIỀN
 # ============================================================
-
-# 1. KHUNG DÀNH CHO HỌC SINH (DigComp)
-KHUNG_NLS_HS = {
-    "1. Thông tin và dữ liệu số": {
-        "1.1. Duyệt, tìm kiếm và lọc dữ liệu, thông tin và nội dung số": {
-            "Mức 1": "Xác định được nhu cầu thông tin; tìm kiếm dữ liệu, thông tin và nội dung số bằng các phương thức đơn giản.",
-            "Mức 2": "Sử dụng được các phương pháp tìm kiếm, duyệt và lọc dữ liệu, thông tin và nội dung số phù hợp với nhu cầu chuyên môn.",
-            "Mức 3": "Vận dụng được các chiến lược tìm kiếm, đánh giá và lựa chọn dữ liệu, thông tin và nội dung số phục vụ hoạt động giáo dục.",
-        },
-        "1.2. Đánh giá dữ liệu, thông tin và nội dung số": {
-            "Mức 1": "Nhận biết được độ tin cậy cơ bản của nguồn dữ liệu, thông tin và nội dung số.",
-            "Mức 2": "Phân tích và đánh giá được độ tin cậy, tính chính xác và mức độ phù hợp của dữ liệu, thông tin và nội dung số.",
-            "Mức 3": "Có khả năng kiểm chứng, đối chiếu và đánh giá có hệ thống các nguồn dữ liệu, thông tin và nội dung số.",
-        },
-    },
-    "2. Giao tiếp và hợp tác trong môi trường số": {
-        "2.1. Tương tác thông qua công nghệ số": {
-            "Mức 1": "Sử dụng được các công cụ số cơ bản để giao tiếp và tương tác.",
-            "Mức 2": "Lựa chọn và sử dụng được công nghệ số phù hợp với mục đích giao tiếp, dạy học và phối hợp công việc.",
-            "Mức 3": "Tổ chức và điều phối hiệu quả hoạt động giao tiếp, tương tác và phối hợp trong môi trường số.",
-        },
-        "2.4. Hợp tác thông qua công nghệ số": {
-            "Mức 1": "Tham gia được các hoạt động hợp tác đơn giản bằng công nghệ số.",
-            "Mức 2": "Sử dụng được công cụ số để phối hợp và làm việc nhóm.",
-            "Mức 3": "Tổ chức, điều phối và đánh giá được hoạt động hợp tác số.",
-        },
-    },
-    "3. Sáng tạo nội dung số": {
-        "3.1. Phát triển nội dung số": {
-            "Mức 1": "Tạo được nội dung số đơn giản bằng các công cụ phù hợp.",
-            "Mức 2": "Tạo và chỉnh sửa được nội dung số phục vụ dạy học.",
-            "Mức 3": "Thiết kế, phát triển và tối ưu hóa các sản phẩm nội dung số phục vụ hoạt động giáo dục.",
-        },
-    },
-    "4. An toàn trong môi trường số": {
-        "4.2. Bảo vệ dữ liệu cá nhân và quyền riêng tư": {
-            "Mức 1": "Nhận biết được thông tin cá nhân và nguy cơ mất an toàn dữ liệu.",
-            "Mức 2": "Áp dụng được các biện pháp bảo vệ dữ liệu cá nhân và quyền riêng tư.",
-            "Mức 3": "Đánh giá và tổ chức được các biện pháp bảo vệ dữ liệu cá nhân.",
-        },
-    },
-    "5. Giải quyết vấn đề trong môi trường số": {
-        "5.2. Xác định nhu cầu và giải pháp công nghệ": {
-            "Mức 1": "Nhận biết được nhu cầu sử dụng công nghệ trong tình huống đơn giản.",
-            "Mức 2": "Lựa chọn được công cụ và giải pháp số phù hợp.",
-            "Mức 3": "Thiết kế và đánh giá được giải pháp công nghệ phù hợp với nhu cầu.",
-        },
-    },
-    "6. Sử dụng trí tuệ nhân tạo": {
-        "6.1. Hiểu biết về trí tuệ nhân tạo": {
-            "Mức 1": "Nhận biết được khái niệm, khả năng và một số hạn chế cơ bản của AI.",
-            "Mức 2": "Giải thích được vai trò, khả năng, giới hạn và rủi ro của AI.",
-            "Mức 3": "Đánh giá được tác động của AI đối với hoạt động giáo dục và xã hội.",
-        },
-        "6.2. Sử dụng trí tuệ nhân tạo": {
-            "Mức 1": "Sử dụng được công cụ AI đơn giản với sự hướng dẫn.",
-            "Mức 2": "Sử dụng AI để hỗ trợ học tập, dạy học và giải quyết nhiệm vụ.",
-            "Mức 3": "Thiết kế, điều phối và đánh giá việc sử dụng AI trong giáo dục.",
-        },
-        "6.3. Đánh giá và sử dụng AI có trách nhiệm": {
-            "Mức 1": "Nhận biết được nguy cơ sai lệch, sai sót và rủi ro khi sử dụng AI.",
-            "Mức 2": "Kiểm chứng, đánh giá và sử dụng có trách nhiệm nội dung do AI tạo ra.",
-            "Mức 3": "Xây dựng và tổ chức được quy trình sử dụng AI an toàn, có đạo đức và phù hợp với mục tiêu giáo dục.",
-        },
-    },
-}
-
-# 2. KHUNG DÀNH CHO GIÁO VIÊN (Theo TT18/2026/TT-BGDĐT)
 KHUNG_NLS_GV = {
-    "1. Tổ chức dạy học, giáo dục trong môi trường số": {
+    "1. Miền 1: Tổ chức dạy học, giáo dục trong môi trường số": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
-            "Cơ bản": "Sử dụng được các chức năng và công cụ cơ bản của nền tảng quản lí học tập (LMS); Sử dụng được công cụ hỗ trợ trực tuyến.",
-            "Thành thạo": "Xây dựng kế hoạch bài dạy theo tiếp cận công nghệ; Triển khai mô hình kết hợp (blended learning); Dạy học dự án trực tuyến.",
-            "Nâng cao": "Sáng tạo và đổi mới các mô hình dạy học ứng dụng công nghệ số; Hướng dẫn đồng nghiệp thiết kế trải nghiệm học tập số hóa tiên tiến."
+            "Cơ bản": "Sử dụng thiết bị cơ bản (máy tính, máy chiếu, bảng tương tác); Dùng ứng dụng di động giáo dục đơn giản; Quản lý thiết bị trong lớp học đảm bảo an toàn.",
+            "Thành thạo": "Lựa chọn, tích hợp học liệu số vào kế hoạch hoạt động; Thiết kế hoạt động học tập, vui chơi có ứng dụng công nghệ; Xử lý sự cố thiết bị và kết nối cơ bản.",
+            "Nâng cao": "Sáng tạo, thử nghiệm mô hình giáo dục ứng dụng công nghệ mới phù hợp lứa tuổi; Hướng dẫn đồng nghiệp cách sử dụng và quản lý thiết bị."
         },
         "1.2. Hướng dẫn, hỗ trợ học tập": {
-            "Cơ bản": "Sử dụng được các kênh giao tiếp số (email, diễn đàn) để trả lời câu hỏi và hỗ trợ người học khi cần thiết.",
-            "Thành thạo": "Sử dụng kênh số tương tác, giải đáp thắc mắc; Dùng dữ liệu học tập số để xác định và hỗ trợ người học kịp thời.",
-            "Nâng cao": "Hướng dẫn đồng nghiệp xây dựng văn hóa hỗ trợ tích cực trên nền tảng số; Phát triển công cụ hỗ trợ dạy học thông minh."
+            "Cơ bản": "Hướng dẫn học sinh thực hiện thao tác cơ bản, an toàn trên thiết bị số có giám sát; Giải đáp câu hỏi liên quan đến nội dung số.",
+            "Thành thạo": "Quan sát, hỗ trợ kịp thời khi học sinh gặp khó khăn tương tác công nghệ; Tổ chức hoạt động gợi mở, khuyến khích tư duy khám phá dựa trên nội dung số.",
+            "Nâng cao": "Phát triển phương pháp hỗ trợ học tập trên nền tảng công nghệ; Phối hợp phụ huynh hỗ trợ học sinh tại nhà; Đổi mới phương pháp tích hợp công cụ số."
         },
         "1.3. Cá nhân hóa người học": {
-            "Cơ bản": "Xác định nhu cầu, sự khác biệt của người học; Lựa chọn, điều chỉnh công cụ và nội dung số phù hợp.",
-            "Thành thạo": "Thiết kế hệ thống hướng dẫn học tập cá nhân hóa, lộ trình học tập linh hoạt; Phân hóa trình độ trong môi trường trực tuyến.",
-            "Nâng cao": "Thiết kế môi trường học tập số cá nhân hóa, cung cấp công cụ tự định hướng; Đánh giá hiệu quả dạy học cá nhân hóa."
+            "Cơ bản": "Nhận biết hứng thú của học sinh với hoạt động công nghệ; Lựa chọn học liệu số phù hợp với sở thích chung.",
+            "Thành thạo": "Thiết kế tình huống ứng dụng công nghệ giải quyết vấn đề; Lựa chọn ứng dụng, trò chơi số theo mức độ phù hợp với từng nhóm học sinh; Cá nhân hóa học liệu.",
+            "Nâng cao": "Sáng tạo giải pháp cá nhân hóa hoạt động giáo dục; Hướng dẫn đồng nghiệp ứng dụng công nghệ cá nhân hóa cho học sinh có nhu cầu đặc biệt."
         },
         "1.4. Học tập cộng tác": {
-            "Cơ bản": "Sử dụng công cụ số cơ bản tổ chức làm việc nhóm đơn giản; Thiết kế nhiệm vụ chia sẻ ý tưởng trên nền tảng số.",
-            "Thành thạo": "Thiết kế nhiệm vụ cùng xây dựng nội dung; Hướng dẫn người học giao tiếp số; Dùng công nghệ đánh giá làm việc nhóm.",
-            "Nâng cao": "Xây dựng dự án cộng tác phức tạp; Quản lí cộng đồng học tập trực tuyến; Hướng dẫn đồng nghiệp triển khai học tập cộng tác số."
+            "Cơ bản": "Sử dụng công cụ số đơn giản tổ chức hoạt động nhóm; Thiết kế nhiệm vụ, chia sẻ ý tưởng trên nền tảng số.",
+            "Thành thạo": "Thiết kế nhiệm vụ cộng tác phức tạp, tích hợp đa dạng công cụ số; Hướng dẫn kĩ năng giao tiếp có sử dụng công nghệ trong nhóm.",
+            "Nâng cao": "Sáng tạo mô hình học tập cộng tác ứng dụng nền tảng số; Xây dựng văn hóa hợp tác, chia sẻ trong tập thể sư phạm nhà trường."
         }
     },
-    "2. Kiểm tra, đánh giá": {
+    "2. Miền 2: Kiểm tra, đánh giá": {
         "2.1. Phương thức đánh giá": {
-            "Cơ bản": "Sử dụng hình thức kiểm tra truyền thống kết hợp nhập điểm hệ thống số; Áp dụng công cụ tạo bài kiểm tra online đơn giản.",
-            "Thành thạo": "Sử dụng công cụ số phổ biến để tạo bài kiểm tra quá trình và tổng kết; Thiết kế đa dạng công cụ đánh giá số.",
-            "Nâng cao": "Sáng tạo triển khai mô hình đánh giá số tiên tiến đáp ứng năng lực phức hợp; Hướng dẫn đồng nghiệp áp dụng đánh giá số."
+            "Cơ bản": "Sử dụng thiết bị số (máy ảnh, điện thoại) ghi lại sản phẩm/khoảnh khắc học tập; Dùng công cụ số lưu trữ minh chứng tiến bộ.",
+            "Thành thạo": "Thiết kế hoạt động đánh giá kĩ năng qua công nghệ; Tổ chức giao tiếp hiệu quả với phụ huynh qua kênh số (gửi thông báo, chia sẻ minh chứng có chọn lọc).",
+            "Nâng cao": "Sáng tạo, triển khai phương pháp đánh giá sự phát triển thông qua phân tích dữ liệu tương tác số; Hướng dẫn đồng nghiệp đánh giá dựa trên minh chứng số."
         },
         "2.2. Phân tích kết quả học tập": {
-            "Cơ bản": "Sử dụng chức năng cơ bản của LMS xem báo cáo hoạt động người học; Xây dựng báo cáo đánh giá sự tiến bộ.",
-            "Thành thạo": "Phân tích dữ liệu từ hệ thống đánh giá để nhận diện tiến bộ; Xây dựng bảng điều khiển tự động (dashboard) dữ liệu trực quan.",
-            "Nâng cao": "Áp dụng kĩ thuật phân tích dữ liệu nâng cao dự đoán xu hướng, phát hiện sớm vấn đề; Hướng dẫn đồng nghiệp diễn giải dữ liệu."
+            "Cơ bản": "Sử dụng công cụ số cơ bản nhận xét, đánh giá; Lựa chọn, sắp xếp minh chứng số phù hợp theo từng lĩnh vực phát triển.",
+            "Thành thạo": "Xây dựng hồ sơ số, báo cáo trực quan về sự tiến bộ của học sinh chia sẻ với phụ huynh; Phân tích dữ liệu đánh giá xu hướng cá nhân.",
+            "Nâng cao": "Hướng dẫn đồng nghiệp cách khai thác và diễn giải dữ liệu số để cải tiến hoạt động chăm sóc, nuôi dưỡng và giáo dục."
         },
         "2.3. Phản hồi và đánh giá cải tiến": {
-            "Cơ bản": "Cung cấp phản hồi trên hệ thống LMS, phản hồi kịp thời bằng văn bản/điểm số qua nền tảng số.",
-            "Thành thạo": "Sử dụng đa dạng công cụ (ghi âm, video, bình luận trực tiếp) đưa ra phản hồi chi tiết; Thiết kế qui trình có sự tham gia của người học.",
-            "Nâng cao": "Sử dụng dữ liệu phân tích điều chỉnh kế hoạch bài dạy; Hướng dẫn đồng nghiệp dùng phản hồi số cải tiến liên tục."
+            "Cơ bản": "Sử dụng công cụ số cơ bản cung cấp phản hồi thông tin hằng ngày; Dùng đa dạng công cụ (ghi âm, video ngắn) nhận xét hoạt động.",
+            "Thành thạo": "Thiết kế quy trình phản hồi và đánh giá cải tiến có sự tham gia của phụ huynh/học sinh bằng công nghệ; Tổ chức tương tác trực tuyến.",
+            "Nâng cao": "Hướng dẫn đồng nghiệp sử dụng phản hồi số và dữ liệu học tập để cải tiến liên tục chương trình và hoạt động giáo dục."
         }
     },
-    "3. Trao quyền cho người học": {
+    "3. Miền 3: Trao quyền cho người học": {
         "3.1. Tiếp cận và hòa nhập": {
-            "Cơ bản": "Sử dụng công cụ số hỗ trợ người học gặp khó khăn; Đảm bảo mọi người học có cơ hội dùng thiết bị, hạ tầng số.",
-            "Thành thạo": "Khai thác, điều chỉnh tài nguyên số đáp ứng đa dạng người học (ngôn ngữ, khuyết tật); Thiết kế nội dung đảm bảo tính hòa nhập.",
-            "Nâng cao": "Hướng dẫn đồng nghiệp chiến lược và công nghệ số hỗ trợ giáo dục hòa nhập."
+            "Cơ bản": "Sử dụng thiết bị, công cụ số đảm bảo mọi học sinh đều có cơ hội tham gia; Hỗ trợ học sinh khuyết tật/nhu cầu đặc biệt ở mức cơ bản.",
+            "Thành thạo": "Lựa chọn tài nguyên số tính đến sự đa dạng của học sinh; Sử dụng công nghệ hỗ trợ chuyên biệt và thiết kế hoạt động linh hoạt cho học sinh hòa nhập.",
+            "Nâng cao": "Thiết kế hoạt động học tập số linh hoạt, đa dạng hóa cách tham gia; Hướng dẫn đồng nghiệp triển khai sáng kiến xóa bỏ rào cản giáo dục hòa nhập."
         },
         "3.2. Giải quyết vấn đề": {
-            "Cơ bản": "Thiết kế nhiệm vụ yêu cầu người học dùng Internet tìm thông tin, trả lời câu hỏi, giải quyết vấn đề đơn giản.",
-            "Thành thạo": "Thiết kế dự án yêu cầu người học thu thập, phân tích thông tin bằng số; Tổ chức học tập dựa trên vấn đề (problem-based).",
-            "Nâng cao": "Hướng dẫn đồng nghiệp xây dựng hệ sinh thái học tập số, kết nối chuyên gia giải quyết vấn đề thực tế cộng đồng."
+            "Cơ bản": "Tổ chức hoạt động tìm kiếm thông tin đơn giản từ nội dung giáo viên cung cấp.",
+            "Thành thạo": "Thiết kế hoạt động/dự án nhỏ yêu cầu sử dụng công nghệ tìm kiếm câu trả lời, khám phá dưới sự định hướng của giáo viên.",
+            "Nâng cao": "Tổ chức hoạt động học tập dựa trên vấn đề, hiện tượng thực tiễn, khuyến khích dùng công cụ số nghiên cứu và trình bày giải pháp sáng tạo."
         },
         "3.3. Khuyến khích sự tham gia tích cực": {
-            "Cơ bản": "Sử dụng công cụ trực quan hóa và tương tác số đơn giản để thu hút sự chú ý, khuyến khích học sinh tham gia.",
-            "Thành thạo": "Tích hợp trò chơi hóa (gamification); Thiết kế hoạt động người học tự tạo nội dung số, mô phỏng, thực tế ảo (VR/AR).",
-            "Nâng cao": "Sáng tạo dự án năng động lấy người học làm trung tâm; Hướng dẫn đồng nghiệp hoạt động học tập tích cực bằng công nghệ."
+            "Cơ bản": "Sử dụng công cụ số đơn giản, an toàn thu hút sự chú ý và tương tác của học sinh trong giờ học.",
+            "Thành thạo": "Tích hợp yếu tố trò chơi hóa (gamification), công cụ sáng tạo số đơn giản để học sinh thể hiện ý tưởng cá nhân và sản phẩm số.",
+            "Nâng cao": "Xây dựng môi trường tự tin, an toàn để học sinh thể hiện bản thân; Hướng dẫn đồng nghiệp phương pháp tăng cường tương tác bằng công nghệ."
         }
     },
-    "4. Kĩ năng công nghệ số": {
+    "4. Miền 4: Kĩ năng công nghệ số": {
         "4.1. Kĩ năng thông tin và dữ liệu": {
-            "Cơ bản": "Sử dụng công cụ tìm kiếm tài liệu; Lưu trữ, sắp xếp khoa học dữ liệu trên máy tính hoặc đám mây.",
-            "Thành thạo": "Đánh giá độ tin cậy nguồn tin; Hướng dẫn người học tư duy phản biện khi tiếp nhận thông tin số; Tìm kiếm nâng cao.",
-            "Nâng cao": "Sử dụng công cụ thu thập, trực quan hóa và phân tích dữ liệu; Hướng dẫn tích hợp năng lực thông tin vào chương trình."
+            "Cơ bản": "Sử dụng công cụ tìm kiếm cơ bản tìm thông tin phục vụ bài giảng; Lưu trữ và sắp xếp tệp tin trên máy tính hoặc đám mây.",
+            "Thành thạo": "Khai thác kho học liệu số (video, bài hát, truyện, tài nguyên mở); Hướng dẫn học sinh tìm kiếm, đánh giá độ tin cậy nguồn thông tin an toàn.",
+            "Nâng cao": "Phát triển năng lực thông tin nâng cao; Hướng dẫn đồng nghiệp phương pháp rèn luyện tư duy phản biện khi tiếp nhận thông tin số."
         },
         "4.2. Sáng tạo nội dung số": {
-            "Cơ bản": "Sử dụng công cụ phổ biến tạo nội dung định dạng số; Tích hợp định dạng số vào nhiệm vụ học tập.",
-            "Thành thạo": "Hướng dẫn người học công cụ tạo nội dung số, bản quyền, trích dẫn; Sử dụng nền tảng chia sẻ nội dung hợp lệ.",
-            "Nâng cao": "Thành thạo công cụ chuyên dụng tạo học liệu số tương tác cao; Phát triển nền tảng học tập tích hợp AI, thực tế ảo."
+            "Cơ bản": "Sử dụng phần mềm soạn thảo văn bản, trình chiếu thiết kế giáo án; Tạo video, album ảnh đơn giản từ hoạt động lớp học.",
+            "Thành thạo": "Sử dụng công cụ thiết kế, chỉnh sửa ảnh, video, âm thanh tạo học liệu trực quan, sinh động; Tổ chức kho học liệu cá nhân khoa học.",
+            "Nâng cao": "Khai thác nền tảng tích hợp AI, thực tế ảo (VR/AR) để thiết kế học liệu số nâng cao; Hướng dẫn đồng nghiệp ứng dụng chuyên sâu."
         },
         "4.3. An toàn": {
-            "Cơ bản": "Hiểu biết bảo vệ sức khỏe thể chất/tinh thần; Bố trí không gian, thời gian sử dụng thiết bị hợp lí.",
-            "Thành thạo": "Tích hợp phòng tránh rủi ro mạng; Áp dụng biện pháp bảo vệ dữ liệu cá nhân; Xử lí bắt nạt trực tuyến.",
-            "Nâng cao": "Áp dụng phương pháp dạy học giảm căng thẳng số; Cập nhật xu hướng an toàn số cho giáo viên, phụ huynh."
+            "Cơ bản": "Hiểu biết bảo vệ sức khỏe khi tiếp xúc thiết bị số; Đặt mật khẩu thiết bị/tài khoản cá nhân; Nhận diện rủi ro cơ bản trên mạng.",
+            "Thành thạo": "Giám sát biện pháp đảm bảo an toàn cho học sinh khi dùng thiết bị; Cài đặt kiểm soát truy cập; Bảo vệ hình ảnh, thông tin cá nhân học sinh.",
+            "Nâng cao": "Xử lí sự cố an ninh mạng cơ bản; Cập nhật, hướng dẫn đồng nghiệp và phụ huynh phương pháp giáo dục an toàn số."
         }
     },
-    "5. Phát triển chuyên môn": {
+    "5. Miền 5: Phát triển chuyên môn": {
         "5.1. Giao tiếp trong tổ chức": {
-            "Cơ bản": "Sử dụng email, nhóm chat trao đổi thông tin và giao tiếp phụ huynh.",
-            "Thành thạo": "Sử dụng hiệu quả kênh giao tiếp chính thức; Xây dựng kế hoạch đổi mới giao tiếp chuyên môn.",
-            "Nâng cao": "Xây dựng chiến lược truyền thông số; Hướng dẫn đồng nghiệp đổi mới giao tiếp tăng tính minh bạch."
+            "Cơ bản": "Sử dụng email, mạng xã hội, công cụ trực tuyến phổ biến của nhà trường để trao đổi thông tin công việc và giao tiếp với phụ huynh.",
+            "Thành thạo": "Sử dụng hiệu quả kênh giao tiếp số chính thức của trường; Xây dựng, quản lí kênh truyền thông số của lớp kết nối tích cực.",
+            "Nâng cao": "Hướng dẫn đồng nghiệp xây dựng kế hoạch truyền thông số, tăng cường minh bạch và tương tác hiệu quả với cộng đồng."
         },
         "5.2. Hợp tác phát triển chuyên môn": {
-            "Cơ bản": "Tham gia cộng đồng học tập trực tuyến; Tự đánh giá thách thức ứng dụng công nghệ số.",
-            "Thành thạo": "Giao tiếp, chia sẻ chuyên môn bằng công cụ số; Cập nhật kiến thức qua khóa học trực tuyến.",
-            "Nâng cao": "Hướng dẫn xây dựng yêu cầu dạy học môi trường số; Phát triển công cụ phản ánh năng lực số."
+            "Cơ bản": "Tham gia cộng đồng học tập trực tuyến của giáo viên; Tự đánh giá thuận lợi, khó khăn khi ứng dụng công nghệ.",
+            "Thành thạo": "Chủ động tìm kiếm, tham gia khóa học cập nhật kiến thức kĩ năng số; Áp dụng giải pháp công nghệ giải quyết vấn đề chuyên môn.",
+            "Nâng cao": "Hướng dẫn đồng nghiệp sử dụng công nghệ số xây dựng kế hoạch phát triển năng lực cá nhân và đổi mới phương pháp."
         },
         "5.3. Phát triển, quản lí học liệu số": {
-            "Cơ bản": "Tìm kiếm tài nguyên (OER) bằng công cụ phổ biến; Lựa chọn tài nguyên phù hợp mục tiêu.",
-            "Thành thạo": "Lưu trữ, chia sẻ kho học liệu an toàn; Đánh giá chất lượng, bản quyền học liệu; Tạo tài nguyên từ nguồn có sẵn.",
-            "Nâng cao": "Xây dựng hệ thống quản lí tài nguyên cho tổ/trường; Hướng dẫn quản trị kho học liệu mở."
+            "Cơ bản": "Lựa chọn tài nguyên số phù hợp mục tiêu giáo dục; Sử dụng nguồn tài nguyên hợp pháp, có bản quyền.",
+            "Thành thạo": "Khai thác kho học liệu mở (OER); Tổ chức lưu trữ, chia sẻ kho học liệu số cá nhân an toàn; Đánh giá chất lượng và tính pháp lí.",
+            "Nâng cao": "Xây dựng chính sách, hướng dẫn tôn trọng bản quyền trong nhà trường; Hướng dẫn đồng nghiệp quản trị kho học liệu."
         }
     },
-    "6. Trí tuệ nhân tạo (AI)": {
+    "6. Miền 6: Trí tuệ nhân tạo (AI)": {
         "6.1. Tư duy lấy con người làm trung tâm": {
-            "Cơ bản": "Nhận diện cách vận hành của AI; Tự đánh giá, cải tiến ứng dụng công nghệ trong dạy học.",
-            "Thành thạo": "Thiết kế hoạt động tích hợp AI sáng tạo, có trách nhiệm.",
-            "Nâng cao": "Triển khai phương pháp dạy học mới tích hợp sâu AI cá nhân hóa; Hướng dẫn, đề xuất dùng công cụ AI."
+            "Cơ bản": "Hiểu biết về công cụ AI tạo sinh cơ bản và tiềm năng ứng dụng trong giáo dục; Sử dụng AI hỗ trợ công việc cơ bản.",
+            "Thành thạo": "Khai thác công cụ AI chuyên biệt tạo học liệu tương tác, cá nhân hóa hoạt động học tập; Phòng chống rủi ro, đảm bảo đạo đức.",
+            "Nâng cao": "Triển khai đổi mới phương pháp dạy học tích hợp sâu AI đáp ứng cá nhân hóa; Hướng dẫn đồng nghiệp lựa chọn công cụ AI phù hợp."
         },
         "6.2. Đạo đức AI": {
-            "Cơ bản": "Nhận diện rủi ro thu thập dữ liệu; Thể hiện cẩn trọng, trách nhiệm với quyền riêng tư của người học.",
-            "Thành thạo": "Đánh giá ứng dụng AI theo đạo đức; Hướng dẫn người học dùng AI an toàn, nhận biết ưu/nhược điểm AI.",
-            "Nâng cao": "Cập nhật, chia sẻ vấn đề đạo đức AI; Tham gia xây dựng chính sách dùng AI có đạo đức trong nhà trường."
+            "Cơ bản": "Nhận diện khả năng thu thập dữ liệu cá nhân của AI; Thể hiện cẩn trọng, trách nhiệm với quyền riêng tư của học sinh và gia đình.",
+            "Thành thạo": "Giám sát học sinh tương tác với AI; Đánh giá ứng dụng AI dựa trên tiêu chí đạo đức, bảo mật, công bằng; Tích hợp hướng dẫn AI an toàn.",
+            "Nâng cao": "Chủ động cập nhật, chia sẻ với đồng nghiệp vấn đề đạo đức AI; Tham gia xây dựng chính sách sử dụng AI có trách nhiệm."
         },
         "6.3. Sư phạm AI": {
-            "Cơ bản": "Hiểu lợi ích sư phạm của công cụ AI hỗ trợ dạy học; Tích hợp AI cá nhân hóa.",
-            "Thành thạo": "Ứng dụng AI linh hoạt trong các bước dạy học lấy người học làm trung tâm; Quản lý tương tác 3 chiều GV-HS-AI.",
-            "Nâng cao": "Xây dựng nguyên tắc sư phạm dùng AI; Hướng dẫn đồng nghiệp thiết kế AI lấy con người làm trung tâm."
+            "Cơ bản": "Nhận biết tương tác 3 chiều (giáo viên - học sinh - AI) trong môi trường số; Nhận diện giới hạn của AI trong giáo dục.",
+            "Thành thạo": "Sử dụng AI hỗ trợ giao tiếp, tổ chức hoạt động nhận thức; Khai thác ứng dụng AI thử nghiệm đổi mới tổ chức lớp học.",
+            "Nâng cao": "Khai thác AI cải thiện chất lượng dạy học toàn diện; Hướng dẫn đồng nghiệp tổ chức hoạt động hợp tác trên nền tảng số."
         },
         "6.4. AI cho phát triển chuyên môn": {
-            "Cơ bản": "Theo dõi và phân tích quá trình phát triển chuyên môn bằng công cụ AI phù hợp.",
-            "Thành thạo": "Dùng AI tạo sinh hỗ trợ học tập suốt đời; Dùng nền tảng AI tìm tài nguyên, tham gia cộng đồng thực hành.",
-            "Nâng cao": "Hướng dẫn đổi mới sáng tạo cho đồng nghiệp qua nền tảng AI; Xây dựng công cụ AI tạo sinh hỗ trợ đồng nghiệp."
+            "Cơ bản": "Tìm kiếm, khai thác khóa học trực tuyến về AI phục vụ phát triển chuyên môn; Sẵn sàng thử nghiệm ứng dụng AI.",
+            "Thành thạo": "Vận dụng tư duy phản biện xác định vấn đề phức tạp và đề xuất giải pháp AI phù hợp; Cá nhân hóa hoạt động phát triển bản thân.",
+            "Nâng cao": "Hướng dẫn đồng nghiệp sáng kiến đổi mới áp dụng AI giải quyết vấn đề hệ thống; Đánh giá rủi ro và lợi ích dài hạn."
+        }
+    }
+}
+
+KHUNG_NLS_HS = {
+    "1. Thông tin và dữ liệu số": {
+        "1.1. Duyệt, tìm kiếm và lọc dữ liệu": {
+            "Mức 1": "Xác định nhu cầu thông tin, tìm kiếm dữ liệu đơn giản trong môi trường số.",
+            "Mức 2": "Sử dụng kĩ thuật tìm kiếm nâng cao để lấy dữ liệu, thông tin chính xác.",
+            "Mức 3": "Vận dụng chiến lược tìm kiếm và tổng hợp thông tin phức tạp phục vụ học tập."
+        }
+    },
+    "2. Giao tiếp và hợp tác": {
+        "2.1. Tương tác qua công nghệ số": {
+            "Mức 1": "Sử dụng công cụ số cơ bản để giao tiếp, trao đổi học tập.",
+            "Mức 2": "Lựa chọn nền tảng giao tiếp phù hợp với yêu cầu nhiệm vụ học tập nhóm.",
+            "Mức 3": "Tổ chức và điều phối hiệu quả hoạt động giao tiếp, tương tác nhóm trực tuyến."
         }
     }
 }
@@ -217,7 +163,6 @@ KHUNG_NLS_GV = {
 # ============================================================
 # SESSION STATE
 # ============================================================
-
 def init_session_state():
     defaults = {
         "khbd_mode": "chinh_sua",
@@ -240,7 +185,6 @@ def set_mode(mode: str):
 # ============================================================
 # HÀM ĐỌC FILE
 # ============================================================
-
 def safe_text(value):
     if value is None: return ""
     return str(value).replace("\x00", "").strip()
@@ -250,10 +194,7 @@ def read_pdf(uploaded_file):
     try:
         reader = PyPDF2.PdfReader(uploaded_file)
         for index, page in enumerate(reader.pages, start=1):
-            try:
-                text = page.extract_text() or ""
-            except Exception:
-                text = ""
+            text = page.extract_text() or ""
             if text.strip():
                 result.append(f"\n===== PDF - TRANG {index} =====\n{text.strip()}")
     except Exception as e:
@@ -288,9 +229,6 @@ def read_excel(uploaded_file):
         result.append(f"[LỖI ĐỌC EXCEL: {str(e)}]")
     return "\n".join(result)
 
-def read_image(uploaded_file):
-    return "[Ảnh đính kèm. Sử dụng Vision AI nếu AI Engine có hỗ trợ]"
-
 def read_uploaded_file(uploaded_file):
     if uploaded_file is None: return ""
     filename = uploaded_file.name.lower()
@@ -299,8 +237,7 @@ def read_uploaded_file(uploaded_file):
         if extension == ".pdf": return read_pdf(uploaded_file)
         if extension == ".docx": return read_docx(uploaded_file)
         if extension in [".xlsx", ".xls"]: return read_excel(uploaded_file)
-        if extension in [".jpg", ".jpeg", ".png", ".webp"]: return read_image(uploaded_file)
-        return f"[KHÔNG HỖ TRỢ ĐỊNH DẠNG: {extension}]"
+        return f"[Định dạng file: {extension}]"
     except Exception as e:
         return f"[LỖI ĐỌC FILE: {uploaded_file.name}]\n{str(e)}"
 
@@ -329,6 +266,7 @@ def read_template_local(path="templates/KHBD_Mau.docx"):
                     result.append(" | ".join(cells))
             return "\n".join(result)
     except Exception: return ""
+
 
 # ============================================================
 # NLS AUTO-FILL
@@ -367,6 +305,7 @@ def format_nls():
         )
     return "\n".join(result)
 
+
 # ============================================================
 # HOẠT ĐỘNG
 # ============================================================
@@ -375,6 +314,7 @@ def add_activity():
     if value and value not in st.session_state.khbd_hoat_dong_list:
         st.session_state.khbd_hoat_dong_list.append(value)
     st.session_state.khbd_new_activity = ""
+
 
 # ============================================================
 # AI ENGINE
@@ -399,22 +339,27 @@ def generate_ai(ai_engine, prompt):
         if text: return text
     raise RuntimeError("AI Engine không trả về nội dung.")
 
+
 # ============================================================
-# PROMPT
+# PROMPT CHIẾN LƯỢC CAO CẤP (ÉP CHI TIẾT THEO MẪU & TT18)
 # ============================================================
 def build_prompt(
     thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung_mau,
     nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode
 ):
     if mode == "chinh_sua":
-        nhiem_vu = "\nPhân tích và nâng cấp giáo án gốc.\n- Giữ nguyên tên bài và phạm vi kiến thức.\n- Bổ sung mục tiêu, hoạt động GV/HS thật chi tiết.\n- Sửa lỗi sư phạm nếu cần.\n"
+        nhiem_vu = "Phân tích, chuẩn hóa và nâng cấp giáo án gốc theo Công văn 5512 và chuẩn mẫu trường cung cấp."
     else:
-        nhiem_vu = "\nXây dựng Kế hoạch bài dạy mới từ SGK.\n- Bám sát nội dung SGK, không tự thêm kiến thức bài khác.\n- Mô tả chi tiết kịch bản dạy học.\n"
+        nhiem_vu = "Soạn mới hoàn toàn Kế hoạch bài dạy từ Sách giáo khoa theo đúng cấu trúc mẫu chuẩn của trường."
 
     return f"""
-BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO VIỆT NAM (THEO CV 5512).
+BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ THẨM ĐỊNH CHƯƠNG TRÌNH GIÁO DỤC PHỔ THÔNG 2018.
+NHIỆM VỤ: {nhiem_vu}
 
-{nhiem_vu}
+BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CÁC NGUYÊN TẮC SAU:
+1. KHÔNG VIẾT CHUNG CHUNG, SƠ SÀI. Mọi hoạt động phải cụ thể hóa tối đa (Ví dụ: Giáo viên nêu câu hỏi chính xác nào, Học sinh dự kiến trả lời ra sao, sản phẩm học tập là gì).
+2. TUÂN THỦ 100% CẤU TRÚC MẪU (Đề mục, tiểu mục, bảng biểu) lấy từ file mẫu gốc dưới đây. Không tự ý cắt bỏ hoặc thay đổi tên đề mục.
+3. TÍCH HỢP ĐẦY ĐỦ NĂNG LỰC SỐ (Theo TT 18/2026/TT-BGDĐT) và Năng lực AI vào đúng mục tiêu và tiến trình dạy học.
 
 ==================================================
 I. THÔNG TIN BÀI DẠY
@@ -422,44 +367,43 @@ I. THÔNG TIN BÀI DẠY
 {thong_tin}
 
 ==================================================
-II. MẪU GIÁO ÁN (BẮT BUỘC TUÂN THỦ 100% CẤU TRÚC ĐỀ MỤC VÀ BẢNG BIỂU)
+II. MẪU GIÁO ÁN GỐC (BẮT BUỘC BÁM SÁT CẤU TRÚC ĐỀ MỤC NÀY)
 ==================================================
 {noi_dung_mau}
 
 ==================================================
-III. TÀI LIỆU NGUỒN CỐT LÕI (SÁCH/GIÁO ÁN GỐC)
+III. TÀI LIỆU NGUỒN CỐT LÕI (SGK / GIÁO ÁN)
 ==================================================
 {noi_dung_chinh}
 
 ==================================================
-IV. TÀI LIỆU CHỈ ĐẠO
+IV. TÀI LIỆU CHỈ ĐẠO BỔ SUNG
 ==================================================
 - PPCT: {noi_dung_ppct}
-- Bảng AI: {noi_dung_ai}
+- Tích hợp AI: {noi_dung_ai}
 
 ==================================================
-V. YÊU CẦU TÍCH HỢP
+V. YÊU CẦU TÍCH HỢP ĐẶC BIỆT
 ==================================================
-1. Năng Lực Số:
+1. Năng lực số (Chuẩn TT 18/2026):
 {nls}
 
 2. Tích hợp AI:
-{'Được tích hợp AI. Phải nêu rõ nhiệm vụ AI, cách kiểm chứng kết quả AI và sản phẩm học tập.' if tich_hop_ai else 'Không tích hợp AI.'}
+{'Có tích hợp AI. Phải thể hiện rõ phần hướng dẫn học sinh sử dụng công cụ AI, cách học sinh kiểm chứng kết quả và sản phẩm AI tạo ra trong hoạt động.' if tich_hop_ai else 'Không bắt buộc tích hợp AI chuyên sâu.'}
 
 3. Dạy học hòa nhập:
-{f'Có học sinh cần hỗ trợ: {nhu_cau_hoa_nhap}. Phải điều chỉnh nhiệm vụ, phương tiện, thời gian hoặc cách thể hiện sản phẩm.' if tich_hop_hoa_nhap else 'Không yêu cầu điều chỉnh dạy học hòa nhập.'}
+{f'Hỗ trợ học sinh khuyết tật/nhu cầu đặc biệt ({nhu_cau_hoa_nhap}): Phải có giải pháp điều chỉnh nội dung, nhiệm vụ, phương tiện hoặc thời gian phù hợp.' if tich_hop_hoa_nhap else 'Không yêu cầu điều chỉnh đặc biệt.'}
 
-4. Hoạt động GV yêu cầu (Bắt buộc chèn vào):
+4. Hoạt động giáo viên yêu cầu thêm:
 {hoat_dong}
 
 ==================================================
-VI. YÊU CẦU CHUYÊN MÔN
+VI. QUY TẮC ĐỊNH DẠNG ĐẦU RA (MARKDOWN)
 ==================================================
-- KHÔNG SỬ DỤNG MÃ LATEX. Viết công thức bằng văn bản thường (vd: a/b, x^2, can bac hai) để chống lỗi font Word khi kết xuất.
-- Sử dụng Markdown phân cấp rõ ràng để công cụ export xuất Word chuẩn. Nếu dùng Bảng, đảm bảo chuẩn cấu trúc | Cột 1 | Cột 2 |.
-- Nếu file mẫu yêu cầu viết dưới dạng bảng (Ví dụ: cột Hoạt động của GV | cột Hoạt động của HS), BẮT BUỘC phải kẻ bảng Markdown tương ứng.
-- Chi tiết hóa tối đa các hoạt động (GV nói câu gì trong ngoặc kép, HS trả lời ra sao).
-- KHÔNG viết dạo đầu, KHÔNG chào hỏi, trả thẳng vào nội dung giáo án.
+- Trả về nội dung dạng Markdown chuẩn, sạch sẽ. Các tiêu đề bài học dùng Heading chuẩn (#, ##, ###).
+- Dùng cấu trúc bảng Markdown (| Cột 1 | Cột 2 |) nếu file mẫu yêu cầu bảng.
+- KHÔNG SỬ DỤNG MÃ LATEX phức tạp. Dùng kí hiệu Unicode hoặc văn bản thường cho công thức (vd: a/b, x^2, H₂O, CO₂).
+- KHÔNG VIẾT LỜI CHÀO HỎI, KHÔNG GIẢI THÍCH NGOÀI LỀ. Trả thẳng nội dung giáo án hoàn chỉnh từ dòng đầu tiên.
 """
 
 
@@ -469,7 +413,7 @@ VI. YÊU CẦU CHUYÊN MÔN
 def render_xd_khbd(ai_engine=None):
     init_session_state()
 
-    st.title("📘 XÂY DỰNG KẾ HOẠCH BÀI DẠY")
+    st.title("📘 XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUẨN 5512 & TT18)")
 
     # --------------------------------------------------------
     # THÔNG TIN BÀI DẠY
@@ -490,27 +434,27 @@ def render_xd_khbd(ai_engine=None):
     # --------------------------------------------------------
     # TÍCH HỢP
     # --------------------------------------------------------
-    st.subheader("🔧 Tích hợp")
+    st.subheader("🔧 Tích hợp chuyên sâu")
     c1, c2, c3 = st.columns(3)
-    with c1: tich_hop_nls = st.checkbox("Năng lực số", key="khbd_tich_hop_nls")
+    with c1: tich_hop_nls = st.checkbox("Năng lực số (TT18)", key="khbd_tich_hop_nls")
     with c2: tich_hop_ai = st.checkbox("Năng lực AI", key="khbd_tich_hop_ai")
     with c3: tich_hop_hoa_nhap = st.checkbox("Dạy học hòa nhập", key="khbd_tich_hop_hoa_nhap")
 
     # --------------------------------------------------------
-    # FILE
+    # FILE TẢI LÊN
     # --------------------------------------------------------
     st.subheader("📤 Tài liệu đầu vào")
     
     if mode == "chinh_sua":
-        file_ga = st.file_uploader("Giáo án gốc", type=["docx", "pdf", "jpg", "jpeg", "png", "webp"], accept_multiple_files=True, key="khbd_file_ga")
+        file_ga = st.file_uploader("Giáo án gốc", type=["docx", "pdf"], accept_multiple_files=True, key="khbd_file_ga")
         file_sgk = []
     else:
         file_ga = []
-        file_sgk = st.file_uploader("SGK / Tài liệu bài học", type=["pdf", "docx", "jpg", "jpeg", "png", "webp"], accept_multiple_files=True, key="khbd_file_sgk")
+        file_sgk = st.file_uploader("SGK / Tài liệu bài học", type=["pdf", "docx"], accept_multiple_files=True, key="khbd_file_sgk")
     
     file_ppct = st.file_uploader("PPCT", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ppct")
     file_ai = st.file_uploader("Bảng tích hợp AI", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ai")
-    file_template = st.file_uploader("File mẫu giáo án DOCX (Nếu trống sẽ dùng templates/KHBD_Mau.docx)", type=["docx"], key="khbd_file_template")
+    file_template = st.file_uploader("File mẫu giáo án DOCX của trường (Nếu trống dùng templates/KHBD_Mau.docx)", type=["docx"], key="khbd_file_template")
 
     # --------------------------------------------------------
     # THÔNG TIN CHI TIẾT
@@ -537,13 +481,13 @@ def render_xd_khbd(ai_engine=None):
                 st.rerun()
 
     # --------------------------------------------------------
-    # NĂNG LỰC SỐ
+    # NĂNG LỰC SỐ (THÔNG TƯ 18 MỞ RỘNG)
     # --------------------------------------------------------
     if tich_hop_nls:
-        st.subheader("🎯 Năng lực số")
+        st.subheader("🎯 Cấu hình Năng lực số (Theo Thông tư 18/2026)")
 
-        loai_khung = st.radio("Chọn chuẩn Năng lực số áp dụng:", ["Học sinh (DigComp)", "Giáo viên (Thông tư 18)"], horizontal=True, key="khbd_loai_khung_nls")
-        current_khung = KHUNG_NLS_HS if loai_khung == "Học sinh (DigComp)" else KHUNG_NLS_GV
+        loai_khung = st.radio("Chọn chuẩn Năng lực số:", ["Giáo viên (Thông tư 18)", "Học sinh (DigComp)"], horizontal=True, key="khbd_loai_khung_nls")
+        current_khung = KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
 
         col_lv, col_tp, col_md = st.columns([2, 2, 1])
         with col_lv: linh_vuc = st.selectbox("Lĩnh vực", list(current_khung.keys()), key="khbd_nls_linh_vuc")
@@ -567,12 +511,12 @@ def render_xd_khbd(ai_engine=None):
             
             st.session_state.khbd_nls_noi_dung = current_khung[linh_vuc][thanh_phan][muc_do]
 
-        st.text_area("Yêu cầu cần đạt", key="khbd_nls_noi_dung", height=120)
-        st.button("➕ Thêm năng lực số", on_click=add_nls, use_container_width=True)
+        st.text_area("Yêu cầu cần đạt (Auto-fill chuẩn Thông tư 18)", key="khbd_nls_noi_dung", height=130)
+        st.button("➕ Thêm năng lực số vào danh sách", on_click=add_nls, use_container_width=True)
 
         for index, item in enumerate(st.session_state.khbd_nls_list):
             with st.container(border=True):
-                st.markdown(f"**{index + 1}. {item['linh_vuc']}**\n\n**Thành phần:** {item['thanh_phan']}\n\n**Mức độ:** {item['muc_do']}\n\n**Yêu cầu:** {item['noi_dung']}")
+                st.markdown(f"**{index + 1}. [{item['van_ban']}] {item['linh_vuc']}**\n\n**Thành phần:** {item['thanh_phan']} ({item['muc_do']})\n\n**Yêu cầu:** {item['noi_dung']}")
                 if st.button("Xóa", key=f"khbd_del_nls_{index}"):
                     st.session_state.khbd_nls_list.pop(index)
                     st.rerun()
@@ -590,7 +534,7 @@ def render_xd_khbd(ai_engine=None):
     tieng_anh = st.checkbox("Giáo án viết bằng ngôn ngữ Tiếng Anh", key="khbd_tieng_anh")
 
     # --------------------------------------------------------
-    # NÚT TẠO
+    # NÚT KÍCH HOẠT XỬ LÝ AI
     # --------------------------------------------------------
     st.divider()
 
@@ -605,13 +549,9 @@ def render_xd_khbd(ai_engine=None):
             st.error("⚠️ Vui lòng tải SGK hoặc tài liệu bài học.")
             st.stop()
 
-        with st.spinner("🧠 AI đang phân tích và xây dựng KHBD..."):
+        with st.spinner("🧠 AI đang phân tích sâu tài liệu và xây dựng KHBD chi tiết theo chuẩn 5512..."):
             try:
-                if mode == "chinh_sua":
-                    noi_dung_chinh = read_multiple_files(file_ga)
-                else:
-                    noi_dung_chinh = read_multiple_files(file_sgk)
-
+                noi_dung_chinh = read_multiple_files(file_ga) if mode == "chinh_sua" else read_multiple_files(file_sgk)
                 noi_dung_ppct = read_uploaded_file(file_ppct)
                 noi_dung_ai = read_uploaded_file(file_ai)
                 
@@ -639,54 +579,47 @@ def render_xd_khbd(ai_engine=None):
 
                 result = generate_ai(ai_engine, prompt)
                 st.session_state.khbd_result = result
-                st.success("🎉 Đã tạo KHBD thành công.")
+                st.success("🎉 Đã tạo KHBD chi tiết thành công!")
 
             except Exception as e:
-                st.error(f"❌ Lỗi xử lý: {str(e)}")
+                st.error(f"❌ Lỗi xử lý AI: {str(e)}")
 
     # --------------------------------------------------------
-    # KẾT QUẢ VÀ XUẤT WORD CHUẨN ENGINE CỦA DỰ ÁN
+    # KẾT QUẢ VÀ XUẤT FILE WORD QUA CORE ENGINE
     # --------------------------------------------------------
     result = st.session_state.get("khbd_result")
     if result:
-        st.subheader("📝 Kết quả KHBD")
+        st.subheader("📝 Kết quả Kế hoạch bài dạy")
         st.markdown(result)
         st.divider()
 
-        st.subheader("📄 Xuất Word")
+        st.subheader("📄 Xuất Word Chuẩn Định Dạng")
 
         if WordExportEngine is None or TemplateLoader is None:
             st.error("❌ Lỗi xuất Word: Không import được các module lõi `export.word_export_engine` hoặc `export.template_loader`.")
             st.code(EXPORT_WORD_IMPORT_ERROR, language="text")
         else:
             try:
-                # 1. Xác định đường dẫn file template thực tế
                 template_path = "templates/KHBD_Mau.docx"
                 uploaded_template = st.session_state.get("khbd_file_template")
                 
-                # Nếu giáo viên có tải file mẫu riêng, lưu tạm ra đĩa để TemplateLoader xử lý
                 if uploaded_template:
                     import tempfile
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
                         tmp.write(uploaded_template.getvalue())
                         template_path = tmp.name
 
-                # 2. Sử dụng TemplateLoader để load và điền biến mẫu nếu có
-                doc_template = TemplateLoader.load(template_path)
-                
-                # 3. Sử dụng WordExportEngine kết xuất nội dung Markdown thành bytes chuẩn A4
+                # Kết xuất file Word bằng động cơ của dự án
                 word_bytes = WordExportEngine.convert_markdown_to_docx_bytes(result)
 
-                # Cung cấp nút tải xuống cho người dùng
                 st.download_button(
-                    "📥 TẢI KHBD WORD (Chuẩn định dạng dự án)",
+                    "📥 TẢI KHBD WORD (Chuẩn định dạng hành chính)",
                     data=word_bytes,
                     file_name="Giao_An_Thong_Minh.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True
                 )
 
-                # Dọn dẹp file temp nếu có tạo riêng
                 if uploaded_template and template_path != "templates/KHBD_Mau.docx" and os.path.exists(template_path):
                     os.remove(template_path)
 
