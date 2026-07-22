@@ -54,6 +54,7 @@ from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
 from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
 from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
 from modules.quan_ly_to.xd_tkb import render_tkb
+
 # 4. HÀM CẤU HÌNH ENGINE
 def get_ai_engine_instance():
     if "ai_engine_instance" not in st.session_state:
@@ -86,7 +87,20 @@ with st.sidebar:
         if st.button("🚪 Đăng xuất", use_container_width=True):
             st.session_state.clear()
             st.rerun()
-    else: phan_he = None
+    else: 
+        phan_he = None
+
+    # --- THÔNG TIN TÁC GIẢ Ở CHÂN THANH ĐIỀU HƯỚNG ---
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+        """
+        <div style="text-align: center; margin-top: 10px;">
+            <p style="color: #2563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Tác giả: Lê Hồng Dưỡng</p>
+            <p style="color: #2563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Đơn vị: Trường THCS Nguyễn Chí Thanh</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 if not phan_he:
     st.info("🔑 Vui lòng đăng nhập để bắt đầu.")
@@ -96,15 +110,12 @@ if not phan_he:
         submit = st.form_submit_button("Xác nhận đăng nhập")
         
         if submit:
-            # Lấy mật khẩu admin từ secrets, mặc định là admin123456
             admin_pwd = st.secrets.get("ADMIN_PASSWORD", "admin123456")
             
-            # Xử lý đăng nhập Admin
             if key_input.strip() == admin_pwd:
                 st.session_state.is_admin_mode = True
                 st.rerun()
                 
-            # Xử lý đăng nhập bằng API Key (Gemini/OpenAI)
             elif key_input.strip().startswith(("AIza", "sk-ant-", "sk-")):
                 st.session_state.user_api_key = key_input.strip()
                 st.rerun()
@@ -118,7 +129,6 @@ if not phan_he:
 # 7. RENDER NỘI DUNG CHÍNH
 # ============================================================
 try:
-    # Khởi tạo AI
     ai_engine = get_ai_engine_instance()
     ai_engine_2 = get_ai_engine_2_instance()
 
@@ -140,6 +150,7 @@ try:
         with tabs[10]: render_chuyen_doi(ai_engine) 
         with tabs[11]: render_tao_hoc_lieu(ai_engine)
         with tabs[12]: render_xd_ma_tran_tu_de(ai_engine)
+
     # --- PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY ---
     elif phan_he == "Hỗ trợ Giảng dạy":
         st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
@@ -153,7 +164,7 @@ try:
         with tabs[5]: render_xd_phan_tich(ai_engine)
         with tabs[6]: render_xd_ngan_hang_de(ai_engine)
         with tabs[7]: render_xd_sinh_video(ai_engine)
-        with tabs[8]: render_camera_module() # Không truyền ai_engine
+        with tabs[8]: render_camera_module()
         with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
         with tabs[10]: render_phan_tich_bh(ai_engine)
         with tabs[11]: render_kiem_tra_nhanh(ai_engine)
@@ -174,6 +185,7 @@ try:
         with tabs[8]: render_viet_sang_kien(ai_engine_2)
         with tabs[9]: render_cham_sang_kien(ai_engine_2)
         with tabs[10]: render_tkb(db)
+
     elif phan_he == "Ứng dụng khác":
         from modules.ung_dung_khac.main import render_ung_dung_khac
         render_ung_dung_khac(ai_engine)
