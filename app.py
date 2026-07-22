@@ -90,11 +90,10 @@ with st.sidebar:
     else: 
         phan_he = None
 
-    # --- THÔNG TIN TÁC GIẢ Ở CHÂN THANH ĐIỀU HƯỚNG ---
-    st.sidebar.markdown("---")
+   # --- THÔNG TIN TÁC GIẢ ĐẨY SÁT CHÂN THANH ĐIỀU HƯỚNG ---
     st.sidebar.markdown(
         """
-        <div style="text-align: center; margin-top: 10px;">
+        <div style="position: absolute; bottom: 20px; left: 0; width: 100%; text-align: center; padding: 0 10px;">
             <p style="color: #2563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Tác giả: Lê Hồng Dưỡng</p>
             <p style="color: #2563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Đơn vị: Trường THCS Nguyễn Chí Thanh</p>
         </div>
