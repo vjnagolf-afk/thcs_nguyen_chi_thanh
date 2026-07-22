@@ -56,16 +56,13 @@ def get_youtube_transcript_new(url):
     except Exception as e:
         error_msg = str(e).lower()
         
-        # Phân loại lỗi thân thiện cho Giáo viên theo tư vấn của thầy
-        if "disabled" in error_msg or "no transcript" in error_msg or "not retrievable" in error_msg:
-            return None, "⚠️ Video này không có phụ đề khả dụng.", True  # True: Kích hoạt fallback
-        elif "age restricted" in error_msg or "login" in error_msg:
-            return None, "🔒 Video có thể bị giới hạn quyền truy cập (giới hạn độ tuổi/riêng tư).", False
-        elif "no element" in error_msg or "xml" in error_msg or "connection" in error_msg:
-            return None, "🛡️ YouTube đang giới hạn truy cập từ máy chủ. Vui lòng tải video về máy và upload trực tiếp.", False
+        # CHỈ TỪ CHỐI khi video yêu cầu đăng nhập / giới hạn độ tuổi (vì tool cũng không tải được)
+        if "age restricted" in error_msg or "login" in error_msg:
+            return None, "🔒 Video có thể bị giới hạn quyền truy cập (giới hạn độ tuổi/riêng tư). Vui lòng thử video khác.", False
+            
+        # VỚI MỌI LỖI KHÁC: Bật cờ True để ép hệ thống chuyển sang tải File Âm thanh!
         else:
-            return None, f"❌ Không thể truy xuất dữ liệu từ YouTube (Chi tiết lỗi kỹ thuật).", False
-
+            return None, f"⚠️ Không lấy được phụ đề chữ (Chi tiết: {str(e)[:80]}...).", True
 # =========================================================
 # HÀM DỰ PHÒNG: TẢI ÂM THANH TỪ YOUTUBE (Fallback)
 # =========================================================
