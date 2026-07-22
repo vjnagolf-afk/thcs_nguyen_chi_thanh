@@ -92,7 +92,7 @@ with st.sidebar:
 # --- THÔNG TIN TÁC GIẢ ĐẨY SÁT CHÂN THANH ĐIỀU HƯỚNG (FLEXBOX CHUẨN) ---
     st.sidebar.markdown(
         """
-        <div style="display: flex; flex-direction: column; justify-content: flex-end; min-height: calc(100vh - 250px); text-align: center; padding-bottom: 10px;">
+        <div style="display: flex; flex-direction: column; justify-content: flex-end; min-height: calc(100vh - 200px); text-align: center; padding-bottom: 10px;">
             <p style="color: #2563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Tác giả: Lê Hồng Dưỡng</p>
             <p style="color: #2563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Đơn vị: Trường THCS Nguyễn Chí Thanh</p>
         </div>
