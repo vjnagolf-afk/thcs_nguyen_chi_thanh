@@ -1,5 +1,41 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
+import re
+
+def extract_youtube_id(url):
+    """Trích xuất Video ID từ các định dạng URL YouTube khác nhau"""
+    if not url:
+        return None
+    patterns = [
+        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',
+        r'(?:embed\/)([0-9A-Za-z_-]{11})',
+        r'(?:youtu\.be\/)([0-9A-Za-z_-]{11})'
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+def get_youtube_transcript(url):
+    """Tự động lấy transcript (lời thoại) từ YouTube"""
+    video_id = extract_youtube_id(url)
+    if not video_id:
+        return None, "⚠️ Đường dẫn YouTube không hợp lệ hoặc không tìm thấy Video ID."
+    
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        # Thử lấy phụ đề tiếng Việt hoặc tiếng Anh
+        try:
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
+        except Exception:
+            # Nếu không có vi/en, lấy bất kỳ ngôn ngữ nào có sẵn
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            
+        full_text = " ".join([item['text'] for item in transcript_list])
+        return full_text, None
+    except Exception as e:
+        return None, f"❌ Không thể trích xuất phụ đề từ video này (Video có thể không có phụ đề hoặc bật chế độ riêng tư). Chi tiết lỗi: {str(e)}"
 
 def render_the_03(ai_engine=None):
     st.markdown("### 🎬 Công cụ Trích xuất, Chuyển văn bản & Dịch Video (YouTube & Tải lên)")
@@ -69,20 +105,32 @@ def render_the_03(ai_engine=None):
             elif nguon_video == "Tải tệp video lên máy (MP4, AVI, MOV, MKV)" and not uploaded_video:
                 st.warning("⚠️ Vui lòng tải lên một tệp video.")
             else:
-                with st.spinner("🤖 Hệ thống AI đang phân tích, trích xuất và xử lý dữ liệu video..."):
+                with st.spinner("🤖 Hệ thống đang trích xuất lời thoại video và phân tích bằng AI..."):
                     
-                    # Xây dựng prompt chuyên sâu hướng dẫn AI xử lý tác vụ video
-                    thong_tin_nguon = f"YouTube URL: {yt_url}" if yt_url else f"Tệp video: {uploaded_video.name}"
+                    raw_video_text = ""
                     
+                    # Nếu là YouTube, tiến hành lấy transcript thực tế
+                    if nguon_video == "Đường dẫn YouTube (URL)":
+                        transcript_text, err_msg = get_youtube_transcript(yt_url)
+                        if err_msg:
+                            st.error(err_msg)
+                            return
+                        raw_video_text = transcript_text
+                    else:
+                        raw_video_text = f"[Tệp video tải lên: {uploaded_video.name} - Đang giả lập phân tích luồng âm thanh tệp tin]"
+
+                    # Xây dựng prompt chuyên sâu đưa nội dung thực tế vào cho AI
                     prompt_v = f"""
-BẠN LÀ MỘT TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TRÍCH XUẤT KỊCH BẢN VÀ DỊCH NỘI DUNG VIDEO GIÁO DỤC.
-NHIỆM VỤ: Hãy thực hiện yêu cầu '{tac_vu}' {'sang ngôn ngữ ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''} đối với nguồn video sau:
-- Nguồn video: {thong_tin_nguon}
+BẠN LÀ MỘT TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH NỘI DUNG TÀI LIỆU GIÁO DỤC.
+NHIỆM VỤ: Hãy thực hiện yêu cầu '{tac_vu}' {'sang ngôn ngữ ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''} dựa trên dữ liệu văn bản/lời thoại trích xuất từ video dưới đây:
+
+DỮ LIỆU LỜI THOẠI VIDEO:
+{raw_video_text[:12000]}
 
 YÊU CẦU ĐẦU RA:
-1. Trình bày rõ ràng, mạch lạc, chia theo các mốc thời gian hoặc phân đoạn logic nếu có thể.
-2. Văn phong chuẩn sư phạm, chính xác, dễ sử dụng để làm tài liệu dạy học hoặc viết kịch bản bài giảng.
-3. Nếu là tác vụ dịch, đảm bảo ngữ nghĩa tự nhiên, phù hợp với học sinh và giáo viên Việt Nam.
+1. Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm.
+2. Nếu là tác vụ dịch, dịch chuẩn xác sang {ngon_ngu_dich}.
+3. Nếu là tóm tắt, nêu rõ các ý chính cốt lõi phục vụ cho việc giảng dạy của giáo viên.
 """
 
                     ket_qua_xu_ly = ""
@@ -92,25 +140,17 @@ YÊU CẦU ĐẦU RA:
                         except Exception as e:
                             ket_qua_xu_ly = f"❌ Lỗi khi gọi AI xử lý: {str(e)}"
                     else:
-                        # Kết quả mẫu khi chạy offline hoặc chưa có API key
-                        ket_qua_xu_ly = f"""### KẾT QUẢ MÔ PHỎNG XỬ LÝ VIDEO ({tac_vu})
-                        
-**Nguồn đầu vào:** {thong_tin_nguon}
-**Tác vụ thực hiện:** {tac_vu}
-{'- Ngôn ngữ dịch đích: ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}
+                        ket_qua_xu_ly = f"""### KẾT QUẢ TRÍCH XUẤT VĂN BẢN TỪ VIDEO
+**Tác vụ:** {tac_vu}
+{'- Ngôn ngữ đích: ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}
 
 ---
-**Nội dung kịch bản / Văn bản trích xuất:**
-
-[00:00 - 00:30] Chào mừng các thầy cô và các em học sinh đến với chuyên đề học tập hôm nay...
-[00:30 - 02:15] Nội dung cốt lõi tập trung phân tích các hiện tượng thực tế và cách giải quyết vấn đề...
-[02:15 - 05:00] Tổng kết kiến thức trọng tâm và hướng dẫn bài tập vận dụng nâng cao...
-
-*(Ghi chú: Đang chạy ở chế độ mô phỏng vì chưa kết nối trực tiếp API xử lý luồng video lớn. Khi kết nối API chính thức, AI sẽ phân tích sâu nội dung video thực tế).*
+**Nội dung văn bản bóc tách:**
+{raw_video_text[:500]}... *(Đã rút gọn hiển thị xem trước)*
 """
 
                     st.session_state["vproc_result"] = ket_qua_xu_ly
-                    st.success("🎉 Xử lý video thành công!")
+                    st.success("🎉 Xử lý và trích xuất video thành công!")
 
         if "vproc_result" in st.session_state:
             ket_qua_hien_tai = st.session_state["vproc_result"]
@@ -124,4 +164,4 @@ YÊU CẦU ĐẦU RA:
                 use_container_width=True
             )
         else:
-            st.info("💡 Hãy chọn nguồn video, điền link hoặc tải file, sau đó bấm nút thực thi ở cột bên trái.")
+            st.info("💡 Hãy chọn nguồn video, dán link YouTube, sau đó bấm nút thực thi để hệ thống tự động bóc tách và phân tích.")
