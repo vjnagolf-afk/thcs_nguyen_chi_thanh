@@ -5,7 +5,16 @@ import tempfile
 import os
 import time
 
-# --- CÁC HÀM XỬ LÝ YOUTUBE ---
+# =========================================================
+# KHỞI TẠO STATE
+# =========================================================
+def init_state():
+    if "vproc_result" not in st.session_state:
+        st.session_state["vproc_result"] = None
+
+# =========================================================
+# HÀM XỬ LÝ YOUTUBE (Cập nhật API mới >= 1.2.x)
+# =========================================================
 def extract_youtube_id(url):
     if not url: return None
     patterns = [
@@ -18,92 +27,128 @@ def extract_youtube_id(url):
         if match: return match.group(1)
     return None
 
-def get_youtube_transcript(url):
+def get_youtube_transcript_new(url):
+    """
+    Sử dụng API mới của youtube-transcript-api (>=1.2.4).
+    Trả về: (văn_bản, thông_báo_lỗi, có_thể_dùng_fallback_âm_thanh_không?)
+    """
     video_id = extract_youtube_id(url)
-    if not video_id: return None, "⚠️ Đường dẫn YouTube không hợp lệ."
+    if not video_id: 
+        return None, "⚠️ Đường dẫn YouTube không hợp lệ.", False
+    
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        transcript = None
+        ytt_api = YouTubeTranscriptApi()
+        
+        # Cố gắng lấy phụ đề tiếng Việt hoặc tiếng Anh
         try:
-            transcript = transcript_list.find_transcript(['vi', 'en'])
+            fetched_transcript = ytt_api.fetch(video_id, languages=["vi", "en"])
         except Exception:
-            for t in transcript_list:
-                transcript = t
-                break
-        if not transcript: return None, "❌ Video này không có dữ liệu phụ đề."
-        fetched_data = transcript.fetch()
-        full_text = " ".join([item['text'] for item in fetched_data])
-        return full_text, None
+            # Nếu không có vi/en, lấy danh sách và chọn cái đầu tiên
+            transcript_list = ytt_api.list(video_id)
+            fetched_transcript = next(iter(transcript_list)).fetch()
+            
+        full_text = " ".join([item['text'] for item in fetched_transcript])
+        return full_text, None, False
+        
     except ImportError:
-        return None, "❌ Hệ thống chưa cài đặt thư viện youtube-transcript-api."
+        return None, "❌ Thư viện 'youtube-transcript-api' chưa được cài đặt.", False
     except Exception as e:
         error_msg = str(e).lower()
-        if "no element found" in error_msg or "xml" in error_msg:
-            return None, "❌ YouTube đang tạm chặn máy chủ tải dữ liệu. Vui lòng tải video về máy và dùng chức năng 'Tải tệp video lên'!"
-        return None, f"❌ Lỗi YouTube API: {str(e)}"
+        
+        # Phân loại lỗi thân thiện cho Giáo viên theo tư vấn của thầy
+        if "disabled" in error_msg or "no transcript" in error_msg or "not retrievable" in error_msg:
+            return None, "⚠️ Video này không có phụ đề khả dụng.", True  # True: Kích hoạt fallback
+        elif "age restricted" in error_msg or "login" in error_msg:
+            return None, "🔒 Video có thể bị giới hạn quyền truy cập (giới hạn độ tuổi/riêng tư).", False
+        elif "no element" in error_msg or "xml" in error_msg or "connection" in error_msg:
+            return None, "🛡️ YouTube đang giới hạn truy cập từ máy chủ. Vui lòng tải video về máy và upload trực tiếp.", False
+        else:
+            return None, f"❌ Không thể truy xuất dữ liệu từ YouTube (Chi tiết lỗi kỹ thuật).", False
 
+# =========================================================
+# HÀM DỰ PHÒNG: TẢI ÂM THANH TỪ YOUTUBE (Fallback)
+# =========================================================
+def download_youtube_audio_fallback(url):
+    """Tải luồng âm thanh nhẹ nhất từ YouTube để nạp cho Gemini"""
+    try:
+        import yt_dlp
+    except ImportError:
+        return None, "⚠️ Không thể chạy tính năng dự phòng vì thiếu thư viện 'yt-dlp'."
 
-# --- HÀM XỬ LÝ VIDEO TẢI LÊN BẰNG GEMINI MULTIMODAL ---
+    temp_dir = tempfile.gettempdir()
+    out_tmpl = os.path.join(temp_dir, 'yt_audio_%(id)s.%(ext)s')
+    
+    ydl_opts = {
+        'format': 'm4a/bestaudio/best', # Lấy trực tiếp m4a/webm cho nhẹ, không cần ffmpeg convert
+        'outtmpl': out_tmpl,
+        'quiet': True,
+        'no_warnings': True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            ext = info.get('ext', 'm4a')
+            audio_path = os.path.join(temp_dir, f"yt_audio_{info['id']}.{ext}")
+            if os.path.exists(audio_path):
+                return audio_path, None
+            return None, "Lỗi: Không tìm thấy file âm thanh sau khi tải."
+    except Exception as e:
+        return None, f"Không thể tải âm thanh dự phòng: {str(e)}"
+
+# =========================================================
+# HÀM XỬ LÝ ĐA PHƯƠNG TIỆN VỚI GEMINI
+# =========================================================
 def get_gemini_api_key():
-    """Lấy API Key của Gemini từ hệ thống để xử lý File"""
-    if st.session_state.get("is_admin_mode"):
-        return st.secrets.get("GEMINI_API_KEY")
+    if st.session_state.get("is_admin_mode"): return st.secrets.get("GEMINI_API_KEY")
     key = st.session_state.get("user_api_key")
-    if key and key.startswith("AIza"):
-        return key
+    if key and key.startswith("AIza"): return key
     return None
 
-def process_video_with_gemini(uploaded_file, prompt, api_key):
-    """Lưu tệp tạm, đẩy lên Gemini API, phân tích và dọn dẹp"""
+def process_multimodal_gemini(file_path, prompt, api_key):
+    """Xử lý trực tiếp File Video/Audio bằng Gemini Multimodal"""
     try:
         import google.generativeai as genai
     except ImportError:
-        return "❌ Lỗi: Máy chủ chưa cài đặt thư viện `google-generativeai`."
+        return "❌ Máy chủ chưa cài đặt thư viện 'google-generativeai'."
 
     genai.configure(api_key=api_key)
     
-    # 1. Lưu file từ bộ nhớ tạm của Streamlit ra ổ cứng máy chủ (tạm thời)
-    file_extension = os.path.splitext(uploaded_file.name)[1]
-    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        tmp_video_path = tmp_file.name
+    # Lấy tên model từ cấu hình (Khắc phục lỗi hardcode model)
+    model_name = st.secrets.get("GEMINI_VIDEO_MODEL", "gemini-2.5-flash")
+    if "2.5" not in model_name: # Fallback an toàn nếu chưa có bản 2.5
+        model_name = "gemini-1.5-flash"
         
     try:
-        # 2. Upload file lên Gemini
         status_text = st.empty()
-        status_text.info("⏳ Đang tải tệp lên hệ thống AI của Google... (Tùy dung lượng mà thời gian tải có thể mất từ 10s - 1 phút)")
-        video_file = genai.upload_file(path=tmp_video_path)
+        status_text.info(f"⏳ Đang tải tệp lên hệ thống AI của Google ({model_name})...")
+        media_file = genai.upload_file(path=file_path)
         
-        # 3. Chờ Gemini xử lý dữ liệu Video/Audio (Processing)
-        status_text.info("🧠 AI đang 'xem' và 'nghe' video của thầy. Quá trình này đang diễn ra...")
-        while video_file.state.name == "PROCESSING":
+        status_text.info("🧠 AI đang phân tích dữ liệu âm thanh/hình ảnh. Vui lòng đợi...")
+        while media_file.state.name == "PROCESSING":
             time.sleep(3)
-            video_file = genai.get_file(video_file.name)
+            media_file = genai.get_file(media_file.name)
             
-        if video_file.state.name == "FAILED":
-            raise Exception("Gemini từ chối xử lý video này (có thể do định dạng không hỗ trợ hoặc lỗi hệ thống Google).")
+        if media_file.state.name == "FAILED":
+            raise Exception("Google AI từ chối xử lý tệp này.")
             
-        # 4. Yêu cầu AI sinh văn bản theo Prompt dựa trên Video
-        status_text.info("✍️ AI đang tổng hợp, dịch thuật và viết kịch bản...")
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash") # Dùng bản Flash cho tốc độ xử lý video cực nhanh
-        response = model.generate_content([prompt, video_file])
+        status_text.info("✍️ AI đang tổng hợp và viết kịch bản...")
+        model = genai.GenerativeModel(model_name=model_name)
+        response = model.generate_content([prompt, media_file])
         
-        # 5. Dọn dẹp (Xóa file trên máy chủ Google và máy chủ cục bộ)
-        genai.delete_file(video_file.name)
-        os.remove(tmp_video_path)
-        status_text.empty() # Xóa dòng thông báo trạng thái
+        genai.delete_file(media_file.name)
+        status_text.empty()
         
         return response.text
-        
     except Exception as e:
-        if os.path.exists(tmp_video_path):
-            os.remove(tmp_video_path)
-        return f"❌ Lỗi xử lý Video AI: {str(e)}"
+        return f"❌ Lỗi xử lý Đa phương tiện AI: {str(e)}"
 
 
-# --- GIAO DIỆN CHÍNH ---
+# =========================================================
+# GIAO DIỆN CHÍNH
+# =========================================================
 def render_the_03(ai_engine=None):
+    init_state()
     st.markdown("### 🎬 Công cụ Trích xuất, Chuyển văn bản & Dịch Video (YouTube & Tải lên)")
     st.caption("Hỗ trợ giáo viên lấy kịch bản, chuyển lời thoại thành văn bản và dịch nội dung từ video bất kỳ phục vụ giảng dạy.")
 
@@ -111,10 +156,9 @@ def render_the_03(ai_engine=None):
 
     with col1:
         st.markdown("#### ⚙️ Cấu hình nguồn video")
-        
         nguon_video = st.radio(
             "Chọn nguồn video",
-            ["Đường dẫn YouTube (URL)", "Tải tệp video/âm thanh lên máy (MP4, MP3, WAV, MOV)"],
+            ["Đường dẫn YouTube (URL)", "Tải tệp lên máy (MP4, MP3, WAV, MOV)"],
             key="vproc_source"
         )
 
@@ -122,14 +166,10 @@ def render_the_03(ai_engine=None):
         uploaded_video = None
 
         if nguon_video == "Đường dẫn YouTube (URL)":
-            yt_url = st.text_input(
-                "Nhập URL YouTube", 
-                placeholder="Ví dụ: https://www.youtube.com/watch?v=...", 
-                key="vproc_yt_url"
-            )
+            yt_url = st.text_input("Nhập URL YouTube", placeholder="Ví dụ: https://www.youtube.com/watch?v=...", key="vproc_yt_url")
         else:
             uploaded_video = st.file_uploader(
-                "Tải lên tệp video hoặc âm thanh (Dung lượng < 200MB)", 
+                "Tải lên tệp video/âm thanh (Dung lượng < 200MB)", 
                 type=["mp4", "avi", "mov", "mkv", "webm", "mp3", "wav"], 
                 key="vproc_file"
             )
@@ -147,11 +187,7 @@ def render_the_03(ai_engine=None):
 
         ngon_ngu_dich = "Tiếng Việt"
         if "Dịch" in tac_vu:
-            ngon_ngu_dich = st.selectbox(
-                "Ngôn ngữ đích dịch", 
-                ["Tiếng Việt", "Tiếng Anh", "Tiếng Trung", "Tiếng Nhật", "Tiếng Hàn"], 
-                key="vproc_lang"
-            )
+            ngon_ngu_dich = st.selectbox("Ngôn ngữ đích dịch", ["Tiếng Việt", "Tiếng Anh", "Tiếng Trung"], key="vproc_lang")
 
         btn_xu_ly = st.button("🚀 THỰC THI XỬ LÝ VIDEO", type="primary", use_container_width=True)
 
@@ -159,68 +195,103 @@ def render_the_03(ai_engine=None):
         st.markdown("#### 📋 Kết quả xử lý văn bản")
 
         if btn_xu_ly:
+            # Validation
             if nguon_video == "Đường dẫn YouTube (URL)" and not yt_url.strip():
-                st.warning("⚠️ Vui lòng nhập đường dẫn URL YouTube hợp lệ.")
-            elif nguon_video != "Đường dẫn YouTube (URL)" and not uploaded_video:
-                st.warning("⚠️ Vui lòng tải lên một tệp video hoặc âm thanh.")
-            else:
-                # -------------------------------------------------------------
-                # TRƯỜNG HỢP 1: XỬ LÝ YOUTUBE (Qua text transcript)
-                # -------------------------------------------------------------
-                if nguon_video == "Đường dẫn YouTube (URL)":
-                    with st.spinner("🤖 Đang bóc tách dữ liệu từ YouTube..."):
-                        raw_video_text, err_msg = get_youtube_transcript(yt_url)
-                        if err_msg:
-                            st.error(err_msg)
-                        else:
-                            prompt_v = f"""
-                            BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH TÀI LIỆU GIÁO DỤC.
-                            NHIỆM VỤ: Hãy thực hiện yêu cầu '{tac_vu}' {'sang ngôn ngữ ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}.
-                            DỮ LIỆU LỜI THOẠI TRÍCH XUẤT:
-                            {raw_video_text[:20000]}
-                            
-                            YÊU CẦU: Trình bày rõ ràng, mạch lạc, chia đoạn logic phục vụ cho giáo viên làm tài liệu hoặc bài giảng.
-                            """
-                            if ai_engine:
-                                try:
-                                    st.session_state["vproc_result"] = ai_engine.generate_text(prompt_v)
-                                    st.success("🎉 Xử lý YouTube thành công!")
-                                except Exception as e:
-                                    st.error(f"❌ Lỗi AI: {str(e)}")
-                            else:
-                                st.error("❌ Không thể gọi AI (Chưa khởi tạo AI Engine).")
-                
-                # -------------------------------------------------------------
-                # TRƯỜNG HỢP 2: XỬ LÝ FILE TẢI LÊN (Qua Gemini Multimodal)
-                # -------------------------------------------------------------
-                else:
-                    gemini_key = get_gemini_api_key()
-                    if not gemini_key:
-                        st.error("❌ Tính năng Phân tích File Video yêu cầu API Key của Google Gemini. Vui lòng đăng nhập hệ thống bằng API Key bắt đầu với 'AIza...'.")
-                    else:
-                        prompt_multi = f"""
-                        BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH VIDEO/AUDIO CHO GIÁO DỤC.
-                        Nhiệm vụ: {tac_vu} {'sang ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}.
-                        Dựa trực tiếp vào nội dung nghe/nhìn được từ tệp đính kèm.
-                        YÊU CẦU:
-                        - Nếu có lời thoại, hãy trích xuất/dịch chính xác và có các mốc thời gian (timeline) tương đối.
-                        - Phân đoạn mạch lạc, dễ hiểu để giáo viên đưa vào giáo án.
-                        """
-                        # Gọi hàm xử lý chuyên biệt
-                        ket_qua_file = process_video_with_gemini(uploaded_video, prompt_multi, gemini_key)
-                        st.session_state["vproc_result"] = ket_qua_file
-                        st.success("🎉 AI đã xem/nghe và xử lý tệp tin thành công!")
+                st.warning("⚠️ Vui lòng nhập đường dẫn URL YouTube.")
+                st.stop()
+            elif nguon_video != "Đường dẫn YouTube (URL)":
+                if not uploaded_video:
+                    st.warning("⚠️ Vui lòng tải lên một tệp.")
+                    st.stop()
+                # Kiểm tra dung lượng tệp (Khắc phục Nhược điểm 3)
+                if uploaded_video.size > 200 * 1024 * 1024:
+                    st.error("❌ Tệp vượt quá giới hạn dung lượng cho phép (200MB). Vui lòng thử tệp nhẹ hơn.")
+                    st.stop()
 
-        # Hiển thị kết quả lưu trong session
-        if "vproc_result" in st.session_state:
-            ket_qua_hien_tai = st.session_state["vproc_result"]
-            st.text_area("Văn bản kết xuất:", value=ket_qua_hien_tai, height=500)
+            # BẮT ĐẦU XỬ LÝ
+            gemini_key = get_gemini_api_key()
+            
+            prompt_chung = f"""
+            BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH TÀI LIỆU GIÁO DỤC.
+            Nhiệm vụ: {tac_vu} {'sang ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}.
+            YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm.
+            """
+
+            # ---------------------------------------------------------
+            # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng)
+            # ---------------------------------------------------------
+            if nguon_video == "Đường dẫn YouTube (URL)":
+                with st.spinner("🤖 Đang kết nối YouTube..."):
+                    raw_text, err_msg, can_fallback = get_youtube_transcript_new(yt_url)
+                    
+                    if raw_text:
+                        # 1A. Có Transcript -> Dùng AI Engine chính
+                        if ai_engine:
+                            try:
+                                # Không hardcode [:20000] nữa, gửi toàn bộ text cho AI Engine phân mảnh/tự xử lý
+                                prompt_full = prompt_chung + f"\n\nDỮ LIỆU LỜI THOẠI TRÍCH XUẤT:\n{raw_text}"
+                                st.session_state["vproc_result"] = ai_engine.generate_text(prompt_full)
+                                st.success("🎉 Xử lý qua Phụ đề YouTube thành công!")
+                            except Exception as e:
+                                st.error(f"❌ Lỗi AI Engine: {str(e)}")
+                        else:
+                            st.error("❌ Không thể gọi AI (Chưa khởi tạo AI Engine).")
+                            
+                    elif can_fallback:
+                        # 1B. Không có Transcript -> Kích hoạt Fallback tải âm thanh
+                        st.warning(f"{err_msg}\n\n🔄 Đang kích hoạt phương án dự phòng: Tự động tải âm thanh và nghe trực tiếp (Speech-to-Text)...")
+                        
+                        if not gemini_key:
+                            st.error("❌ Tính năng nghe âm thanh dự phòng yêu cầu API Key của Gemini. Vui lòng đăng nhập bằng API Key bắt đầu với 'AIza...'.")
+                        else:
+                            with st.spinner("📥 Đang tải luồng âm thanh từ YouTube..."):
+                                audio_path, dl_err = download_youtube_audio_fallback(yt_url)
+                                
+                            if audio_path:
+                                # Đẩy file âm thanh cho Gemini Multimodal
+                                res = process_multimodal_gemini(audio_path, prompt_chung + "\nHãy dựa vào nội dung âm thanh đính kèm.", gemini_key)
+                                st.session_state["vproc_result"] = res
+                                st.success("🎉 Xử lý thành công bằng phương án dự phòng (Nghe trực tiếp)!")
+                                if os.path.exists(audio_path):
+                                    os.remove(audio_path) # Dọn dẹp
+                            else:
+                                st.error(f"❌ Tải âm thanh dự phòng thất bại: {dl_err}")
+                    else:
+                        # 1C. Lỗi nghiêm trọng (Mạng, tuổi, chặn máy chủ)
+                        st.error(err_msg)
+
+            # ---------------------------------------------------------
+            # NHÁNH 2: XỬ LÝ FILE TẢI LÊN 
+            # ---------------------------------------------------------
+            else:
+                if not gemini_key:
+                    st.error("❌ Tính năng Phân tích File yêu cầu API Key Gemini (Bắt đầu bằng 'AIza...').")
+                else:
+                    with st.spinner("🤖 Đang chuẩn bị tệp tin đa phương tiện..."):
+                        # Lưu file tạm ra đĩa để đẩy lên Google
+                        file_ext = os.path.splitext(uploaded_video.name)[1]
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
+                            tmp.write(uploaded_video.read())
+                            tmp_path = tmp.name
+                            
+                        res = process_multimodal_gemini(tmp_path, prompt_chung + "\nHãy dựa vào tệp đa phương tiện đính kèm.", gemini_key)
+                        st.session_state["vproc_result"] = res
+                        st.success("🎉 AI đã phân tích tệp tin thành công!")
+                        
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+
+        # ---------------------------------------------------------
+        # HIỂN THỊ KẾT QUẢ TỪ STATE CHUẨN
+        # ---------------------------------------------------------
+        if st.session_state["vproc_result"]:
+            st.text_area("Văn bản kết xuất:", value=st.session_state["vproc_result"], height=450)
             st.download_button(
                 "📥 Tải xuống kết quả (.txt)",
-                data=ket_qua_hien_tai,
-                file_name="Ket_qua_xu_ly_Video_Audio.txt",
+                data=st.session_state["vproc_result"],
+                file_name="Ket_qua_xu_ly_Video.txt",
                 mime="text/plain",
                 use_container_width=True
             )
         else:
-            st.info("💡 Tính năng đã sẵn sàng! Thầy tải lên một tệp MP4 hoặc dán Link YouTube để hệ thống phân tích nhé.")
+            st.info("💡 Tính năng đã được nâng cấp! Hệ thống tự động kích hoạt Nghe thông minh (Speech-to-Text) nếu video YouTube không có sẵn phụ đề.")
