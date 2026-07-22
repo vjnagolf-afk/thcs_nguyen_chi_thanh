@@ -237,14 +237,44 @@ def render_xd_khbd(ai_engine=None):
                                 if st.button("❌", key=f"del_nls_{i}", help="Xóa yêu cầu này"):
                                     st.session_state.nls_list.pop(i)
                                     st.rerun()
-
-    # =======================================================
+# =======================================================
     # 5. TÙY CHỌN NGÔN NGỮ & NÚT KÍCH HOẠT CHÍNH
     # =======================================================
     st.write("")
     with st.container(border=True):
-        st.checkbox("Giáo án viết bằng ngôn ngữ Tiếng Anh")
+        is_english = st.checkbox("Giáo án viết bằng ngôn ngữ Tiếng Anh")
 
     st.write("")
     if st.button("⚡ KÍCH HOẠT XỬ LÝ AI", type="primary", use_container_width=True):
-        st.success(f"Hệ thống AI đang bắt đầu xử lý chế độ: **{'Chỉnh sửa giáo án' if st.session_state.soan_mode == 'chinh_sua' else 'Soạn tự động'}**!")
+        
+        # 1. Kiểm tra xem đã có lõi AI chưa
+        if not ai_engine:
+            st.error("❌ Lỗi: Chưa tìm thấy AI Engine (Chưa nhập API Key). Vui lòng đăng nhập lại.")
+            st.stop()
+
+        # 2. Bật vòng quay (Spinner) để báo cho người dùng biết hệ thống ĐANG CHẠY
+        with st.spinner(f"🧠 AI đang đọc tài liệu và { 'chỉnh sửa' if st.session_state.soan_mode == 'chinh_sua' else 'soạn' } giáo án. Quá trình này có thể mất từ 30s - 2 phút..."):
+            
+            try:
+                # ==============================================================
+                # 📍 PHẦN CODE LOGIC THỰC TẾ CỦA THẦY SẼ NẰM Ở ĐÂY
+                # 1. Code đọc nội dung từ các file SGK, PPCT thầy vừa tải lên
+                # 2. Ghép nội dung file vào Prompt
+                # 3. Gọi lệnh: response = ai_engine.generate_text(prompt)
+                # ==============================================================
+                
+                import time
+                time.sleep(3) # Lệnh giả lập hệ thống đang suy nghĩ (Thầy xóa dòng này đi khi lắp code thật)
+                
+                # Sau khi AI xử lý xong, lưu kết quả và báo thành công
+                st.session_state["ket_qua_giao_an"] = "Đây là nội dung giáo án AI trả về (Đang chạy thử nghiệm UI)..."
+                st.success("🎉 AI đã xử lý xong giáo án!")
+                
+            except Exception as e:
+                st.error(f"❌ Có lỗi xảy ra trong quá trình xử lý AI: {str(e)}")
+
+    # 3. Hiển thị kết quả sau khi AI chạy xong
+    if st.session_state.get("ket_qua_giao_an"):
+        st.markdown("### 📝 Kết quả Giáo án")
+        st.text_area("Nội dung", value=st.session_state["ket_qua_giao_an"], height=500, label_visibility="collapsed")
+        st.download_button("📥 Tải xuống Giáo án (.txt)", data=st.session_state["ket_qua_giao_an"], file_name="Giao_an_AI.txt", use_container_width=True)
