@@ -1,5 +1,4 @@
-def generate_view_file():
-    code = """# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import streamlit as st
 
 def init_session_state():
@@ -147,7 +146,7 @@ def render_xd_khbd(ai_engine=None):
                             <div class="upload-desc">Hỗ trợ file Word (.docx), PDF, JPG, PNG. Bản đẹp, không phải bản scan.</div>
                         </div>
                     ''', unsafe_allow_html=True)
-                    # SỬA LỖI: Thêm JPG, PNG vào định dạng hỗ trợ tải lên và cho phép upload nhiều file (nếu là ảnh)
+                    # Hỗ trợ đa định dạng, cho phép tải nhiều file ảnh cùng lúc
                     st.file_uploader("Upload GA", type=["docx", "pdf", "jpg", "png", "jpeg"], accept_multiple_files=True, label_visibility="collapsed")
                 st.markdown("<div style='text-align: center; color: #ef4444; font-size: 0.9em; margin-top: -10px;'>⚠️ Yêu cầu bắt buộc</div>", unsafe_allow_html=True)
                 
@@ -231,14 +230,14 @@ def render_xd_khbd(ai_engine=None):
             st.markdown("#### 🎯 Chọn dạng khuyết tật hòa nhập")
             loai_kt = st.pills("Chọn khuyết tật", ["Khuyết tật vận động", "Khuyết tật nghe", "Khuyết tật nói", "Khuyết tật nhìn", "Khuyết tật thần kinh", "Khuyết tật tâm thần", "Khuyết tật trí tuệ", "Khuyết tật tự kỷ", "Khuyết tật khác", "Khuyết tật chung"], selection_mode="multi", default=["Khuyết tật chung"])
 
-    # CHỨC NĂNG MỚI: YÊU CẦU NĂNG LỰC SỐ CỤ THỂ (Theo hình ảnh)
+    # CHỨC NĂNG MỚI: YÊU CẦU NĂNG LỰC SỐ CỤ THỂ
     if tich_hop_nls:
         with st.container(border=True):
-            co_yc_nls = st.checkbox("🎯 **Yêu cầu Năng lực số cụ thể (Tùy chọn)**", value=True)
+            co_yc_nls = st.checkbox("🎯 **Yêu cầu Năng lực số cụ thể (Tùy chọn)**", value=True) # Checkbox giống ảnh thiết kế
             if co_yc_nls:
                 st.caption("Tích vào đây nếu bạn muốn chỉ định rõ thành phần và mức độ NLS cho AI")
                 
-                # Tạo 3 cột như bản thiết kế
+                # Tạo 3 cột đúng tỷ lệ thiết kế
                 c_tp, c_md, c_nd = st.columns([1.5, 1, 2.5])
                 
                 with c_tp:
@@ -248,7 +247,6 @@ def render_xd_khbd(ai_engine=None):
                 with c_nd:
                     st.text_area("**3. NỘI DUNG YÊU CẦU**", placeholder="Mô tả năng lực hoặc hoạt động mong muốn...", key="nls_nd", height=70)
                 
-                # Nút bấm Thêm vào danh sách (Sẽ được bo hồng bởi CSS bên trên)
                 c_space, c_btn_add = st.columns([3, 1])
                 with c_btn_add:
                     st.button("➕ Thêm vào danh sách", type="primary", on_click=add_nls_item, use_container_width=True)
@@ -277,9 +275,3 @@ def render_xd_khbd(ai_engine=None):
     st.write("")
     if st.button("⚡ KÍCH HOẠT XỬ LÝ AI", type="primary", use_container_width=True):
         st.success(f"Hệ thống AI đang bắt đầu xử lý chế độ: **{'Chỉnh sửa giáo án' if st.session_state.soan_mode == 'chinh_sua' else 'Soạn tự động'}**!")
-"""
-    with open("xd_khbd_view.py", "w", encoding="utf-8") as f:
-        f.write(code)
-    print("[file-tag: code-generated-file-xd_khbd_view.py]")
-
-generate_view_file()
