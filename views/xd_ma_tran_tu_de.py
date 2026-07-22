@@ -4,298 +4,413 @@ import streamlit as st
 import json
 import re
 import pandas as pd
-from pathlib import Path
-from io import BytesIO
 
 
 # ============================================================
-# KIỂM TRA THƯ VIỆN DOCXTPL
+# IMPORT EXPORT WORD - PIPELINE CHUẨN
 # ============================================================
+
 try:
-    from docxtpl import DocxTemplate
-except ImportError:
+
+    from export.export_word import export_word
+
+except ImportError as e:
+
+    export_word = None
+
     st.error(
-        "⚠️ Thư viện docxtpl chưa được cài đặt. "
-        "Vui lòng chạy lệnh: pip install docxtpl"
+        "❌ Không import được hệ thống xuất Word.\n\n"
+        f"Chi tiết: {e}"
     )
 
 
 # ============================================================
 # SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN
 # ============================================================
+
 class ExamTextExtractor:
 
     @staticmethod
     def extract(uploaded_file):
 
         if not uploaded_file:
+
             return ""
 
-        try:
-            file_name = uploaded_file.name.lower()
-            file_bytes = uploaded_file.getvalue()
+        file_name = uploaded_file.name.lower()
 
-            # -------------------------
-            # ĐỌC PDF
-            # -------------------------
+        file_bytes = uploaded_file.getvalue()
+
+        try:
+
+            # ====================================================
+            # PDF
+            # ====================================================
+
             if file_name.endswith(".pdf"):
 
                 from pypdf import PdfReader
 
-                reader = PdfReader(BytesIO(file_bytes))
-                pages_text = []
+                reader = PdfReader(
+                    uploaded_file
+                )
+
+                pages = []
 
                 for page in reader.pages:
 
-                    extracted = page.extract_text()
+                    text = page.extract_text()
 
-                    if extracted:
-                        pages_text.append(extracted.strip())
+                    if text:
 
-                return "\n".join(pages_text)
+                        pages.append(
+                            text.strip()
+                        )
 
-            # -------------------------
-            # ĐỌC DOCX
-            # -------------------------
-            elif file_name.endswith(".docx"):
+                return "\n".join(pages)
+
+
+            # ====================================================
+            # DOCX
+            # ====================================================
+
+            if file_name.endswith(".docx"):
 
                 from docx import Document
 
-                doc = Document(BytesIO(file_bytes))
+                doc = Document(
+                    uploaded_file
+                )
 
                 result = []
-                table_texts = set()
 
-                # Đọc bảng
-                for table in doc.tables:
+                # -------------------------------
+                # ĐOẠN VĂN
+                # -------------------------------
 
-                    for row in table.rows:
-
-                        row_data = []
-
-                        for cell in row.cells:
-
-                            cell_text = cell.text.strip()
-
-                            if cell_text:
-
-                                for paragraph in cell.paragraphs:
-
-                                    p_txt = paragraph.text.strip()
-
-                                    if p_txt:
-                                        table_texts.add(p_txt)
-
-                            cell_text_clean = cell_text.replace(
-                                "\n",
-                                " "
-                            )
-
-                            row_data.append(cell_text_clean)
-
-                        row_text = " | ".join(
-                            filter(None, row_data)
-                        )
-
-                        if row_text:
-                            result.append(row_text)
-
-                # Đọc đoạn văn
                 for paragraph in doc.paragraphs:
 
                     text = paragraph.text.strip()
 
-                    if (
-                        text
-                        and text not in table_texts
-                        and text not in result
-                    ):
+                    if text:
+
                         result.append(text)
+
+                # -------------------------------
+                # BẢNG
+                # -------------------------------
+
+                for table_index, table in enumerate(
+                    doc.tables,
+                    start=1
+                ):
+
+                    result.append(
+                        f"\n[BẢNG {table_index}]"
+                    )
+
+                    for row in table.rows:
+
+                        cells = []
+
+                        for cell in row.cells:
+
+                            cell_text = (
+                                cell.text
+                                .replace(
+                                    "\n",
+                                    " "
+                                )
+                                .strip()
+                            )
+
+                            cells.append(
+                                cell_text
+                            )
+
+                        row_text = " | ".join(
+                            cells
+                        )
+
+                        if row_text.strip():
+
+                            result.append(
+                                row_text
+                            )
 
                 return "\n".join(result)
 
-            # -------------------------
-            # ĐỌC TXT
-            # -------------------------
-            elif file_name.endswith(".txt"):
 
-                for encoding in [
+            # ====================================================
+            # TXT
+            # ====================================================
+
+            if file_name.endswith(".txt"):
+
+                for encoding in (
                     "utf-8",
                     "utf-8-sig",
                     "cp1258"
-                ]:
+                ):
 
                     try:
+
                         return file_bytes.decode(
                             encoding
                         ).strip()
 
-                    except Exception:
+                    except UnicodeDecodeError:
+
                         continue
 
                 raise ValueError(
-                    "Không thể giải mã file TXT."
+                    "Không thể giải mã tệp TXT."
                 )
+
+
+            raise ValueError(
+                f"Định dạng không được hỗ trợ: "
+                f"{file_name}"
+            )
+
 
         except Exception as e:
 
             raise RuntimeError(
-                f"Lỗi đọc định dạng file "
-                f"{file_name}: {str(e)}"
+                f"Lỗi đọc tệp {file_name}: {e}"
             )
 
-        return ""
 
     # ========================================================
-    # CHUẨN HÓA VĂN BẢN
+    # CHUẨN HÓA
     # ========================================================
+
     @staticmethod
     def normalize(text):
 
         if not text:
+
             return ""
 
-        clean_text = re.sub(
-            r"\s+",
-            " ",
+        text = re.sub(
+            r"\r\n?",
+            "\n",
             text
-        ).strip()
-
-        words = clean_text.split(" ")
-
-        return " ".join(
-            words[:12000]
         )
 
+        text = re.sub(
+            r"[ \t]+",
+            " ",
+            text
+        )
+
+        text = re.sub(
+            r"\n{3,}",
+            "\n\n",
+            text
+        )
+
+        return text.strip()[:120000]
+
 
 # ============================================================
-# SERVICE 2: XỬ LÝ JSON VÀ TÍNH TOÁN
+# SERVICE 2: XỬ LÝ JSON
 # ============================================================
+
 class MatrixCalculator:
 
     # ========================================================
-    # PHÂN TÍCH JSON AI
+    # PARSE JSON AI
     # ========================================================
+
     @staticmethod
     def parse_ai_json(result_text):
 
         if not result_text:
 
             raise ValueError(
-                "Hệ thống AI không trả về bất kỳ dữ liệu nào."
+                "AI không trả về dữ liệu."
             )
 
-        result_text = result_text.strip()
+        text = result_text.strip()
 
-        # Trường hợp AI trả về ```json ... ```
-        match = re.search(
-            r"```json\s*(.*?)\s*```",
-            result_text,
-            re.DOTALL | re.IGNORECASE
+        # ------------------------------------
+        # Loại markdown code fence
+        # ------------------------------------
+
+        text = re.sub(
+            r"^```json\s*",
+            "",
+            text,
+            flags=re.IGNORECASE
         )
 
-        if match:
+        text = re.sub(
+            r"^```\s*",
+            "",
+            text
+        )
 
-            json_str = match.group(1).strip()
+        text = re.sub(
+            r"\s*```$",
+            "",
+            text
+        )
 
-        else:
+        text = text.strip()
 
-            json_str = result_text
+        # ------------------------------------
+        # Tách JSON nếu AI có văn bản thừa
+        # ------------------------------------
 
-        # Nếu còn văn bản bên ngoài JSON
-        if not json_str.startswith("{"):
+        if not text.startswith("{"):
 
-            start = json_str.find("{")
-            end = json_str.rfind("}")
+            start = text.find("{")
 
-            if start != -1 and end != -1:
+            end = text.rfind("}")
 
-                json_str = json_str[
-                    start:end + 1
-                ]
+            if start == -1 or end == -1:
 
-        return json.loads(json_str)
+                raise ValueError(
+                    "Không tìm thấy JSON hợp lệ."
+                )
+
+            text = text[
+                start:end + 1
+            ]
+
+        try:
+
+            data = json.loads(text)
+
+        except json.JSONDecodeError as e:
+
+            raise ValueError(
+                f"JSON không hợp lệ: {e}"
+            )
+
+        if not isinstance(data, dict):
+
+            raise ValueError(
+                "JSON phải là một object."
+            )
+
+        return data
+
 
     # ========================================================
     # CHUYỂN SỐ
     # ========================================================
+
     @staticmethod
     def to_number(value):
 
-        try:
-
-            if value is None:
-                return 0
-
-            if isinstance(value, str):
-
-                value = value.replace(
-                    ",",
-                    "."
-                )
-
-                return (
-                    float(value)
-                    if "." in value
-                    else int(value)
-                )
-
-            return value
-
-        except Exception:
+        if value is None:
 
             return 0
 
-    # ========================================================
-    # CHUẨN BỊ DỮ LIỆU CHO TEMPLATE WORD
-    # ========================================================
-    @staticmethod
-    def prepare_template_context(
-        parsed_data,
-        mon_hoc
-    ):
-
-        if not isinstance(
-            parsed_data,
-            dict
+        if isinstance(
+            value,
+            bool
         ):
 
-            raise ValueError(
-                "Dữ liệu AI phản hồi "
-                "không đúng cấu trúc."
+            return int(value)
+
+        if isinstance(
+            value,
+            (int, float)
+        ):
+
+            return value
+
+        if isinstance(
+            value,
+            str
+        ):
+
+            value = value.strip()
+
+            if not value:
+
+                return 0
+
+            value = value.replace(
+                ",",
+                "."
             )
 
-        ma_tran_raw = parsed_data.get(
-            "ma_tran",
-            []
-        )
+            try:
 
-        dac_ta_raw = parsed_data.get(
-            "dac_ta",
-            []
-        )
+                number = float(
+                    value
+                )
 
-        # ====================================================
-        # MA TRẬN
-        # ====================================================
-        ma_tran_data = []
+                if number.is_integer():
 
-        for item in ma_tran_raw:
+                    return int(number)
+
+                return number
+
+            except ValueError:
+
+                return 0
+
+        return 0
+
+
+    # ========================================================
+    # CHUẨN HÓA MA TRẬN
+    # ========================================================
+
+    @staticmethod
+    def normalize_matrix(
+        rows
+    ):
+
+        result = []
+
+        if not isinstance(
+            rows,
+            list
+        ):
+
+            return result
+
+        for item in rows:
+
+            if not isinstance(
+                item,
+                dict
+            ):
+
+                continue
 
             nb = MatrixCalculator.to_number(
-                item.get("nb", 0)
+                item.get(
+                    "nb",
+                    0
+                )
             )
 
             th = MatrixCalculator.to_number(
-                item.get("th", 0)
+                item.get(
+                    "th",
+                    0
+                )
             )
 
             vd = MatrixCalculator.to_number(
-                item.get("vd", 0)
+                item.get(
+                    "vd",
+                    0
+                )
             )
 
             vdc = MatrixCalculator.to_number(
-                item.get("vdc", 0)
+                item.get(
+                    "vdc",
+                    0
+                )
             )
 
             tong_so_cau = (
@@ -305,21 +420,21 @@ class MatrixCalculator:
                 + vdc
             )
 
-            tong_diem = MatrixCalculator.to_number(
-                item.get("tong_diem", 0)
-            )
+            result.append({
 
-            ma_tran_data.append({
+                "chu_de": str(
+                    item.get(
+                        "chu_de",
+                        ""
+                    )
+                ).strip(),
 
-                "chu_de": item.get(
-                    "chu_de",
-                    ""
-                ),
-
-                "noi_dung": item.get(
-                    "noi_dung",
-                    ""
-                ),
+                "noi_dung": str(
+                    item.get(
+                        "noi_dung",
+                        ""
+                    )
+                ).strip(),
 
                 "nb": nb,
 
@@ -331,222 +446,328 @@ class MatrixCalculator:
 
                 "tong_so_cau": tong_so_cau,
 
-                "tong_diem": tong_diem
+                "tong_diem":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tong_diem",
+                            0
+                        )
+                    )
 
             })
 
-        # ====================================================
-        # ĐẶC TẢ
-        # ====================================================
-        dac_ta_data = []
+        return result
 
-        for item in dac_ta_raw:
 
-            dac_ta_data.append({
+    # ========================================================
+    # CHUẨN HÓA ĐẶC TẢ
+    # ========================================================
+
+    @staticmethod
+    def normalize_specification(
+        rows
+    ):
+
+        result = []
+
+        if not isinstance(
+            rows,
+            list
+        ):
+
+            return result
+
+        for index, item in enumerate(
+            rows,
+            start=1
+        ):
+
+            if not isinstance(
+                item,
+                dict
+            ):
+
+                continue
+
+            result.append({
 
                 "stt": item.get(
                     "stt",
-                    1
+                    index
                 ),
 
-                "chu_de": item.get(
-                    "chu_de",
-                    ""
-                ),
-
-                "bai_hoc": item.get(
-                    "bai_hoc",
+                "chu_de": str(
                     item.get(
-                        "noi_dung",
+                        "chu_de",
                         ""
                     )
-                ),
+                ).strip(),
 
-                "yccd": item.get(
-                    "yccd",
-                    ""
-                ),
-
-                "tn_nb": MatrixCalculator.to_number(
+                "bai_hoc": str(
                     item.get(
-                        "tn_nb",
-                        0
+                        "bai_hoc",
+                        item.get(
+                            "noi_dung",
+                            ""
+                        )
                     )
-                ),
+                ).strip(),
 
-                "tn_hieu": MatrixCalculator.to_number(
+                "yccd": str(
                     item.get(
-                        "tn_hieu",
-                        0
+                        "yccd",
+                        ""
                     )
-                ),
+                ).strip(),
 
-                "tn_vd": MatrixCalculator.to_number(
-                    item.get(
-                        "tn_vd",
-                        0
-                    )
-                ),
+                "tn_nb":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tn_nb",
+                            0
+                        )
+                    ),
 
-                "ds_nb": MatrixCalculator.to_number(
-                    item.get(
-                        "ds_nb",
-                        0
-                    )
-                ),
+                "tn_hieu":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tn_hieu",
+                            0
+                        )
+                    ),
 
-                "ds_hieu": MatrixCalculator.to_number(
-                    item.get(
-                        "ds_hieu",
-                        0
-                    )
-                ),
+                "tn_vd":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tn_vd",
+                            0
+                        )
+                    ),
 
-                "ds_vd": MatrixCalculator.to_number(
-                    item.get(
-                        "ds_vd",
-                        0
-                    )
-                ),
+                "ds_nb":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "ds_nb",
+                            0
+                        )
+                    ),
 
-                "tl_biet": MatrixCalculator.to_number(
-                    item.get(
-                        "tl_biet",
-                        0
-                    )
-                ),
+                "ds_hieu":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "ds_hieu",
+                            0
+                        )
+                    ),
 
-                "tl_hieu": MatrixCalculator.to_number(
-                    item.get(
-                        "tl_hieu",
-                        0
-                    )
-                ),
+                "ds_vd":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "ds_vd",
+                            0
+                        )
+                    ),
 
-                "tl_vd": MatrixCalculator.to_number(
-                    item.get(
-                        "tl_vd",
-                        0
-                    )
-                ),
+                "tl_biet":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tl_biet",
+                            0
+                        )
+                    ),
 
-                "tong_diem": MatrixCalculator.to_number(
-                    item.get(
-                        "tong_diem",
-                        0
+                "tl_hieu":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tl_hieu",
+                            0
+                        )
+                    ),
+
+                "tl_vd":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tl_vd",
+                            0
+                        )
+                    ),
+
+                "tong_diem":
+                    MatrixCalculator.to_number(
+                        item.get(
+                            "tong_diem",
+                            0
+                        )
                     )
-                )
 
             })
 
+        return result
+
+
+    # ========================================================
+    # CONTEXT CHUẨN
+    # ========================================================
+
+    @staticmethod
+    def prepare_context(
+        parsed_data,
+        mon_hoc,
+        lop
+    ):
+
+        if not isinstance(
+            parsed_data,
+            dict
+        ):
+
+            raise ValueError(
+                "Dữ liệu AI không đúng cấu trúc."
+            )
+
+        ma_tran = MatrixCalculator.normalize_matrix(
+            parsed_data.get(
+                "ma_tran",
+                []
+            )
+        )
+
+        dac_ta = MatrixCalculator.normalize_specification(
+            parsed_data.get(
+                "dac_ta",
+                []
+            )
+        )
+
         return {
+
+            # ------------------------------------
+            # Thông tin chung
+            # ------------------------------------
 
             "MON_HOC": mon_hoc,
 
-            "ma_tran_data": ma_tran_data,
+            "LOP": lop,
 
-            "dac_ta_data": dac_ta_data
+            # ------------------------------------
+            # Dữ liệu chính
+            # ------------------------------------
+
+            "MA_TRAN": ma_tran,
+
+            "DAC_TA": dac_ta,
+
+            # ------------------------------------
+            # Alias tương thích
+            # ------------------------------------
+
+            "ma_tran_data": ma_tran,
+
+            "dac_ta_data": dac_ta
 
         }
 
 
 # ============================================================
-# SERVICE 3: KẾT XUẤT WORD
-# ============================================================
-class DocxTemplateEngine:
-
-    @staticmethod
-    def render_to_bytes(
-        template_path,
-        context_data
-    ):
-
-        doc = DocxTemplate(
-            str(template_path)
-        )
-
-        doc.render(
-            context_data
-        )
-
-        bio = BytesIO()
-
-        doc.save(bio)
-
-        return bio.getvalue()
-
-
-# ============================================================
 # VIEW CHÍNH
 # ============================================================
-def render_xd_ma_tran_tu_de(ai_engine):
+
+def render_xd_ma_tran_tu_de(
+    ai_engine
+):
 
     st.markdown(
-        "### 🧩 Sinh Ma trận & Đặc tả Đề kiểm tra "
-        "(Chuẩn Template Word)"
+        "### 🧩 Sinh Ma trận & Đặc tả Đề kiểm tra"
     )
 
     # ========================================================
-    # THÔNG TIN MÔN - LỚP
+    # THÔNG TIN
     # ========================================================
-    c1, c2 = st.columns(2)
 
-    mon_hoc = c1.selectbox(
+    col1, col2 = st.columns(2)
 
-        "Môn học",
+    with col1:
 
-        [
-            "Khoa học Tự nhiên",
-            "Toán học",
-            "Ngữ văn",
-            "Ngoại ngữ",
-            "Khác"
-        ],
+        mon_hoc = st.selectbox(
 
-        key="mt_mon"
+            "Môn học",
 
-    )
+            [
 
-    lop = c2.selectbox(
+                "Khoa học Tự nhiên",
 
-        "Lớp",
+                "Toán học",
 
-        [
-            "Lớp 6",
-            "Lớp 7",
-            "Lớp 8",
-            "Lớp 9",
-            "Lớp 10",
-            "Lớp 11",
-            "Lớp 12"
-        ],
+                "Ngữ văn",
 
-        index=2,
+                "Ngoại ngữ",
 
-        key="mt_lop"
+                "Khác"
 
-    )
+            ],
+
+            key="mt_mon"
+
+        )
+
+    with col2:
+
+        lop = st.selectbox(
+
+            "Lớp",
+
+            [
+
+                "Lớp 6",
+
+                "Lớp 7",
+
+                "Lớp 8",
+
+                "Lớp 9",
+
+                "Lớp 10",
+
+                "Lớp 11",
+
+                "Lớp 12"
+
+            ],
+
+            index=2,
+
+            key="mt_lop"
+
+        )
+
 
     # ========================================================
-    # UPLOAD ĐỀ
+    # UPLOAD
     # ========================================================
+
     file_de = st.file_uploader(
 
-        "Tải lên tệp đề kiểm tra hiện tại",
+        "Tải lên đề kiểm tra",
 
         type=[
+
             "pdf",
+
             "docx",
+
             "txt"
+
         ],
 
         key="mt_file"
 
     )
 
+
     # ========================================================
-    # NÚT PHÂN TÍCH
+    # PHÂN TÍCH
     # ========================================================
+
     if st.button(
 
         "PHÂN TÍCH ĐỀ & LẬP MA TRẬN",
@@ -560,35 +781,7 @@ def render_xd_ma_tran_tu_de(ai_engine):
         if not file_de:
 
             st.warning(
-
-                "Vui lòng đính kèm và tải lên "
-                "file đề kiểm tra trước khi "
-                "thực hiện phân tích."
-
-            )
-
-            return
-
-        # ====================================================
-        # XÁC ĐỊNH TEMPLATE
-        # ====================================================
-        template_path = (
-
-            Path(__file__)
-            .resolve()
-            .parents[1]
-            / "templates"
-            / "ma_tran_dac_ta_mau.docx"
-
-        )
-
-        if not template_path.exists():
-
-            st.error(
-
-                "Hệ thống thiếu file cấu trúc mẫu tại đường dẫn: "
-                f"{template_path}"
-
+                "Vui lòng tải lên đề kiểm tra."
             )
 
             return
@@ -596,48 +789,48 @@ def render_xd_ma_tran_tu_de(ai_engine):
         try:
 
             with st.spinner(
-
-                "Hệ thống AI đang đọc dữ liệu "
-                "tệp và phân tích cấu trúc chi tiết..."
-
+                "AI đang phân tích đề kiểm tra..."
             ):
 
-                # ====================================================
-                # ĐỌC ĐỀ
-                # ====================================================
-                raw_text = ExamTextExtractor.extract(
-                    file_de
+                # ------------------------------------
+                # Đọc đề
+                # ------------------------------------
+
+                raw_text = (
+                    ExamTextExtractor.extract(
+                        file_de
+                    )
                 )
 
-                exam_text = ExamTextExtractor.normalize(
-                    raw_text
+                exam_text = (
+                    ExamTextExtractor.normalize(
+                        raw_text
+                    )
                 )
 
                 if not exam_text:
 
-                    st.error(
-
-                        "Không thể đọc được dữ liệu chữ "
-                        "từ tệp tin này."
-
+                    raise ValueError(
+                        "Không đọc được nội dung đề."
                     )
 
-                    return
 
-                # ====================================================
-                # SCHEMA JSON
-                # ====================================================
+                # ------------------------------------
+                # Schema
+                # ------------------------------------
+
                 json_schema = """
+
 {
   "ma_tran": [
     {
       "chu_de": "Tên chủ đề",
       "noi_dung": "Tên bài học",
-      "nb": 2,
-      "th": 1,
-      "vd": 1,
+      "nb": 0,
+      "th": 0,
+      "vd": 0,
       "vdc": 0,
-      "tong_diem": 1.5
+      "tong_diem": 0
     }
   ],
   "dac_ta": [
@@ -645,290 +838,268 @@ def render_xd_ma_tran_tu_de(ai_engine):
       "stt": 1,
       "chu_de": "Tên chủ đề",
       "bai_hoc": "Tên bài học",
-      "yccd": "- Nêu được định nghĩa...\\n- Giải thích được hiện tượng...",
-      "tn_nb": 2,
-      "tn_hieu": 1,
+      "yccd": "Yêu cầu cần đạt",
+      "tn_nb": 0,
+      "tn_hieu": 0,
       "tn_vd": 0,
       "ds_nb": 0,
       "ds_hieu": 0,
       "ds_vd": 0,
       "tl_biet": 0,
       "tl_hieu": 0,
-      "tl_vd": 1,
-      "tong_diem": 1.5
+      "tl_vd": 0,
+      "tong_diem": 0
     }
   ]
 }
+
 """
 
-                # ====================================================
-                # PROMPT
-                # ====================================================
+
+                # ------------------------------------
+                # Prompt
+                # ------------------------------------
+
                 prompt = f"""
 
 BẠN LÀ CHUYÊN GIA KHẢO THÍ
-VÀ BIÊN SOẠN CHƯƠNG TRÌNH GDPT 2018.
+THEO CHƯƠNG TRÌNH GDPT 2018.
 
-NHIỆM VỤ:
+Hãy phân tích đề kiểm tra
+môn {mon_hoc},
+{lop}.
 
-Phân tích đề kiểm tra môn {mon_hoc},
-lớp {lop} được cung cấp dưới đây.
+MỤC TIÊU:
 
-Hãy bóc tách từng câu hỏi để xây dựng:
+1. Xác định toàn bộ nội dung kiến thức
+   thực sự xuất hiện trong đề.
 
-1. MA TRẬN ĐỀ KIỂM TRA.
-2. BẢN ĐẶC TẢ ĐỀ KIỂM TRA.
+2. Phân tích đầy đủ từng câu hỏi.
 
-==================================================
-NGUYÊN TẮC PHÂN TÍCH
-==================================================
+3. Phân loại đúng mức độ:
 
-- Chỉ sử dụng thông tin thực sự xuất hiện trong đề.
-- Không tự ý thêm bài học hoặc kiến thức ngoài đề.
-- Phải phân tích từng câu hỏi.
-- Phải xác định đúng nội dung kiến thức.
-- Phải xác định đúng mức độ nhận thức.
-- Không được bỏ sót câu hỏi.
-- Không được tạo dữ liệu không có căn cứ từ đề.
+- nb: Nhận biết
+- th: Thông hiểu
+- vd: Vận dụng
+- vdc: Vận dụng cao
 
-==================================================
-YÊU CẦU MA TRẬN
-==================================================
+4. Không được bỏ sót câu hỏi.
 
-Các mức độ:
+5. Không được thêm nội dung
+   không xuất hiện trong đề.
 
-- nb: Nhận biết.
-- th: Thông hiểu.
-- vd: Vận dụng.
-- vdc: Vận dụng cao.
+6. Không suy đoán chương,
+   bài học hoặc kiến thức
+   nếu đề không đủ căn cứ.
 
-Mỗi dòng tương ứng với một chủ đề hoặc nội dung
-kiến thức thực sự xuất hiện trong đề.
+7. Chỉ trả về JSON hợp lệ.
 
-tong_so_cau phải bằng:
+MA TRẬN:
 
-nb + th + vd + vdc
+- Mỗi dòng tương ứng với một
+  nội dung kiến thức thực tế.
 
-tong_diem phải phản ánh tổng điểm của các câu
-thuộc nội dung đó.
+- tong_so_cau =
+  nb + th + vd + vdc.
 
-==================================================
-YÊU CẦU BẢN ĐẶC TẢ
-==================================================
+- tong_diem là tổng điểm
+  của các câu trong dòng đó.
 
-Cột yccd phải viết cụ thể, rõ ràng,
-bám sát nội dung câu hỏi trong đề.
+ĐẶC TẢ:
 
-Không viết chung chung.
+- yccd phải cụ thể.
+- Phải bám sát câu hỏi.
+- Phải thể hiện đúng mức độ nhận thức.
+- Không viết chung chung.
 
-Ví dụ:
+ĐỀ KIỂM TRA:
 
-- Nêu được...
-- Trình bày được...
-- Nhận biết được...
-- Giải thích được...
-- So sánh được...
-- Phân tích được...
-- Tính được...
-- Vận dụng được kiến thức để giải quyết...
-
-Mỗi yêu cầu cần đạt phải thể hiện đúng
-mức độ nhận thức của câu hỏi.
-
-==================================================
-NỘI DUNG ĐỀ KIỂM TRA
-==================================================
+------------------------------
 
 {exam_text}
 
-==================================================
-CẤU TRÚC JSON BẮT BUỘC
-==================================================
+------------------------------
 
-Chỉ được trả về JSON thuần túy.
-
-Không được có:
-
-- Markdown.
-- ```json.
-- ```.
-- Lời giải thích.
-- Nhận xét.
-- Văn bản bên ngoài JSON.
-
-JSON phải đúng cấu trúc sau:
+JSON BẮT BUỘC:
 
 {json_schema}
-
-==================================================
-KIỂM TRA TRƯỚC KHI TRẢ KẾT QUẢ
-==================================================
-
-Trước khi trả về JSON, hãy tự kiểm tra:
-
-1. JSON hợp lệ.
-2. Có đầy đủ hai khóa:
-   - ma_tran
-   - dac_ta
-3. Không bỏ sót câu hỏi.
-4. Các số liệu là số.
-5. tong_so_cau được tính đúng.
-6. Nội dung bám sát đề.
-7. Không thêm kiến thức ngoài đề.
 
 CHỈ TRẢ VỀ JSON.
 """
 
-                # ====================================================
-                # GỌI AI
-                # ====================================================
+
+                # ------------------------------------
+                # Gọi AI
+                # ------------------------------------
+
                 result = ai_engine.generate_text(
                     prompt
                 )
 
-                # ====================================================
-                # PHÂN TÍCH JSON
-                # ====================================================
-                parsed_json = MatrixCalculator.parse_ai_json(
-                    result
-                )
 
-                # ====================================================
-                # CHUẨN BỊ CONTEXT
-                # ====================================================
-                template_context = (
+                # ------------------------------------
+                # Parse
+                # ------------------------------------
 
-                    MatrixCalculator.prepare_template_context(
-
-                        parsed_json,
-
-                        mon_hoc
-
+                parsed_data = (
+                    MatrixCalculator.parse_ai_json(
+                        result
                     )
-
                 )
 
-                # ====================================================
-                # KẾT XUẤT WORD
-                # ====================================================
-                word_bytes = (
 
-                    DocxTemplateEngine.render_to_bytes(
+                # ------------------------------------
+                # Chuẩn hóa
+                # ------------------------------------
 
-                        template_path,
-
-                        template_context
-
+                context = (
+                    MatrixCalculator.prepare_context(
+                        parsed_data,
+                        mon_hoc,
+                        lop
                     )
-
                 )
 
-                # ====================================================
-                # LƯU SESSION STATE
-                # ====================================================
+
+                # ------------------------------------
+                # LƯU
+                # ------------------------------------
+
                 st.session_state[
                     "processed_matrix_data"
-                ] = template_context
+                ] = context
 
-                st.session_state[
-                    "download_word_bytes"
-                ] = word_bytes
 
                 st.session_state[
                     "mt_mon_hoc_file"
                 ] = mon_hoc
 
+
                 st.session_state[
                     "mt_lop_file"
                 ] = lop
 
-                st.success(
 
-                    "🎉 Phân tích đề bài và thiết lập "
-                    "file Word mẫu thành công!"
+                # ------------------------------------
+                # XUẤT WORD
+                # ------------------------------------
+
+                if export_word is None:
+
+                    raise ImportError(
+                        "export_word chưa được import."
+                    )
+
+
+                word_bytes = export_word(
+
+                    data=context,
+
+                    template_name=(
+                        "ma_tran_dac_ta_mau.docx"
+                    )
 
                 )
+
+
+                st.session_state[
+                    "download_word_bytes"
+                ] = word_bytes
+
+
+                st.success(
+                    "🎉 Đã phân tích và xuất Word thành công."
+                )
+
 
         except json.JSONDecodeError:
 
             st.error(
-
-                "❌ AI trả về dữ liệu không đúng "
-                "chuẩn định dạng JSON. "
-                "Vui lòng bấm thử lại."
-
+                "❌ AI trả về JSON không hợp lệ."
             )
 
-        except Exception as err:
+
+        except Exception as e:
 
             st.error(
-
-                "❌ Quá trình phân tích thất bại: "
-                f"{str(err)}"
-
+                f"❌ Lỗi xử lý: {e}"
             )
+
 
     # ========================================================
     # HIỂN THỊ KẾT QUẢ
     # ========================================================
-    if "processed_matrix_data" in st.session_state:
 
-        st.divider()
-
-        st.markdown(
-            "#### 👁️ Xem trước dữ liệu cấu trúc"
-        )
+    if (
+        "processed_matrix_data"
+        in st.session_state
+    ):
 
         data = st.session_state[
             "processed_matrix_data"
         ]
 
-        # ====================================================
-        # BẢNG MA TRẬN
-        # ====================================================
-        if data.get("ma_tran_data"):
-
-            st.markdown(
-                "**1. Bảng Ma Trận**"
-            )
-
-            st.dataframe(
-
-                pd.DataFrame(
-                    data["ma_tran_data"]
-                ),
-
-                use_container_width=True
-
-            )
-
-        # ====================================================
-        # BẢN ĐẶC TẢ
-        # ====================================================
-        if data.get("dac_ta_data"):
-
-            st.markdown(
-                "**2. Bản Đặc Tả**"
-            )
-
-            st.dataframe(
-
-                pd.DataFrame(
-                    data["dac_ta_data"]
-                ),
-
-                use_container_width=True
-
-            )
+        st.divider()
 
         st.markdown(
-            "<br>",
-            unsafe_allow_html=True
+            "#### 👁️ Xem trước dữ liệu"
         )
 
+
         # ====================================================
-        # TÊN FILE
+        # MA TRẬN
         # ====================================================
+
+        if data.get(
+            "MA_TRAN"
+        ):
+
+            st.markdown(
+                "**1. MA TRẬN**"
+            )
+
+            st.dataframe(
+
+                pd.DataFrame(
+                    data[
+                        "MA_TRAN"
+                    ]
+                ),
+
+                use_container_width=True
+
+            )
+
+
+        # ====================================================
+        # ĐẶC TẢ
+        # ====================================================
+
+        if data.get(
+            "DAC_TA"
+        ):
+
+            st.markdown(
+                "**2. ĐẶC TẢ**"
+            )
+
+            st.dataframe(
+
+                pd.DataFrame(
+                    data[
+                        "DAC_TA"
+                    ]
+                ),
+
+                use_container_width=True
+
+            )
+
+
+        # ====================================================
+        # DOWNLOAD
+        # ====================================================
+
         safe_mon = st.session_state.get(
 
             "mt_mon_hoc_file",
@@ -945,14 +1116,11 @@ CHỈ TRẢ VỀ JSON.
 
         )
 
-        # ====================================================
-        # DOWNLOAD WORD
-        # ====================================================
+
         st.download_button(
 
             label=(
-                "📥 TẢI XUỐNG FILE WORD "
-                "MA TRẬN & ĐẶC TẢ (.DOCX)"
+                "📥 TẢI XUỐNG FILE WORD"
             ),
 
             data=st.session_state[
@@ -968,8 +1136,8 @@ CHỈ TRẢ VỀ JSON.
             ),
 
             mime=(
-                "application/vnd.openxmlformats-officedocument."
-                "wordprocessingml.document"
+                "application/vnd.openxmlformats-"
+                "officedocument.wordprocessingml.document"
             ),
 
             use_container_width=True,
