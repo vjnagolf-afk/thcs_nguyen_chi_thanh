@@ -18,22 +18,25 @@ def extract_youtube_id(url):
     return None
 
 def get_youtube_transcript(url):
-    """Tự động lấy transcript (lời thoại) từ YouTube"""
+    """Tự động lấy transcript (lời thoại) từ YouTube một cách an toàn"""
     video_id = extract_youtube_id(url)
     if not video_id:
         return None, "⚠️ Đường dẫn YouTube không hợp lệ hoặc không tìm thấy Video ID."
     
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        # Thử lấy phụ đề tiếng Việt hoặc tiếng Anh
         try:
+            # Thử lấy phụ đề tiếng Việt hoặc tiếng Anh
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
         except Exception:
-            # Nếu không có vi/en, lấy bất kỳ ngôn ngữ nào có sẵn
+            # Nếu không có, lấy bất kỳ ngôn ngữ nào có sẵn
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
             
         full_text = " ".join([item['text'] for item in transcript_list])
         return full_text, None
+        
+    except ImportError:
+        return None, "❌ Hệ thống chưa cài đặt thư viện `youtube-transcript-api`. Vui lòng thêm `youtube-transcript-api` vào file requirements.txt hoặc chạy lệnh `pip install youtube-transcript-api` trên terminal."
     except Exception as e:
         return None, f"❌ Không thể trích xuất phụ đề từ video này (Video có thể không có phụ đề hoặc bật chế độ riêng tư). Chi tiết lỗi: {str(e)}"
 
@@ -128,9 +131,9 @@ DỮ LIỆU LỜI THOẠI VIDEO:
 {raw_video_text[:12000]}
 
 YÊU CẦU ĐẦU RA:
-1. Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm.
+1. Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm phục vụ cho giáo viên.
 2. Nếu là tác vụ dịch, dịch chuẩn xác sang {ngon_ngu_dich}.
-3. Nếu là tóm tắt, nêu rõ các ý chính cốt lõi phục vụ cho việc giảng dạy của giáo viên.
+3. Nếu là tóm tắt hoặc kịch bản, nêu rõ các ý chính cốt lõi.
 """
 
                     ket_qua_xu_ly = ""
@@ -146,7 +149,7 @@ YÊU CẦU ĐẦU RA:
 
 ---
 **Nội dung văn bản bóc tách:**
-{raw_video_text[:500]}... *(Đã rút gọn hiển thị xem trước)*
+{raw_video_text[:800]}... *(Đã rút gọn hiển thị xem trước)*
 """
 
                     st.session_state["vproc_result"] = ket_qua_xu_ly
