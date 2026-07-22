@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-app.py - Bộ công cụ đọc tệp và xử lý dữ liệu đề cương.
+Module: views/xd_de_kt_view.py
+Nhiệm vụ: Giao diện Sinh đề kiểm tra (Ma trận, Đặc tả, Đề KT, Đáp án) chuẩn 5512.
 """
+
 import streamlit as st
 import sys
 from pathlib import Path
@@ -36,14 +38,12 @@ def extract_text_from_file(uploaded_file):
             contents = []
             seen_texts = set()
             
-            # Đọc Paragraphs (văn bản nằm ngoài bảng)
             for paragraph in document.paragraphs:
                 text = paragraph.text.strip()
                 if text and text not in seen_texts:
                     contents.append(text)
                     seen_texts.add(text)
                     
-            # Đọc Tables (dữ liệu nằm gọn trong ô bảng)
             for table in document.tables:
                 for row in table.rows:
                     row_data = [cell.text.strip().replace("\n", " ") for cell in row.cells]
@@ -181,63 +181,25 @@ def render_xd_de_kt(ai_engine):
             else:
                 outline_text = "Không cung cấp đề cương. AI tự động bám sát chương trình GDPT 2018 theo Môn học và Lớp."
         
-        # --- ĐỊNH VỊ SỐ THỨ TỰ CÂU BẰNG PYTHON ---
+        # --- ĐỊNH VỊ SỐ THỨ TỰ CÂU ---
         tong_cau_tn = n_nlc + n_ds + n_dk + n_ngan
         idx_nlc_start, idx_nlc_end = 1, n_nlc
         idx_ds_start, idx_ds_end = idx_nlc_end + 1, idx_nlc_end + n_ds
         idx_dk_start, idx_dk_end = idx_ds_end + 1, idx_ds_end + n_dk
         idx_ngan_start, idx_ngan_end = idx_dk_end + 1, idx_dk_end + n_ngan
         idx_tl_start = tong_cau_tn + 1
+        idx_tl_end = idx_tl_start + num_tl - 1
         
-        chi_tiet_tu_luan = ""
-        for i, p in enumerate(tl_points):
-            chi_tiet_tu_luan += f"├── Câu {idx_tl_start + i} = {p} điểm\n"
-            
-        # --- XÂY DỰNG RÀNG BUỘC PHẲNG ---
-        # --- XÂY DỰNG RÀNG BUỘC PHẲNG ---
-        base_prompt = (
-            "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n"
-            "NHIỆM VỤ: Soạn thảo Ma trận, Đặc tả, Đề kiểm tra và Đáp án. Bạn bắt buộc phải trả về ĐỊNH DẠNG VĂN BẢN MARKDOWN THUẦN TÚY (Tuyệt đối không bọc trong JSON hay Code Block).\n\n"
-            
-            # ... (Các phần trên giữ nguyên) ...
+        # --- ĐỌC PROMPT NGOÀI TỪ THƯ MỤC prompts/prompt_de_kt.txt (NẾU CÓ) ---
+        prompt_path = Path("prompts/prompt_de_kt.txt")
+        if prompt_path.exists():
+            try:
+                base_prompt = prompt_path.read_text(encoding="utf-8")
+            except Exception:
+                base_prompt = "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n{outline_text}"
+        else:
+            base_prompt = "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n{outline_text}"
 
-            "============================================================\n"
-            "QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)\n"
-            "============================================================\n"
-            "1. SỐ THỨ TỰ CÂU HỎI: Phải liên tục từ Câu 1 đến Câu {idx_tl_end}. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.\n"
-            
-            # --- ĐÂY LÀ ĐOẠN ĐÃ ĐƯỢC NÂNG CẤP ĐỂ SỬA LỖI WORD ---
-            "2. CÔNG THỨC TOÁN HỌC VÀ KÝ HIỆU (QUAN TRỌNG):\n"
-            "   - MỌI biểu thức, số liệu, lũy thừa (VD: a^2), đơn vị (VD: cm^2) BẮT BUỘC phải bọc trong cặp dấu $. (Ví dụ đúng: $S = a^2 = 16\\text{{ cm}}^2$).\n"
-            "   - Áp dụng quy tắc bọc dấu $ này cho CẢ PHẦN ĐỀ BÀI LẪN PHẦN ĐÁP ÁN.\n"
-            "   - TUYỆT ĐỐI KHÔNG để lộ mã thô như a^2 hay cm^2 ra ngoài văn bản thường.\n"
-            "   - Đối với ký hiệu SONG SONG, TUYỆT ĐỐI KHÔNG dùng mã \\parallel. Bắt buộc phải dùng ký hiệu // thông thường (Ví dụ viết: $AB // CD$).\n"
-            # ---------------------------------------------------
-
-            "3. XỬ LÝ HÌNH HỌC VÀ HÌNH VẼ (ĐẶC BIỆT LƯU Ý):\n"
-            # ... (Các phần dưới giữ nguyên) ...
-            "============================================================\n"
-            "QUY TẮC NGHIÊM NGẶT (VI PHẠM LÀ LỖI HỆ THỐNG)\n"
-            "============================================================\n"
-            "1. SỐ THỨ TỰ CÂU HỎI: Phải liên tục từ Câu 1 đến Câu {idx_tl_end}. Tuyệt đối KHÔNG đánh số lại từ Câu 1 khi chuyển sang phần Tự luận.\n"
-            "2. CÔNG THỨC TOÁN HỌC (LaTeX): BẮT BUỘC bọc biểu thức trong cặp dấu $. (Ví dụ: $y = x^2 + 2$, $\\Delta$).\n"
-            "3. XỬ LÝ HÌNH HỌC VÀ HÌNH VẼ (ĐẶC BIỆT LƯU Ý):\n"
-            "   - HỆ THỐNG KHÔNG THỂ XUẤT ẢNH. Tuyệt đối KHÔNG dùng các cụm từ như 'Cho hình vẽ bên', 'Theo hình vẽ' trong Đề thi.\n"
-            "   - Nếu trong ĐỀ CƯƠNG có câu hỏi dạng 'Cho hình vẽ', BẠN PHẢI TỰ ĐỘNG CHUYỂN ĐỔI nó thành một bài toán mô tả hoàn toàn bằng chữ (Ví dụ: Cho tam giác ABC vuông tại A, có đường cao AH...).\n"
-            "   - NẾU BẮT BUỘC phải cần hình minh họa để giải bài, hãy chèn DÒNG MÃ SAU dưới câu hỏi để giáo viên tự chèn hình: `[GIÁO VIÊN CHÈN HÌNH VẼ TẠI ĐÂY: <Mô tả chi tiết bằng chữ để giáo viên dễ vẽ>]`.\n\n"
-            "TRÌNH BÀY ĐẦU RA BẰNG VĂN BẢN THEO ĐÚNG CÁC TIÊU ĐỀ SAU:\n"
-            "# PHẦN I. PHẠM VI KIẾN THỨC SỬ DỤNG\n"
-            "# PHẦN II. MA TRẬN ĐỀ KIỂM TRA\n"
-            "# PHẦN III. BẢN ĐẶC TẢ\n"
-            "# PHẦN IV. ĐỀ KIỂM TRA\n"
-            "# PHẦN V. ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM\n\n"
-            "============================================================\n"
-            "TẬP HỢP TÀI LIỆU VÀ ĐỀ CƯƠNG KIẾN THỨC ĐƯỢC PHÉP DÙNG\n"
-            "============================================================\n"
-            "{outline_text}"
-        )
-        
-        # Đã bổ sung đẩy đủ các biến idx_ngan_start và idx_ngan_end
         strict_prompt = base_prompt.format(
             mon_hoc=mon_hoc, lop=lop, ten_de=ten_de, thoi_gian=thoi_gian, nb=nb, th=th, vd=vd, vdc=vdc,
             tong_cau_tn=tong_cau_tn, total_diem_tn=total_diem_tn, n_nlc=n_nlc, d_nlc=d_nlc,
@@ -245,13 +207,12 @@ def render_xd_de_kt(ai_engine):
             idx_ds_start=idx_ds_start, idx_ds_end=idx_ds_end, n_dk=n_dk, d_dk=d_dk,
             idx_dk_start=idx_dk_start, idx_dk_end=idx_dk_end, 
             n_ngan=n_ngan, d_ngan=d_ngan, idx_ngan_start=idx_ngan_start, idx_ngan_end=idx_ngan_end,
-            num_tl=num_tl, total_diem_tl=total_diem_tl, chi_tiet_tu_luan=chi_tiet_tu_luan.strip(),
-            idx_tl_end=idx_tl_start + num_tl - 1, outline_text=outline_text
+            num_tl=num_tl, total_diem_tl=total_diem_tl, idx_tl_start=idx_tl_start, idx_tl_end=idx_tl_end,
+            outline_text=outline_text
         )
         
-        with st.spinner("🤖 AI đang phân tích dữ liệu đa luồng, soạn thảo ma trận và định dạng đề thi..."):
+        with st.spinner("🤖 AI đang phân tích dữ liệu đa luồng, soạn thảo ma trận và đề kiểm tra chuẩn mẫu dkt_mau.docx..."):
             try:
-                # Gọi đến hàm xử lý văn bản thuần túy của Engine
                 result = ai_engine.generate_text(strict_prompt)
                 if not result or not result.strip():
                     st.error("❌ AI trả về kết quả rỗng.")
@@ -263,12 +224,12 @@ def render_xd_de_kt(ai_engine):
                     "hinh_thuc": hinh_thuc, "thoi_gian": thoi_gian,
                     "tong_diem": total_diem, "bam_sat": bam_sat
                 }
-                st.success("✅ Đã xử lý xong toàn bộ tài liệu! Đề kiểm tra đã được tối ưu hóa.")
+                st.success("✅ Đã xử lý xong toàn bộ tài liệu! Đề kiểm tra đã sẵn sàng.")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Lỗi sinh đề: {e}")
 
-    # --- KHỐI HIỂN THỊ KẾT QUẢ VÀ KẾT XUẤT TÀI LIỆU WORD ---
+    # --- KHỐI HIỂN THỊ KẾT QUẢ VÀ XUẤT FILE WORD VỚI TEMPLATE dkt_mau.docx ---
     if "de_kt_content" in st.session_state:
         st.divider()
         st.markdown("## KẾT QUẢ ĐỀ KIỂM TRA")
@@ -286,11 +247,14 @@ def render_xd_de_kt(ai_engine):
                 
             from export.export_word import WordExportEngine
             config = st.session_state.get("de_kt_config", {})
+            
+            # Sử dụng template dkt_mau.docx chuẩn cho chức năng sinh đề kiểm tra
             word_bytes = WordExportEngine.export_to_word({
                 "ai_generated_content": st.session_state["de_kt_content"],
                 "is_de_kt": True,
-                "title": config.get("ten_de", "Đề kiểm tra")
+                "title": config.get("ten_de", "Đề kiểm tra"),
+                "template_name": "dkt_mau.docx"
             })
-            st.download_button("📥 TẢI XUỐNG FILE WORD (.DOCX)", data=word_bytes, file_name="De_Thi_5512.docx", use_container_width=True, key="de_kt_download_word")
+            st.download_button("📥 TẢI XUỐNG FILE WORD (.DOCX)", data=word_bytes, file_name="De_Kiem_Tra_5512.docx", use_container_width=True, key="de_kt_download_word")
         except Exception as e:
-            st.warning(f"⚠️ Tính năng xuất bản Word gặp sự cố hoặc chưa cấu hình thư viện export_word: {e}")
+            st.warning(f"⚠️ Tính năng xuất bản Word gặp sự cố: {e}")
