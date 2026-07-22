@@ -18,27 +18,32 @@ def extract_youtube_id(url):
     return None
 
 def get_youtube_transcript(url):
-    """Tự động lấy transcript (lời thoại) từ YouTube một cách an toàn"""
+    """Tự động lấy transcript (lời thoại) từ YouTube sử dụng list_transcripts an toàn tuyệt đối"""
     video_id = extract_youtube_id(url)
     if not video_id:
         return None, "⚠️ Đường dẫn YouTube không hợp lệ hoặc không tìm thấy Video ID."
     
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
+        
+        # Sử dụng API list_transcripts để tương thích với mọi phiên bản thư viện
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        
         try:
-            # Thử lấy phụ đề tiếng Việt hoặc tiếng Anh
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
+            # Thử tìm bản phụ đề tiếng Việt hoặc tiếng Anh
+            transcript = transcript_list.find_transcript(['vi', 'en'])
         except Exception:
-            # Nếu không có, lấy bất kỳ ngôn ngữ nào có sẵn
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            # Nếu không có, lấy bản phụ đề đầu tiên có sẵn trong danh sách
+            transcript = next(iter(transcript_list))
             
-        full_text = " ".join([item['text'] for item in transcript_list])
+        fetched_data = transcript.fetch()
+        full_text = " ".join([item['text'] for item in fetched_data])
         return full_text, None
         
     except ImportError:
-        return None, "❌ Hệ thống chưa cài đặt thư viện `youtube-transcript-api`. Vui lòng thêm `youtube-transcript-api` vào file requirements.txt hoặc chạy lệnh `pip install youtube-transcript-api` trên terminal."
+        return None, "❌ Hệ thống chưa cài đặt thư viện `youtube-transcript-api`. Vui lòng chạy lệnh `pip install youtube-transcript-api` trên terminal."
     except Exception as e:
-        return None, f"❌ Không thể trích xuất phụ đề từ video này (Video có thể không có phụ đề hoặc bật chế độ riêng tư). Chi tiết lỗi: {str(e)}"
+        return None, f"❌ Không thể trích xuất phụ đề từ video này (Video có thể không có phụ đề, bật chế độ riêng tư hoặc bị chặn). Chi tiết lỗi: {str(e)}"
 
 def render_the_03(ai_engine=None):
     st.markdown("### 🎬 Công cụ Trích xuất, Chuyển văn bản & Dịch Video (YouTube & Tải lên)")
