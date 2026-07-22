@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (KIẾN TRÚC KNOWLEDGE SCOPE & 5512)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (KIẾN TRÚC ENTERPRISE & 5512)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -14,9 +14,10 @@ import pandas as pd
 import PyPDF2
 from docx import Document
 from pathlib import Path
+from io import BytesIO
 
 # ============================================================
-# 1. HẰNG SỐ VÀ CẤU HÌNH AN TOÀN
+# 1. HẰNG SỐ VÀ CẤU HÌNH PHÁP LÝ CHUẨN
 # ============================================================
 NLS_GV_VAN_BAN_MAC_DINH = "18/2026/TT-BGDĐT"
 
@@ -63,7 +64,36 @@ KHUNG_NLS_HS = {
 }
 
 # ============================================================
-# 2. KHỞI TẠO SESSION STATE & RESET TOÀN DIỆN
+# 2. API NỘI BỘ QUẢN LÝ NĂNG LỰC SỐ (TÁCH BIỆT TẦNG UI)
+# ============================================================
+def get_nls_framework(loai_khung):
+    return KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
+
+def get_nls_domains(loai_khung):
+    fw = get_nls_framework(loai_khung)
+    return list(fw.keys())
+
+def get_nls_components(loai_khung, linh_vuc):
+    fw = get_nls_framework(loai_khung)
+    if linh_vuc in fw:
+        return list(fw[linh_vuc].keys())
+    return []
+
+def get_nls_levels(loai_khung, linh_vuc, thanh_phan):
+    fw = get_nls_framework(loai_khung)
+    if linh_vuc in fw and thanh_phan in fw[linh_vuc]:
+        return list(fw[linh_vuc][thanh_phan].keys())
+    return []
+
+def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do):
+    fw = get_nls_framework(loai_khung)
+    try:
+        return fw[linh_vuc][thanh_phan][muc_do]
+    except Exception:
+        return ""
+
+# ============================================================
+# 3. KHỞI TẠO SESSION STATE & RESET TOÀN DIỆN AN TOÀN
 # ============================================================
 def init_session_state():
     defaults = {
@@ -86,6 +116,8 @@ def reset_toan_bo_khbd():
     st.session_state["khbd_nls_list"] = []
     st.session_state["khbd_hoat_dong_list"] = []
     st.session_state["khbd_nls_noi_dung"] = ""
+    st.session_state["khbd_mode"] = "tu_dong"
+    st.session_state["khbd_processing"] = False
 
 def set_mode(mode: str):
     if mode not in MODE_LABELS:
@@ -93,10 +125,9 @@ def set_mode(mode: str):
     st.session_state.khbd_mode = mode
 
 # ============================================================
-# 3. LÀM SẠCH VĂN BẢN VÀ ĐỌC TỆP AN TOÀN TUYỆT ĐỐI
+# 4. LÀM SẠCH VĂN BẢN VÀ ĐỌC TỆP CHUẨN HÓA ĐA ĐỊNH DẠNG
 # ============================================================
 def safe_text(value):
-    """Khắc phục nhược điểm 15: Làm sạch ký tự điều khiển, rác Unicode và kiểm tra NoneType."""
     if value is None: 
         return ""
     if not isinstance(value, str):
@@ -131,24 +162,30 @@ def read_pdf(uploaded_file, range_str=""):
         result.append(f"[LỖI ĐỌC PDF: {str(e)}]")
     return "\n".join(result)
 
-def read_docx_ordered(uploaded_file):
-    """Khắc phục nhược điểm 3 & Vấn đề thứ tự Word: Duyệt tuần tự Paragraph và Table theo đúng luồng DOM thực tế."""
+def read_docx_ordered(source):
+    """Hỗ trợ linh hoạt str / Path / file-like object / UploadedFile, bảo toàn trật tự DOM Paragraph & Table."""
     result = []
     try:
-        document = Document(uploaded_file)
-        # Duyệt qua các thành phần trong body để bảo toàn thứ tự trước sau giữa đoạn văn và bảng
-        for element in document.element.body:
-            if element.tag.endswith('p'):
-                # Là đoạn văn
+        if isinstance(source, (str, Path)):
+            doc = Document(source)
+        elif hasattr(source, "read"):
+            content = source.read()
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+            doc = Document(BytesIO(content))
+        else:
+            doc = Document(source)
+
+        for element in doc.element.body:
+            if element.tag.endswith('p') or element.tag.endswith('}p'):
                 from docx.text.paragraph import Paragraph
-                p = Paragraph(element, document)
+                p = Paragraph(element, doc)
                 text = safe_text(p.text)
                 if text:
                     result.append(text)
-            elif element.tag.endswith('tbl'):
-                # Là bảng
+            elif element.tag.endswith('tbl') or element.tag.endswith('}tbl'):
                 from docx.table import Table
-                table = Table(element, document)
+                table = Table(element, doc)
                 result.append("\n[Bảng dữ liệu]")
                 for row in table.rows:
                     cells = [safe_text(cell.text).replace("\n", " ") for cell in row.cells]
@@ -160,7 +197,6 @@ def read_docx_ordered(uploaded_file):
     return "\n".join(result)
 
 def read_excel_structured(uploaded_file):
-    """Khắc phục nhược điểm 5: Chuyển hóa Excel/PPCT thành cấu trúc JSON/Dòng tường minh thay vì to_string thô."""
     result = []
     try:
         sheets = pd.read_excel(uploaded_file, sheet_name=None)
@@ -178,7 +214,7 @@ def read_excel_structured(uploaded_file):
 
 def read_uploaded_file(uploaded_file, range_str="", is_pdf_target=False):
     if uploaded_file is None: return ""
-    filename = uploaded_file.name.lower()
+    filename = getattr(uploaded_file, "name", "file.docx").lower()
     extension = Path(filename).suffix.lower()
     try:
         if extension == ".pdf": 
@@ -194,7 +230,8 @@ def read_uploaded_file(uploaded_file, range_str="", is_pdf_target=False):
 def read_multiple_files(files, range_str="", is_pdf_target=False):
     result = []
     for uploaded_file in files or []:
-        result.append(f"\n--- TÀI LIỆU NGUỒN: {uploaded_file.name} ---")
+        fname = getattr(uploaded_file, "name", "Tài liệu")
+        result.append(f"\n--- TÀI LIỆU NGUỒN: {fname} ---")
         result.append(read_uploaded_file(uploaded_file, range_str, is_pdf_target))
     return "\n".join(result)
 
@@ -207,7 +244,7 @@ def read_template_local(path="templates/KHBD_Mau.docx"):
         return ""
 
 # ============================================================
-# 4. CALLBACKS & FORMATORS AN TOÀN
+# 5. CALLBACKS & FORMATORS
 # ============================================================
 def add_nls():
     linh_vuc = safe_text(st.session_state.get("khbd_nls_linh_vuc", ""))
@@ -242,7 +279,7 @@ def add_activity():
     st.session_state.khbd_new_activity = ""
 
 # ============================================================
-# 5. AI ENGINE & KNOWLEDGE SCOPE PROMPT BUILDER
+# 6. AI ENGINE, VALIDATION & BUILD PROMPT
 # ============================================================
 def load_task_config():
     config_path = "prompts/task_config_khbd.txt"
@@ -255,14 +292,12 @@ def load_task_config():
     return "BẠN LÀ CHUYÊN GIA SƯ PHẠM CHUẨN PHỤ LỤC 4 CÔNG VĂN 5512."
 
 def normalize_ai_result(result):
-    """Khắc phục nhược điểm 13: Xử lý triệt để cấu trúc trả về từ OpenAI, Gemini, Claude, OpenRouter."""
     if result is None: 
         return ""
     if isinstance(result, str): 
         return result.strip()
     
     if isinstance(result, dict):
-        # 1. Kiểm tra cấu trúc OpenAI / OpenRouter
         try:
             if "choices" in result and len(result["choices"]) > 0:
                 msg = result["choices"][0].get("message", {})
@@ -271,7 +306,6 @@ def normalize_ai_result(result):
         except Exception:
             pass
 
-        # 2. Kiểm tra cấu trúc Google Gemini
         try:
             if "candidates" in result and len(result["candidates"]) > 0:
                 parts = result["candidates"][0].get("content", {}).get("parts", [])
@@ -280,11 +314,25 @@ def normalize_ai_result(result):
         except Exception:
             pass
 
-        # 3. Quét các key thông dụng
         for key in ["text", "content", "response", "output", "answer"]:
             if key in result: 
-                return str(result[key]).strip()
-                
+                val = result[key]
+                if isinstance(val, str):
+                    return val.strip()
+                elif isinstance(val, list):
+                    # Lọc an toàn nếu content là danh sách dict phức tạp
+                    texts = []
+                    for item in val:
+                        if isinstance(item, dict) and "text" in item:
+                            texts.append(str(item["text"]))
+                    if texts:
+                        return "\n".join(texts).strip()
+                elif isinstance(val, dict):
+                    if "parts" in val:
+                        parts = val["parts"]
+                        if isinstance(parts, list) and len(parts) > 0 and "text" in parts[0]:
+                            return str(parts[0]["text"]).strip()
+                            
     return str(result).strip()
 
 def generate_ai(ai_engine, prompt):
@@ -296,27 +344,46 @@ def generate_ai(ai_engine, prompt):
         return normalize_ai_result(ai_engine.generate(prompt))
     raise RuntimeError("AI Engine không phản hồi.")
 
-def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
-    # Khắc phục nhược điểm 6: Kiểm tra an toàn chế độ soạn
+def validate_khbd_result(text):
+    """Kiểm tra hợp lệ cấu trúc giáo án trước khi trả về người dùng và xuất Word."""
+    if not text or len(text.strip()) < 100:
+        return False, "Nội dung trả về quá ngắn hoặc rỗng."
+    
+    required_keywords = ["MỤC TIÊU", "THIẾT BỊ DẠY HỌC", "TIẾN TRÌNH DẠY HỌC"]
+    for kw in required_keywords:
+        if kw not in text.upper():
+            return False, f"Thiếu phần bắt buộc theo chuẩn 5512: {kw}"
+            
+    return True, "Hợp lệ"
+
+def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
     if mode not in MODE_LABELS:
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     mode_text = MODE_LABELS[mode]
 
     task_config_content = load_task_config()
 
-    # Khắc phục nhược điểm 7: Xử lý an toàn noi_dung_ai
     safe_noi_dung_ai = safe_text(noi_dung_ai)
     ai_block = f"\n- Tài liệu / Hướng dẫn AI bổ sung: {safe_noi_dung_ai}" if safe_noi_dung_ai else ""
 
-    # Khắc phục nhược điểm 8 & 9: Xử lý an toàn hòa nhập và chi tiết AI
     safe_nhu_cau = safe_text(nhu_cau_hoa_nhap)
     if tich_hop_hoa_nhap and safe_nhu_cau:
-        hoa_nhap_block = f"\n- Đối tượng học sinh hòa nhập cần hỗ trợ đặc biệt ({safe_nhu_cau}): Bắt buộc phải thiết kế phương án điều chỉnh trực tiếp vào mục Tổ chức thực hiện (điều chỉnh câu hỏi, hình thức hỗ trợ, thời gian)."
+        hoa_nhap_block = f"\n- Đối tượng học sinh hòa nhập cần hỗ trợ đặc biệt ({safe_nhu_cau}): Bắt buộc phải thiết kế phương án điều chỉnh trực tiếp vào mục Tổ chức thực hiện."
     else:
         hoa_nhap_block = "Môi trường học tập đại trà."
 
     safe_hoat_dong = safe_text(hoat_dong)
     hoat_dong_block = f"\n- Hoạt động bổ sung theo yêu cầu giáo viên: {safe_hoat_dong}" if safe_hoat_dong else ""
+
+    # Tách bạch rõ nguồn tham khảo từ giáo án gốc (chỉ dùng khi mode == chinh_sua)
+    ga_block = ""
+    if mode == "chinh_sua" and noi_dung_ga.strip():
+        ga_block = f"""
+----------------------------------------------------------------------------------
+GIÁO ÁN GỐC (DÙNG ĐỂ KẾ THỪA CẤU TRÚC VÀ TỐI ƯU):
+----------------------------------------------------------------------------------
+{noi_dung_ga}
+"""
 
     return f"""
 {task_config_content}
@@ -326,26 +393,26 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung
 ==================================================================================
 - Chế độ thực thi: {mode_text}
 - Thông tin thời lượng và bài học: {thong_tin}
-- YÊU CẦU PHÂN BỔ THỜI LƯỢNG: Phải tính toán khối lượng kiến thức khớp tuyệt đối với số tiết được giao. Nếu bài 2 tiết trở lên, bắt buộc phải phân tách rõ ràng tiến trình chi tiết theo từng tiết trong phần III.
+- YÊU CẦU PHÂN BỔ THỜI LƯỢNG: Phải tính toán khối lượng kiến thức khớp tuyệt đối với số tiết được giao. Nếu bài từ 2 tiết trở lên, bắt buộc phải phân tách rõ ràng tiến trình chi tiết theo từng TIẾT (Ví dụ: ### TIẾT 1, ### TIẾT 2).
 
 ==================================================================================
-🛡️ KNOWLEDGE SCOPE (PHẠM VI KIẾN THỨC ĐƯỢC PHÉP SỬ DỤNG TỪ SGK)
+🛡️ KNOWLEDGE SCOPE (PHẠM VI KIẾN THỨC ĐƯỢC PHÉP SỬ DỤNG)
 ==================================================================================
-AI chỉ được phép trích xuất, sử dụng các khái niệm, định lý, câu hỏi, ví dụ và hoạt động có thực bên trong khối dữ liệu "TÀI LIỆU NGUỒN CỐT LÕI (SGK)" dưới đây. Nghiêm cấm tự bịa đặt kiến thức ngoài SGK.
+AI chỉ được phép trích xuất và sử dụng các khái niệm, định lý, câu hỏi, ví dụ và hoạt động có thực bên trong "1. NGUỒN KIẾN THỨC CHÍNH (SGK)" dưới đây. Nghiêm cấm tự bịa đặt kiến thức ngoài SGK.
 
 ----------------------------------------------------------------------------------
-TÀI LIỆU NGUỒN CỐT LÕI (SGK / GIÁO ÁN GỐC):
+1. NGUỒN KIẾN THỨC CHÍNH (SGK / TÀI LIỆU BÀI HỌC):
 ----------------------------------------------------------------------------------
 {noi_dung_chinh}
-
+{ga_block}
 ----------------------------------------------------------------------------------
-TÀI LIỆU CHỈ ĐẠO BỔ SUNG & PHÂN PHỐI CHƯƠNG TRÌNH:
+2. TÀI LIỆU CHỈ ĐẠO BỔ SUNG & PHÂN PHỐI CHƯƠNG TRÌNH:
 ----------------------------------------------------------------------------------
 - Phân phối chương trình: {noi_dung_ppct}
 {ai_block}
 
 ----------------------------------------------------------------------------------
-YÊU CẦU TÍCH HỢP & ĐẶC THÙ:
+3. YÊU CẦU TÍCH HỢP & ĐẶC THÙ:
 ----------------------------------------------------------------------------------
 1. Năng lực số: {nls}
 2. Tích hợp AI sư phạm: {'Có tích hợp công cụ AI hỗ trợ hoạt động nhận thức của học sinh.' if tich_hop_ai else 'Không bắt buộc.'}
