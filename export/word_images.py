@@ -1,138 +1,314 @@
-"""
-Module: export/word_images.py
-Nhiệm vụ: Render hình ảnh từ Markdown, chèn Logo, vẽ mã QR và xử lý sơ đồ Mermaid.
-Bảo mật: Tự động co giãn (Auto-resize) chống tràn lề trang A4. Xử lý an toàn các URL ảnh hỏng.
-Yêu cầu: pip install qrcode
-"""
+# -*- coding: utf-8 -*-
 
 import io
-import urllib.request
-import urllib.parse
 import base64
 import logging
+import urllib.request
+
 from typing import Dict, Any, Optional
 
 import docx
-from docx.shared import Inches
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-logger = logging.getLogger("WordImageEngine")
+from docx.shared import (
+    Inches,
+    Pt,
+    RGBColor
+)
+
+from docx.enum.text import (
+    WD_PARAGRAPH_ALIGNMENT
+)
+
+
+logger = logging.getLogger(
+    "WordImageEngine"
+)
+
 
 class ImageRenderer:
-    # Kích thước chiều ngang tối đa an toàn cho trang A4 (Margins: Trái 3cm, Phải 2cm)
-    MAX_A4_WIDTH_INCHES = 6.0 
+
+    MAX_A4_WIDTH_INCHES = 6.0
 
     @classmethod
-    def _fetch_image(cls, source: str) -> Optional[io.BytesIO]:
-        """Tải ảnh từ URL mạng hoặc đọc từ đường dẫn cục bộ (Local path) một cách an toàn."""
+    def _fetch_image(
+        cls,
+        source: str
+    ) -> Optional[io.BytesIO]:
+
         try:
-            if source.startswith('http://') or source.startswith('https://'):
-                # Thêm Header User-Agent để tránh bị các host ảnh chặn (403 Forbidden)
-                req = urllib.request.Request(source, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    image_data = response.read()
-                    return io.BytesIO(image_data)
-            else:
-                # Đọc file ảnh từ ổ cứng cục bộ
-                with open(source, 'rb') as f:
-                    return io.BytesIO(f.read())
-        except Exception as e:
-            logger.error(f"Không thể truy xuất hình ảnh từ '{source}': {e}")
+
+            if not source:
+                return None
+
+            if source.startswith(
+                (
+                    "http://",
+                    "https://"
+                )
+            ):
+
+                request = urllib.request.Request(
+                    source,
+                    headers={
+                        "User-Agent":
+                        "Mozilla/5.0"
+                    }
+                )
+
+                with urllib.request.urlopen(
+                    request,
+                    timeout=15
+                ) as response:
+
+                    return io.BytesIO(
+                        response.read()
+                    )
+
+            with open(
+                source,
+                "rb"
+            ) as file:
+
+                return io.BytesIO(
+                    file.read()
+                )
+
+        except Exception as error:
+
+            logger.error(
+                "Không thể tải ảnh %s: %s",
+                source,
+                error
+            )
+
             return None
 
     @classmethod
-    def _insert_picture_safe(cls, doc: docx.Document, image_stream: io.BytesIO, width_inches: float = None):
-        """Chèn ảnh vào Word, tự động canh giữa và giới hạn kích thước chống tràn lề."""
-        p = doc.add_paragraph()
-        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        run = p.add_run()
-        
+    def _insert_picture_safe(
+        cls,
+        doc: docx.Document,
+        image_stream: io.BytesIO,
+        width_inches: Optional[float] = None
+    ):
+
+        paragraph = doc.add_paragraph()
+
+        paragraph.alignment = (
+            WD_PARAGRAPH_ALIGNMENT.CENTER
+        )
+
+        run = paragraph.add_run()
+
         try:
-            # Nếu người dùng không chỉ định kích thước, lấy tối đa chiều ngang an toàn
-            safe_width = min(width_inches, cls.MAX_A4_WIDTH_INCHES) if width_inches else cls.MAX_A4_WIDTH_INCHES
-            run.add_picture(image_stream, width=Inches(safe_width))
-        except Exception as e:
-            logger.error(f"Lỗi tương thích định dạng khi chèn ảnh vào Word: {e}")
-            p.add_run("[Lỗi: Không thể hiển thị hình ảnh này]")
-        finally:
-            p.paragraph_format.space_after = docx.shared.Pt(6)
+
+            safe_width = min(
+                width_inches
+                if width_inches
+                else cls.MAX_A4_WIDTH_INCHES,
+                cls.MAX_A4_WIDTH_INCHES
+            )
+
+            image_stream.seek(0)
+
+            run.add_picture(
+                image_stream,
+                width=Inches(
+                    safe_width
+                )
+            )
+
+        except Exception as error:
+
+            logger.error(
+                "Lỗi chèn ảnh: %s",
+                error
+            )
+
+            run.add_text(
+                "[Không thể hiển thị hình ảnh]"
+            )
+
+        paragraph.paragraph_format.space_after = Pt(6)
 
     @classmethod
-    def render_image(cls, doc: docx.Document, node: Dict[str, Any]):
-        """Render hình ảnh từ cấu trúc Markdown AST: ![alt](url)"""
-        url = node.get("url", "").strip()
-        alt_text = node.get("alt", "Image")
-        
+    def render_image(
+        cls,
+        doc: docx.Document,
+        node: Dict[str, Any]
+    ):
+
+        url = (
+            node.get("url", "")
+            .strip()
+        )
+
+        alt = node.get(
+            "alt",
+            "Hình ảnh"
+        )
+
         if not url:
             return
 
-        logger.info(f"Đang render hình ảnh: {url}")
-        image_stream = cls._fetch_image(url)
-        
+        image_stream = cls._fetch_image(
+            url
+        )
+
         if image_stream:
-            cls._insert_picture_safe(doc, image_stream)
+
+            cls._insert_picture_safe(
+                doc,
+                image_stream
+            )
+
         else:
-            # Fallback nếu link ảnh chết
-            p = doc.add_paragraph()
-            p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            run = p.add_run(f"[Hình ảnh: {alt_text}]")
+
+            paragraph = doc.add_paragraph()
+
+            paragraph.alignment = (
+                WD_PARAGRAPH_ALIGNMENT.CENTER
+            )
+
+            run = paragraph.add_run(
+                f"[Hình ảnh: {alt}]"
+            )
+
             run.font.italic = True
-            run.font.color.rgb = docx.shared.RGBColor(128, 128, 128)
+
+            run.font.color.rgb = RGBColor(
+                128,
+                128,
+                128
+            )
 
     @classmethod
-    def add_logo(cls, doc: docx.Document, logo_path: str, width_inches: float = 1.0):
-        """Chèn Logo trường học vào văn bản (Thường dùng ở Header Kế hoạch bài dạy)"""
-        image_stream = cls._fetch_image(logo_path)
+    def add_logo(
+        cls,
+        doc: docx.Document,
+        logo_path: str,
+        width_inches: float = 1.0
+    ):
+
+        image_stream = cls._fetch_image(
+            logo_path
+        )
+
         if image_stream:
-            cls._insert_picture_safe(doc, image_stream, width_inches)
+
+            cls._insert_picture_safe(
+                doc,
+                image_stream,
+                width_inches
+            )
 
     @classmethod
-    def render_mermaid(cls, doc: docx.Document, mermaid_code: str):
-        """
-        Dịch mã Mermaid sang hình ảnh SVG/PNG chất lượng cao rồi chèn vào Word.
-        Sử dụng API của mermaid.ink (Không yêu cầu cài Node.js trên máy chủ).
-        """
+    def render_mermaid(
+        cls,
+        doc: docx.Document,
+        mermaid_code: str
+    ):
+
         try:
-            # Mã hóa Mermaid Code thành Base64 theo chuẩn Mermaid Ink API
-            encoded_str = base64.urlsafe_b64encode(mermaid_code.encode('utf-8')).decode('utf-8')
-            img_url = f"https://mermaid.ink/img/{encoded_str}?type=png"
-            
-            image_stream = cls._fetch_image(img_url)
-            if image_stream:
-                cls._insert_picture_safe(doc, image_stream, width_inches=5.0)
-            else:
-                raise ValueError("Không tải được ảnh từ Mermaid API")
-        except Exception as e:
-            logger.error(f"Lỗi render sơ đồ Mermaid: {e}")
-            p = doc.add_paragraph("[Sơ đồ Mermaid không thể hiển thị]")
-            p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+            encoded = base64.urlsafe_b64encode(
+                mermaid_code.encode(
+                    "utf-8"
+                )
+            ).decode(
+                "utf-8"
+            )
+
+            image_url = (
+                "https://mermaid.ink/img/"
+                f"{encoded}?type=png"
+            )
+
+            image_stream = cls._fetch_image(
+                image_url
+            )
+
+            if not image_stream:
+
+                raise RuntimeError(
+                    "Không tải được sơ đồ Mermaid"
+                )
+
+            cls._insert_picture_safe(
+                doc,
+                image_stream,
+                5.0
+            )
+
+        except Exception as error:
+
+            logger.error(
+                "Lỗi Mermaid: %s",
+                error
+            )
+
+            paragraph = doc.add_paragraph(
+                "[Sơ đồ Mermaid không thể hiển thị]"
+            )
+
+            paragraph.alignment = (
+                WD_PARAGRAPH_ALIGNMENT.CENTER
+            )
 
     @classmethod
-    def add_qr_code(cls, doc: docx.Document, data: str, width_inches: float = 1.5):
-        """
-        Tạo mã QR tự động từ text/URL (Dùng cho việc cấp link phiếu bài tập online).
-        Yêu cầu thư viện: qrcode
-        """
+    def add_qr_code(
+        cls,
+        doc: docx.Document,
+        data: str,
+        width_inches: float = 1.5
+    ):
+
         try:
+
             import qrcode
+
             qr = qrcode.QRCode(
                 version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                error_correction=(
+                    qrcode.constants
+                    .ERROR_CORRECT_M
+                ),
                 box_size=10,
-                border=4,
+                border=4
             )
+
             qr.add_data(data)
             qr.make(fit=True)
 
-            img = qr.make_image(fill_color="black", back_color="white")
-            
-            # Lưu QR vào bộ nhớ đệm (RAM) rồi chèn thẳng vào Word
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='PNG')
-            img_byte_arr.seek(0)
-            
-            cls._insert_picture_safe(doc, img_byte_arr, width_inches)
+            image = qr.make_image(
+                fill_color="black",
+                back_color="white"
+            )
+
+            buffer = io.BytesIO()
+
+            image.save(
+                buffer,
+                format="PNG"
+            )
+
+            buffer.seek(0)
+
+            cls._insert_picture_safe(
+                doc,
+                buffer,
+                width_inches
+            )
+
         except ImportError:
-            logger.error("Chưa cài đặt thư viện 'qrcode'. Vui lòng chạy: pip install qrcode")
-        except Exception as e:
-            logger.error(f"Lỗi khi tạo mã QR: {e}")
+
+            logger.error(
+                "Thiếu thư viện qrcode. "
+                "Cài đặt: pip install qrcode"
+            )
+
+        except Exception as error:
+
+            logger.error(
+                "Lỗi tạo QR: %s",
+                error
+            )
