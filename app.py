@@ -89,8 +89,7 @@ with st.sidebar:
             st.rerun()
     else: 
         phan_he = None
-
-   # --- THÔNG TIN TÁC GIẢ ĐẨY SÁT CHÂN THANH ĐIỀU HƯỚNG ---
+# --- THÔNG TIN TÁC GIẢ ĐẨY SÁT CHÂN THANH ĐIỀU HƯỚNG ---
     st.sidebar.markdown(
         """
         <div style="position: absolute; bottom: 20px; left: 0; width: 100%; text-align: center; padding: 0 10px;">
