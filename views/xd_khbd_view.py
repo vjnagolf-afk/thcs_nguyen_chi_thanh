@@ -28,7 +28,7 @@ def add_nls_item():
             "muc_do": md, 
             "noi_dung": nd
         })
-        st.session_state["nls_nd"] = "" # Reset textarea sau khi thêm
+        st.session_state["nls_nd"] = ""
 
 def render_xd_khbd(ai_engine=None):
     init_session_state()
@@ -40,11 +40,8 @@ def render_xd_khbd(ai_engine=None):
         .stButton button[kind="primary"]:hover { background-color: #7e22ce; border: none; }
         .stButton button[kind="secondary"] { color: #6b7280; border: 1px solid #e5e7eb; border-radius: 8px; font-weight: 600; background-color: #f9fafb; transition: 0.3s;}
         .stButton button[kind="secondary"]:hover { border-color: #9333ea; color: #9333ea; background-color: #f3e8ff;}
-        
-        /* Cố gắng bôi hồng nút Thêm vào danh sách (CSS Hacking) */
         button:has(div:contains("Thêm vào danh sách")) { background-color: #e81e63 !important; border-color: #e81e63 !important; }
         button:has(div:contains("Thêm vào danh sách")):hover { background-color: #c2185b !important; }
-
         .block-container { padding-top: 2rem; padding-bottom: 2rem; }
         .upload-card { text-align: center; padding: 10px; }
         .upload-icon { font-size: 2.5rem; color: #9333ea; margin-bottom: 10px; }
@@ -52,35 +49,28 @@ def render_xd_khbd(ai_engine=None):
         .upload-desc { font-size: 0.85rem; color: #6b7280; line-height: 1.4; }
         </style>
     ''', unsafe_allow_html=True)
-
-    # Dữ liệu Năng lực số
+# Dữ liệu Năng lực số, Khối lớp, Môn học
     THANH_PHAN_NLS = [
-        "1.1. Duyệt, tìm kiếm và lọc dữ liệu, thông tin và nội dung số",
-        "1.2. Đánh giá dữ liệu, thông tin và nội dung số",
-        "1.3. Quản lý dữ liệu, thông tin và nội dung số",
-        "2.1. Tương tác thông qua công nghệ số",
-        "2.2. Chia sẻ thông tin và nội dung thông qua công nghệ số",
-        "2.3. Sử dụng công nghệ số để thực hiện trách nhiệm công dân",
-        "2.4. Hợp tác thông qua công nghệ số",
-        "2.5. Quy tắc ứng xử trên mạng",
-        "2.6. Quản lý danh tính số",
-        "3.1. Phát triển nội dung số",
-        "3.2. Tích hợp và tạo lập lại nội dung số",
-        "3.3. Thực thi bản quyền và giấy phép",
-        "3.4. Lập trình",
-        "4.1. Bảo vệ thiết bị",
-        "4.2. Bảo vệ dữ liệu cá nhân và quyền riêng tư",
-        "4.3. Bảo vệ sức khỏe và an sinh số",
-        "4.4. Bảo vệ môi trường",
-        "5.1. Giải quyết các vấn đề kỹ thuật",
-        "5.2. Xác định nhu cầu và giải pháp công nghệ",
-        "5.3. Sử dụng sáng tạo công nghệ số",
-        "5.4. Xác định các vấn đề cần cải thiện về NLS",
-        "6.1. Hiểu biết về trí tuệ nhân tạo",
-        "6.2. Sử dụng trí tuệ nhân tạo",
-        "6.3. Đánh giá trí tuệ nhân tạo"
+        "1.1. Duyệt, tìm kiếm và lọc dữ liệu, thông tin và nội dung số", "1.2. Đánh giá dữ liệu, thông tin và nội dung số",
+        "1.3. Quản lý dữ liệu, thông tin và nội dung số", "2.1. Tương tác thông qua công nghệ số",
+        "2.2. Chia sẻ thông tin và nội dung thông qua công nghệ số", "2.3. Sử dụng công nghệ số để thực hiện trách nhiệm công dân",
+        "2.4. Hợp tác thông qua công nghệ số", "2.5. Quy tắc ứng xử trên mạng", "2.6. Quản lý danh tính số",
+        "3.1. Phát triển nội dung số", "3.2. Tích hợp và tạo lập lại nội dung số", "3.3. Thực thi bản quyền và giấy phép",
+        "3.4. Lập trình", "4.1. Bảo vệ thiết bị", "4.2. Bảo vệ dữ liệu cá nhân và quyền riêng tư",
+        "4.3. Bảo vệ sức khỏe và an sinh số", "4.4. Bảo vệ môi trường", "5.1. Giải quyết các vấn đề kỹ thuật",
+        "5.2. Xác định nhu cầu và giải pháp công nghệ", "5.3. Sử dụng sáng tạo công nghệ số",
+        "5.4. Xác định các vấn đề cần cải thiện về NLS", "6.1. Hiểu biết về trí tuệ nhân tạo",
+        "6.2. Sử dụng trí tuệ nhân tạo", "6.3. Đánh giá trí tuệ nhân tạo"
     ]
     MUC_DO_NLS = ["-- Tự nhập --", "CB1a", "CB1b", "CB1c", "CB2a", "CB2b", "CB2c", "CB2d", "TC1a", "TC1b", "TC1c", "TC1d", "TC2a", "TC2b", "TC2c", "TC2d", "NC1a", "NC1b", "NC1c", "NC1d"]
+    DANH_SACH_KHOI = ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"]
+    DANH_SACH_MON = [
+        "Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Lịch sử và Địa lí", 
+        "Vật lí", "Hóa học", "Sinh học", "Lịch sử", "Địa lí", "Giáo dục công dân", 
+        "Giáo dục kinh tế và pháp luật", "Tin học", "Công nghệ", "Giáo dục thể chất", 
+        "Nghệ thuật (Âm nhạc, Mĩ thuật)", "Hoạt động trải nghiệm, hướng nghiệp", 
+        "Nội dung giáo dục địa phương", "Khác"
+    ]
 
     # =======================================================
     # 1. THÔNG TIN BÀI DẠY & CHẾ ĐỘ TÍCH HỢP
@@ -88,9 +78,9 @@ def render_xd_khbd(ai_engine=None):
     st.markdown("### 🎛️ Thông tin bài dạy")
     c_khoi, c_mon = st.columns(2)
     with c_khoi:
-        st.selectbox("KHỐI LỚP", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9"])
+        st.selectbox("KHỐI LỚP", DANH_SACH_KHOI)
     with c_mon:
-        st.selectbox("MÔN HỌC", ["Khoa học tự nhiên", "Toán", "Ngữ văn", "Tin học", "Công nghệ"])
+        st.selectbox("MÔN HỌC", DANH_SACH_MON)
 
     st.write("")
     st.markdown("#### ✨ Chế độ tích hợp")
@@ -110,43 +100,32 @@ def render_xd_khbd(ai_engine=None):
             st.caption("Lồng ghép hỗ trợ HSKT")
 
     st.write("")
-    
     # =======================================================
     # 2. NÚT CHUYỂN ĐỔI CHẾ ĐỘ (TOGGLE)
     # =======================================================
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
-        btn_chinh_sua = st.button("📄 CHỈNH SỬA GIÁO ÁN GỐC", 
-                                  type="primary" if st.session_state.soan_mode == "chinh_sua" else "secondary", 
-                                  use_container_width=True, 
-                                  on_click=set_mode, args=("chinh_sua",))
+        st.button("📄 CHỈNH SỬA GIÁO ÁN GỐC", type="primary" if st.session_state.soan_mode == "chinh_sua" else "secondary", use_container_width=True, on_click=set_mode, args=("chinh_sua",))
     with c_btn2:
-        btn_tu_dong = st.button("⚡ TỰ ĐỘNG SOẠN TỪ SGK", 
-                                type="primary" if st.session_state.soan_mode == "tu_dong" else "secondary", 
-                                use_container_width=True, 
-                                on_click=set_mode, args=("tu_dong",))
+        st.button("⚡ TỰ ĐỘNG SOẠN TỪ SGK", type="primary" if st.session_state.soan_mode == "tu_dong" else "secondary", use_container_width=True, on_click=set_mode, args=("tu_dong",))
 
     st.divider()
-
-    # =======================================================
+# =======================================================
     # 3A. GIAO DIỆN: CHỈNH SỬA GIÁO ÁN GỐC 
     # =======================================================
     if st.session_state.soan_mode == "chinh_sua":
         with st.container(border=True):
             st.markdown("### 📤 Tài liệu đầu vào (Chỉ nên tải lên giáo án 1 tiết hoặc 1 bài)")
-            
             c_up1, c_up2, c_up3 = st.columns(3)
-            
             with c_up1:
                 with st.container(border=True):
                     st.markdown('''
                         <div class="upload-card">
                             <div class="upload-icon">📄</div>
                             <div class="upload-title">Tải lên Giáo án gốc</div>
-                            <div class="upload-desc">Hỗ trợ file Word (.docx), PDF, JPG, PNG. Bản đẹp, không phải bản scan.</div>
+                            <div class="upload-desc">Hỗ trợ Word (.docx), PDF, JPG, PNG.</div>
                         </div>
                     ''', unsafe_allow_html=True)
-                    # Hỗ trợ đa định dạng, cho phép tải nhiều file ảnh cùng lúc
                     st.file_uploader("Upload GA", type=["docx", "pdf", "jpg", "png", "jpeg"], accept_multiple_files=True, label_visibility="collapsed")
                 st.markdown("<div style='text-align: center; color: #ef4444; font-size: 0.9em; margin-top: -10px;'>⚠️ Yêu cầu bắt buộc</div>", unsafe_allow_html=True)
                 
@@ -156,7 +135,7 @@ def render_xd_khbd(ai_engine=None):
                         <div class="upload-card">
                             <div class="upload-icon" style="color: #6b7280;">📊</div>
                             <div class="upload-title">Tải lên PPCT</div>
-                            <div class="upload-desc">Dùng để trích xuất chính xác năng lực số theo quy định nhà trường.</div>
+                            <div class="upload-desc">Trích xuất chính xác năng lực số.</div>
                         </div>
                     ''', unsafe_allow_html=True)
                     st.file_uploader("Upload PPCT", type=["pdf", "docx", "xlsx"], label_visibility="collapsed")
@@ -168,12 +147,12 @@ def render_xd_khbd(ai_engine=None):
                         <div class="upload-card">
                             <div class="upload-icon" style="color: #6b7280;">📋</div>
                             <div class="upload-title">Tải lên Bảng tích hợp AI</div>
-                            <div class="upload-desc">Nếu không tải, hệ thống sẽ tự động phân tích</div>
+                            <div class="upload-desc">Để hệ thống tự động phân tích</div>
                         </div>
                     ''', unsafe_allow_html=True)
                     st.file_uploader("Upload AI", type=["pdf", "docx", "xlsx"], label_visibility="collapsed")
                     
-        st.warning("**Lời khuyên để tránh lỗi và tối ưu Quota:** Xin đừng đưa cả 1 kỳ học hoặc hàng chục trang giáo án vào cùng 1 lúc! Hãy tải **từng bài một (1 - 3 tiết)**. Việc tải khối lượng khổng lồ sẽ khiến AI bị ngợp sập bộ nhớ, làm hỏng bảng biểu và trừ một lúc sạch Quota sử dụng của bạn.", icon="⚠️")
+        st.warning("**Lời khuyên:** Xin đừng đưa cả 1 kỳ học hoặc hàng chục trang giáo án vào cùng 1 lúc! Hãy tải **từng bài một (1 - 3 tiết)** để tránh AI bị ngợp và tốn Quota.", icon="⚠️")
 
     # =======================================================
     # 3B. GIAO DIỆN: TỰ ĐỘNG SOẠN TỪ SGK
@@ -194,7 +173,7 @@ def render_xd_khbd(ai_engine=None):
 
         st.markdown("**Hình ảnh / PDF SGK cơ sở** *(Khuyến nghị chụp thật nét)*")
         with st.container(border=True):
-            sgk_files = st.file_uploader("Kéo thả hoặc Nhấn để tải lên Sách Giáo Khoa", type=["pdf", "jpg", "png"], accept_multiple_files=True)
+            st.file_uploader("Kéo thả hoặc Nhấn để tải lên Sách Giáo Khoa", type=["pdf", "jpg", "png"], accept_multiple_files=True)
 
         st.markdown("**Kế hoạch Hoạt động (Tùy chọn)**")
         c_input, c_add = st.columns([4, 1])
@@ -208,7 +187,7 @@ def render_xd_khbd(ai_engine=None):
                 c_tag1, c_tag2 = st.columns([11, 1])
                 with c_tag1: st.info(f"📍 {hd}")
                 with c_tag2:
-                    if st.button("❌", key=f"del_{i}", help="Xóa"):
+                    if st.button("❌", key=f"del_{i}"):
                         st.session_state.hoat_dong_list.remove(hd)
                         st.rerun()
 
@@ -221,25 +200,20 @@ def render_xd_khbd(ai_engine=None):
             if tich_hop_ai:
                 with c_tl2:
                     with st.container(border=True): st.file_uploader("📋 Tải lên Bảng tích hợp AI", type=["pdf", "docx", "xlsx"])
-
-    # =======================================================
+# =======================================================
     # 4. CHỌN DẠNG KHUYẾT TẬT & YÊU CẦU NLS CHI TIẾT
     # =======================================================
     if tich_hop_kt:
         with st.container(border=True):
             st.markdown("#### 🎯 Chọn dạng khuyết tật hòa nhập")
-            loai_kt = st.pills("Chọn khuyết tật", ["Khuyết tật vận động", "Khuyết tật nghe", "Khuyết tật nói", "Khuyết tật nhìn", "Khuyết tật thần kinh", "Khuyết tật tâm thần", "Khuyết tật trí tuệ", "Khuyết tật tự kỷ", "Khuyết tật khác", "Khuyết tật chung"], selection_mode="multi", default=["Khuyết tật chung"])
+            st.pills("Chọn khuyết tật", ["Khuyết tật vận động", "Khuyết tật nghe", "Khuyết tật nói", "Khuyết tật nhìn", "Khuyết tật thần kinh", "Khuyết tật tâm thần", "Khuyết tật trí tuệ", "Khuyết tật tự kỷ", "Khuyết tật khác", "Khuyết tật chung"], selection_mode="multi", default=["Khuyết tật chung"])
 
-    # CHỨC NĂNG MỚI: YÊU CẦU NĂNG LỰC SỐ CỤ THỂ
     if tich_hop_nls:
         with st.container(border=True):
-            co_yc_nls = st.checkbox("🎯 **Yêu cầu Năng lực số cụ thể (Tùy chọn)**", value=True) # Checkbox giống ảnh thiết kế
+            co_yc_nls = st.checkbox("🎯 **Yêu cầu Năng lực số cụ thể (Tùy chọn)**", value=True)
             if co_yc_nls:
                 st.caption("Tích vào đây nếu bạn muốn chỉ định rõ thành phần và mức độ NLS cho AI")
-                
-                # Tạo 3 cột đúng tỷ lệ thiết kế
                 c_tp, c_md, c_nd = st.columns([1.5, 1, 2.5])
-                
                 with c_tp:
                     st.selectbox("**1. THÀNH PHẦN**", THANH_PHAN_NLS, key="nls_tp")
                 with c_md:
@@ -251,7 +225,6 @@ def render_xd_khbd(ai_engine=None):
                 with c_btn_add:
                     st.button("➕ Thêm vào danh sách", type="primary", on_click=add_nls_item, use_container_width=True)
                 
-                # Hiển thị danh sách NLS đã thêm
                 if st.session_state.nls_list:
                     st.markdown("---")
                     for i, item in enumerate(st.session_state.nls_list):
