@@ -286,9 +286,6 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
         "message": message,
     }
 
-# ============================================================
-# 7. ĐỌC PDF & DOCX & EXCEL
-# ============================================================
 def read_pdf(uploaded_file, range_str=""):
     result = []
     try:
@@ -296,23 +293,41 @@ def read_pdf(uploaded_file, range_str=""):
         reader = PyPDF2.PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         start, end = 1, total_pages
-
-        if range_str and "-" in range_str:
+        
+        # Xử lý thông minh phạm vi trang: Hỗ trợ cả khoảng (5-6) lẫn trang đơn (5)
+        range_str = safe_text(range_str)
+        if range_str:
             try:
-                s, e = range_str.split("-")
-                start = max(1, int(s.strip()))
-                end = min(total_pages, int(e.strip()))
+                if "-" in range_str:
+                    s, e = range_str.split("-")
+                    start = max(1, int(s.strip()))
+                    end = min(total_pages, int(e.strip()))
+                else:
+                    # Trường hợp giáo viên gõ một số trang đơn lẻ
+                    p = int(range_str)
+                    start = max(1, min(total_pages, p))
+                    end = start
             except ValueError:
                 pass
-
+                
         for index in range(start, end + 1):
             page = reader.pages[index - 1]
             text = page.extract_text() or ""
             text = safe_text(text)
             if text:
                 result.append(f"\n[PDF - Trang {index}]\n{text}")
-
+                
         text_result = "\n".join(result)
+        
+        # Phòng hờ nếu trích xuất trang chỉ định quá ít, tự động quét toàn bộ tài liệu để không bị chặn lỗi
+        if len(text_result.strip()) < 200 and total_pages > 1:
+            fallback_result = []
+            for index, page in enumerate(reader.pages, start=1):
+                t = safe_text(page.extract_text() or "")
+                if t:
+                    fallback_result.append(f"\n[PDF - Trang {index}]\n{t}")
+            text_result = "\n".join(fallback_result)
+            
         return normalize_source_text(text_result)
     except Exception as e:
         return f"[LỖI ĐỌC PDF: {str(e)}]"
