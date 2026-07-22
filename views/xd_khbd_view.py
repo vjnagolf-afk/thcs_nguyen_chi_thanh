@@ -5,12 +5,11 @@ VIEW: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUYÊN SÂU - TT18 & CV5512)
 FILE: views/xd_khbd_view.py
 ============================================================
 """
-
 import streamlit as st
 import os
 import json
+import tempfile
 from pathlib import Path
-
 import pandas as pd
 import PyPDF2
 from docx import Document
@@ -22,7 +21,6 @@ except ImportError as e:
     WordExportEngine = None
     TemplateLoader = None
     EXPORT_WORD_IMPORT_ERROR = str(e)
-
 
 # ============================================================
 # DICTIONARY NĂNG LỰC SỐ THÔNG TƯ 18/2026 ĐẦY ĐỦ 6 MIỀN
@@ -158,10 +156,14 @@ KHUNG_NLS_HS = {
         }
     }
 }
+---
 
+### PHẦN 2: ENGINE TRÍCH XUẤT FILE CO ĐỌNG THEO PHẠM VI TRANG (TỐI ƯU CỐT LÕI)
+Đoạn mã này tích hợp tính năng lọc trang nâng cao, ngăn chặn việc AI đọc thừa thãi và tập trung tối đa dữ liệu thô từ SGK phục vụ quá trình biên soạn.
 
+```python
 # ============================================================
-# SESSION STATE
+# SESSION STATE & TRỢ THỦ ĐỌC FILE TỐI ƯU
 # ============================================================
 def init_session_state():
     defaults = {
@@ -170,6 +172,7 @@ def init_session_state():
         "khbd_nls_list": [],
         "khbd_hoat_dong_list": [],
         "khbd_processing": False,
+        "khbd_nls_noi_dung": ""
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -181,10 +184,6 @@ def reset_ket_qua():
 def set_mode(mode: str):
     st.session_state.khbd_mode = mode
 
-
-# ============================================================
-# HÀM ĐỌC FILE (HỖ TRỢ GIỚI HẠN TRANG)
-# ============================================================
 def safe_text(value):
     if value is None: return ""
     return str(value).replace("\x00", "").strip()
@@ -194,15 +193,16 @@ def read_pdf(uploaded_file, range_str=""):
     try:
         reader = PyPDF2.PdfReader(uploaded_file)
         total_pages = len(reader.pages)
-
         start, end = 1, total_pages
+        
         if range_str and "-" in range_str:
             try:
                 s, e = range_str.split("-")
-                start = max(1, int(s.strip()))
-                end = min(total_pages, int(e.strip()))
-            except: pass
-
+                start = max(1, int(s))
+                end = min(total_pages, int(e))
+            except ValueError:
+                pass
+                
         for index in range(start, end + 1):
             page = reader.pages[index - 1]
             text = page.extract_text() or ""
@@ -256,7 +256,7 @@ def read_multiple_files(files, range_str=""):
     result = []
     for uploaded_file in files or []:
         result.append(f"\n\n==================================================\n"
-                      f"TỆP: {uploaded_file.name}\n"
+                      f"TỆP TIẾN TRÌNH: {uploaded_file.name}\n"
                       f"==================================================\n")
         result.append(read_uploaded_file(uploaded_file, range_str))
     return "\n".join(result)
@@ -276,20 +276,17 @@ def read_template_local(path="templates/KHBD_Mau.docx"):
                     cells = [safe_text(cell.text).replace("\n", " ") for cell in row.cells]
                     result.append(" | ".join(cells))
             return "\n".join(result)
-    except Exception: return ""
-
-
+    except Exception:
+        return ""
 # ============================================================
-# NLS AUTO-FILL
+# CẤU HÌNH VÀ ENGINE XỬ LÝ PROMPT CHIẾN LƯỢC CAO CẤP
 # ============================================================
 def add_nls():
     linh_vuc = st.session_state.get("khbd_nls_linh_vuc", "")
     thanh_phan = st.session_state.get("khbd_nls_thanh_phan", "")
     muc_do = st.session_state.get("khbd_nls_muc_do", "")
     noi_dung = st.session_state.get("khbd_nls_noi_dung", "").strip()
-
     if not noi_dung: return
-
     item = {
         "van_ban": "18/2026/TT-BGDĐT" if st.session_state.get("khbd_loai_khung_nls") == "Giáo viên (Thông tư 18)" else "DigComp",
         "linh_vuc": linh_vuc,
@@ -297,7 +294,6 @@ def add_nls():
         "muc_do": muc_do,
         "noi_dung": noi_dung,
     }
-
     if item not in st.session_state.khbd_nls_list:
         st.session_state.khbd_nls_list.append(item)
 
@@ -316,20 +312,12 @@ def format_nls():
         )
     return "\n".join(result)
 
-
-# ============================================================
-# HOẠT ĐỘNG
-# ============================================================
 def add_activity():
     value = st.session_state.get("khbd_new_activity", "").strip()
     if value and value not in st.session_state.khbd_hoat_dong_list:
         st.session_state.khbd_hoat_dong_list.append(value)
     st.session_state.khbd_new_activity = ""
 
-
-# ============================================================
-# AI ENGINE
-# ============================================================
 def normalize_ai_result(result):
     if result is None: return ""
     if isinstance(result, str): return result.strip()
@@ -348,178 +336,134 @@ def generate_ai(ai_engine, prompt):
         result = ai_engine.generate(prompt)
         text = normalize_ai_result(result)
         if text: return text
-    raise RuntimeError("AI Engine không trả về nội dung.")
+    raise RuntimeError("AI Engine không trả về nội dung giáo án hoàn chỉnh.")
 
-
-# ============================================================
-# PROMPT CHIẾN LƯỢC CAO CẤP (ÉP CHI TIẾT SƯ PHẠM THEO 5512)
-# ============================================================
-def build_prompt(
-    thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung_mau,
-    nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode
-):
+def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
     if mode == "chinh_sua":
-        nhiem_vu = "Phân tích, chuẩn hóa và nâng cấp giáo án gốc theo Công văn 5512."
+        nhiem_vu = "Phân tích, kế thừa nội dung thô và chuẩn hóa cấu trúc giáo án theo đúng Phụ lục 4 Công văn 5512."
     else:
-        nhiem_vu = "Soạn mới hoàn toàn Kế hoạch bài dạy từ Sách giáo khoa theo đúng cấu trúc mẫu chuẩn của trường."
-
+        nhiem_vu = "Soạn mới hoàn toàn Kế hoạch bài dạy chi tiết từ dữ liệu Sách giáo khoa (SGK) được cung cấp."
+        
     return f"""
-BẠN LÀ CHUYÊN GIA SƯ PHẠM CAO CẤP.
-NHIỆM VỤ: {nhiem_vu}
+BẠN LÀ CHUYÊN GIA SƯ PHẠM CAO CẤP VÀ THẨM ĐỊNH CHƯƠNG TRÌNH GIÁO DỤC PHỔ THÔNG 2018.
+NHIỆM VỤ CỦA BẠN: {nhiem_vu}
 
-==================================================
-🎯 YÊU CẦU BẮT BUỘC VỀ THỜI LƯỢNG VÀ NỘI DUNG SGK
-==================================================
-1. Phải soạn đúng thời lượng quy định: {thong_tin} (Ví dụ: Bài 2 tiết thì phải phân bổ lượng kiến thức và hoạt động đủ cho 90 phút).
-2. TUYỆT ĐỐI không được tóm tắt sơ sài. Phải trích xuất TOÀN BỘ kiến thức cốt lõi, định nghĩa, định lý, công thức, ví dụ từ "TÀI LIỆU NGUỒN CỐT LÕI" đưa vào giáo án. Không bỏ sót bất kỳ tiểu mục nào của bài học.
+==================================================================================
+🚨 QUY TẮC ÉP SƯ PHẠM CHI TIẾT - CHỐNG VIẾT CHUNG CHUNG (BẮT BUỘC TUÂN THỦ 100%) 🚨
+==================================================================================
+Tuyệt đối KHÔNG sử dụng câu văn mang tính tóm tắt, bao quát mơ hồ. Bạn phải viết chi tiết cụ thể hành vi sư phạm:
+❌ CẤM VIẾT CHUNG CHUNG: "Giáo viên yêu cầu học sinh làm bài tập", "Học sinh thảo luận nhóm", "GV kết luận kiến thức", "Sản phẩm: HS hoàn thành vở bài tập".
+✅ PHẢI CHI TIẾT HÓA MÔ HÌNH:
+- Mục Nội dung: Ghi chính xác câu hỏi, đề bài, phiếu học tập mà GV giao cho HS.
+- Mục Sản phẩm: Ghi ĐẦY ĐỦ lời giải, đáp án khoa học chi tiết, phương trình toán học/hóa học, kết luận cuối cùng mà học sinh phải làm ra.
+- Mục Kết luận, nhận định: Ghi RÕ RÀNG NỘI DUNG TRỌNG TÂM kiến thức khoa học để học sinh chép vào vở học (Không ghi "GV nhận xét chung").
 
-==================================================
-📋 TUÂN THỦ PHỤ LỤC 4 - CÔNG VĂN 5512
-==================================================
-Giáo án ĐẦU RA bắt buộc phải tổ chức theo đúng cấu trúc Phụ lục 4 sau đây (BẮT BUỘC BÁM SÁT MẪU ĐỀ MỤC):
+==================================================================================
+⏱️ QUY ĐỊNH BÁM SÁT THỜI LƯỢNG VÀ NỘI DUNG TÀI LIỆU NGUỒN SGK
+==================================================================================
+1. Toàn bộ tiến trình dạy học phải phân bổ logic khớp hoàn toàn với thời lượng quy định trong thông tin bài dạy.
+2. Trích xuất TOÀN BỘ kiến thức, khái niệm, thuật ngữ từ "TÀI LIỆU NGUỒN CỐT LÕI (SGK)". Tuyệt đối không tự bịa kiến thức ngoài SGK hoặc viết tóm lược lược bỏ nội dung chính của bài.
 
-I. MỤC TIÊU (Ghi rõ Yêu cầu cần đạt về:)
-1. Về kiến thức
-2. Về năng lực (Năng lực đặc thù, Năng lực chung)
-3. Về phẩm chất
+==================================================================================
+📐 QUY TẮC ĐỊNH DẠNG CÔNG THỨC TOÁN, LÝ, HÓA (ĐỂ XUẤT FILE WORD CHUẨN)
+==================================================================================
+- TUYỆT ĐỐI KHÔNG dùng mã LaTeX phức tạp (ví dụ: cấm dùng \frac, \left, \right, \delta, \rightarrow).
+- BẮT BUỘC DÙNG KÝ TỰ UNICODE VÀ PHƯƠNG PHÁP VIẾT TUYẾN TÍNH TRUYỀN THỐNG:
+  + Công thức Toán/Lý: x^2 + 2x - 1 = 0; Phân số ghi dạng a/b (Ví dụ: (x + 1)/(x - 1)); Căn bậc hai ghi là căn(x) hoặc dùng ký tự √x.
+  + Công thức Hóa học/Đơn vị (Dùng sub/superscript chuẩn): H₂O, CO₂, H₂SO₄, Fe + CuSO₄ -> FeSO₄ + Cu, m/s², kg/m³.
 
-II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-(Liệt kê cụ thể máy chiếu, phiếu học tập số mấy, học liệu số nào...)
+==================================================================================
+📋 ĐỀ MỤC KHUNG GIÁO ÁN ĐẦU RA (BẮT BUỘC THEO PHỤ LỤC 4 CÔNG VĂN 5512)
+==================================================================================
+I. MỤC TIÊU: (Ghi rõ: 1. Về kiến thức; 2. Về năng lực; 3. Về phẩm chất)
+II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU: (Mô tả thiết bị, phiếu học tập số mấy)
+III. TIẾN TRÌNH DẠY HỌC:
+Mỗi Hoạt động học (Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng) bắt buộc phải triển khai cấu trúc cô đọng gồm 4 mục:
+  a) Mục tiêu: (Hoạt động này giúp đạt được yêu cầu cần đạt cụ thể nào)
+  b) Nội dung: (Chi tiết nội dung câu hỏi/nhiệm vụ)
+  c) Sản phẩm học tập: (Đáp án toàn diện, chi tiết, cụ thể của học sinh)
+  d) Tổ chức thực hiện: (Triển khai đầy đủ theo 4 bước nhỏ:)
+     - Bước 1: Chuyển giao nhiệm vụ (Ghi rõ GV hướng dẫn như thế nào, thời gian bao lâu)
+     - Bước 2: Thực hiện nhiệm vụ (HS làm việc cá nhân/nhóm, GV hỗ trợ trực tiếp)
+     - Bước 3: Báo cáo, thảo luận (Cách thức gọi HS lên bảng báo cáo, tranh luận chéo)
+     - Bước 4: Kết luận, nhận định (Ghi lại nội dung kiến thức chính xác kiến thức để học sinh ghi vở)
 
-III. TIẾN TRÌNH DẠY HỌC
-Mỗi bài học phải gồm 4 Hoạt động lớn. Trong MỖI HOẠT ĐỘNG, bắt buộc phải viết đầy đủ 4 mục nhỏ sau (KHÔNG ĐƯỢC GỘP, KHÔNG ĐƯỢC VIẾT CHUNG CHUNG):
-  a) Mục tiêu: (Nêu rõ mục tiêu của hoạt động này giải quyết cho YCCĐ nào ở phần I)
-  b) Nội dung: (Ghi chi tiết câu hỏi, bài tập, nhiệm vụ chuyển giao cho học sinh)
-  c) Sản phẩm: (Ghi ĐẦY ĐỦ, CHI TIẾT đáp án, lời giải, bài làm hoàn chỉnh của học sinh. Tuyệt đối không viết "HS hoàn thành vở bài tập")
-  d) Tổ chức thực hiện: (Triển khai bắt buộc theo 4 bước nhỏ:)
-     - Bước 1: Chuyển giao nhiệm vụ (Ghi rõ GV nói gì, giao phiếu học tập nào, thời gian bao nhiêu phút)
-     - Bước 2: Thực hiện nhiệm vụ (Mô tả chi tiết cách HS làm việc cá nhân/nhóm, GV theo dõi, hỗ trợ nhóm nào, xử lý tình huống gì)
-     - Bước 3: Báo cáo, thảo luận (Chỉ định rõ cách chọn nhóm báo cáo, cách phản biện, nhận xét chéo giữa các học sinh)
-     - Bước 4: Kết luận, nhận định (Ghi rõ nội dung kiến thức GV chốt lại để HS ghi vở. Nội dung này phải là kiến thức khoa học chi tiết, không ghi chung chung)
-
-==================================================
-IV. TÀI LIỆU NGUỒN CỐT LÕI (SGK / GIÁO ÁN)
-==================================================
-{noi_dung_chinh}
-
-==================================================
-V. MẪU GIÁO ÁN GỐC (BÁM SÁT CẤU TRÚC BẢNG BIỂU NẾU CÓ)
-==================================================
+==================================================================================
+[DỮ LIỆU BỐ CỤC ĐẦU VÀO]
+I. THÔNG TIN BÀI DẠY:
+{thong_tin}
+II. MẪU GIÁO ÁN GỐC / THAM KHẢO TRƯỜNG:
 {noi_dung_mau}
+III. TÀI LIỆU NGUỒN CỐT LÕI (SGK / GIÁO ÁN GỐC):
+{noi_dung_chinh}
+IV. TÀI LIỆU CHỈ ĐẠO BỔ SUNG:
+- Phân phối chương trình: {noi_dung_ppct}
+- Khung AI tích hợp: {noi_dung_ai}
+V. YÊU CẦU ĐẶC BIỆT TÍCH HỢP:
+1. Năng lực số chuẩn mới: {nls}
+2. Tích hợp AI: {'Yêu cầu tích hợp sâu AI sư phạm vào nội dung bài giảng.' if tich_hop_ai else 'Không bắt buộc chuyên sâu.'}
+3. Hòa nhập học sinh chuyên biệt ({nhu_cau_hoa_nhap}): {'Điều chỉnh câu hỏi trực quan, phân tách thời gian trong từng tiến trình.' if tich_hop_hoa_nhap else 'Môi trường đại trà.'}
+4. Hoạt động bổ sung từ GV: {hoat_dong}
 
-==================================================
-VI. TÀI LIỆU CHỈ ĐẠO BỔ SUNG
-==================================================
-- PPCT: {noi_dung_ppct}
-- Tích hợp AI: {noi_dung_ai}
-
-==================================================
-VII. YÊU CẦU TÍCH HỢP ĐẶC BIỆT
-==================================================
-1. Năng lực số (Chuẩn TT 18/2026):
-{nls}
-
-2. Tích hợp AI:
-{'Có tích hợp AI. Phải thể hiện rõ phần hướng dẫn học sinh sử dụng công cụ AI, cách học sinh kiểm chứng kết quả và sản phẩm AI tạo ra trong hoạt động.' if tich_hop_ai else 'Không bắt buộc tích hợp AI chuyên sâu.'}
-
-3. Dạy học hòa nhập:
-{f'Hỗ trợ học sinh khuyết tật/nhu cầu đặc biệt ({nhu_cau_hoa_nhap}): Phải có giải pháp ĐIỀU CHỈNH TRỰC TIẾP vào hoạt động dạy học (câu hỏi dễ hơn, hình ảnh to hơn, thêm thời gian...).' if tich_hop_hoa_nhap else 'Không yêu cầu điều chỉnh đặc biệt.'}
-
-4. Hoạt động giáo viên yêu cầu thêm:
-{hoat_dong}
-
-==================================================
-VIII. QUY TẮC ĐỊNH DẠNG ĐẦU RA (MARKDOWN)
-==================================================
-- Trả về nội dung dạng Markdown chuẩn, sạch sẽ. Các tiêu đề bài học dùng Heading chuẩn (#, ##, ###).
-- Dùng cấu trúc bảng Markdown (| Cột 1 | Cột 2 |) nếu file mẫu yêu cầu bảng.
-- KHÔNG SỬ DỤNG MÃ LATEX phức tạp (tránh dùng \frac, \left, \right). Dùng kí hiệu Unicode hoặc văn bản thường cho công thức (vd: a/b, x^2, H₂O, CO₂).
-- KHÔNG VIẾT LỜI CHÀO HỎI, KHÔNG GIẢI THÍCH NGOÀI LỀ. Trả thẳng nội dung giáo án hoàn chỉnh từ dòng đầu tiên.
+Trả về thẳng nội dung giáo án hoàn chỉnh dưới dạng Markdown sạch sẽ từ dòng đầu tiên, không chào hỏi, không giải thích ngoài lề.
 """
-
-
 # ============================================================
-# RENDER VIEW
+# GIAO DIỆN ĐIỀU KHIỂN CHÍNH (RENDER VIEW) - PHẦN UI FORM
 # ============================================================
 def render_xd_khbd(ai_engine=None):
     init_session_state()
-
     st.title("📘 XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUẨN 5512 & TT18)")
-
-    # --------------------------------------------------------
-    # THÔNG TIN BÀI DẠY
-    # --------------------------------------------------------
+    
     st.subheader("🎛️ Thông tin bài dạy")
     col1, col2 = st.columns(2)
     with col1:
         khoi_lop = st.selectbox("Khối lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], key="khbd_khoi_lop")
     with col2:
         mon_hoc = st.selectbox("Môn học", ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Vật lí", "Hóa học", "Sinh học", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "Khác"], key="khbd_mon_hoc")
-
-    # --------------------------------------------------------
-    # CHẾ ĐỘ
-    # --------------------------------------------------------
+        
     st.subheader("✨ Chế độ soạn")
     mode = st.radio("Chọn chế độ", ["chinh_sua", "tu_dong"], format_func=lambda x: "📄 Chỉnh sửa giáo án gốc" if x == "chinh_sua" else "⚡ Tự động soạn từ SGK", key="khbd_mode", horizontal=True)
-
-    # --------------------------------------------------------
-    # FILE TẢI LÊN (GOM THÀNH 1 DÒNG DUY NHẤT VÀ THÊM LỌC TRANG)
-    # --------------------------------------------------------
-    st.subheader("📤 Tài liệu đầu vào")
-    col_up1, col_up2, col_up3, col_up4 = st.columns(4)
     
     range_trang = ""
+    if mode == "tu_dong":
+        st.info("💡 Nên giới hạn phạm vi trang để AI trích xuất siêu chi tiết.")
+        range_trang = st.text_input("Phạm vi trang SGK cần soạn (Ví dụ: 45-48)", key="khbd_range_trang")
+
+    st.subheader("📤 Tài liệu đầu vào")
+    col_up1, col_up2, col_up3, col_up4 = st.columns(4)
     if mode == "chinh_sua":
         file_ga = col_up1.file_uploader("Giáo án gốc", type=["docx", "pdf"], accept_multiple_files=True, key="khbd_file_ga")
         file_sgk = []
     else:
         file_ga = []
         file_sgk = col_up1.file_uploader("SGK / Tài liệu", type=["pdf", "docx"], accept_multiple_files=True, key="khbd_file_sgk")
-        with col_up1:
-            st.markdown("<p style='font-size: 0.8rem; color: #888; margin-top:-10px;'>⚠️ <i>Nên giới hạn trang để AI phân tích chuẩn.</i></p>", unsafe_allow_html=True)
-            range_trang = st.text_input("Phạm vi trang (VD: 12-15)", key="khbd_range_trang")
-    
+        
     file_ppct = col_up2.file_uploader("PPCT (Tùy chọn)", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ppct")
     file_ai = col_up3.file_uploader("Bảng AI (Tùy chọn)", type=["pdf", "docx", "xlsx", "xls"], key="khbd_file_ai")
-    file_template = col_up4.file_uploader("Mẫu KHBD trường", type=["docx"], key="khbd_file_template")
+    file_template = col_up4.file_uploader("Mẫu KHBD trường (Tùy chọn)", type=["docx"], key="khbd_file_template")
 
-    # --------------------------------------------------------
-    # THÔNG TIN CHI TIẾT
-    # --------------------------------------------------------
     st.subheader("📚 Thông tin chi tiết")
     col_td1, col_td2 = st.columns(2)
     with col_td1: ten_bai = st.text_input("Tên bài dạy", key="khbd_ten_bai")
-    with col_td2: so_tiet = st.text_input("Thời lượng", value="1 tiết", key="khbd_so_tiet")
+    with col_td2: so_tiet = st.text_input("Thời lượng tiết học", value="1 tiết", key="khbd_so_tiet")
 
-    # --------------------------------------------------------
-    # TÍCH HỢP CHUYÊN SÂU & HÒA NHẬP (CỐ ĐỊNH GIAO DIỆN)
-    # --------------------------------------------------------
     st.subheader("🔧 Tích hợp chuyên sâu")
     c_th1, c_th2, c_th3 = st.columns(3)
     with c_th1: tich_hop_nls = st.checkbox("Năng lực số (TT18)", key="khbd_tich_hop_nls")
     with c_th2: tich_hop_ai = st.checkbox("Năng lực AI", key="khbd_tich_hop_ai")
     with c_th3: tich_hop_hoa_nhap = st.checkbox("Dạy học hòa nhập", key="khbd_tich_hop_hoa_nhap")
 
-    # NẾU CHỌN DẠY HỌC HÒA NHẬP -> HIỂN THỊ MULTISELECT CHỌN KHUYẾT TẬT
     nhu_cau_hoa_nhap = []
     if tich_hop_hoa_nhap:
         with st.container(border=True):
-            st.markdown("##### 🫂 Lựa chọn loại khuyết tật/nhu cầu cần hỗ trợ:")
-            nhu_cau_hoa_nhap = st.multiselect(
-                "Chọn đối tượng học sinh", 
-                ["Vận động", "Nghe", "Nói", "Nhìn", "Thần kinh", "Tâm thần", "Trí tuệ", "Tự kỷ", "Khác"], 
-                default=["Nhìn"],
-                key="khbd_nhu_cau_hoa_nhap"
-            )
+            st.markdown("##### 🫂 Lựa chọn loại khuyết tật/nhu cầu:")
+            nhu_cau_hoa_nhap = st.multiselect("Chọn đối tượng", ["Vận động", "Nghe", "Nói", "Nhìn", "Thần kinh", "Tâm thần", "Trí tuệ", "Tự kỷ", "Khác"], default=["Nhìn"], key="khbd_nhu_cau_hoa_nhap")
 
-    # --------------------------------------------------------
-    # HOẠT ĐỘNG
-    # --------------------------------------------------------
     st.subheader("📌 Hoạt động giáo viên mong muốn thêm")
     c_hd1, c_hd2 = st.columns([5, 1])
-    with c_hd1: st.text_input("Hoạt động", placeholder="VD: Thí nghiệm, trò chơi, mô phỏng...", key="khbd_new_activity", label_visibility="collapsed", on_change=add_activity)
+    with c_hd1: st.text_input("Hoạt động", placeholder="VD: Thí nghiệm...", key="khbd_new_activity", label_visibility="collapsed", on_change=add_activity)
     with c_hd2: st.button("➕ Thêm", on_click=add_activity, use_container_width=True)
-
+    
     for index, activity in enumerate(st.session_state.khbd_hoat_dong_list):
         c_i1, c_i2 = st.columns([10, 1])
         with c_i1: st.info(activity)
@@ -527,148 +471,92 @@ def render_xd_khbd(ai_engine=None):
             if st.button("Xóa", key=f"khbd_del_activity_{index}"):
                 st.session_state.khbd_hoat_dong_list.pop(index)
                 st.rerun()
-
     # --------------------------------------------------------
-    # NĂNG LỰC SỐ (THÔNG TƯ 18 MỞ RỘNG)
+    # ĐỒNG BỘ NĂNG LỰC SỐ PHẢN HỒI NHANH VÀ XỬ LÝ AI
     # --------------------------------------------------------
     if tich_hop_nls:
         with st.container(border=True):
-            st.markdown("#### 🎯 Cấu hình Năng lực số (Theo Thông tư 18/2026)")
-
-            loai_khung = st.radio("Chọn chuẩn Năng lực số:", ["Giáo viên (Thông tư 18)", "Học sinh (DigComp)"], horizontal=True, key="khbd_loai_khung_nls")
+            st.markdown("#### 🎯 Cấu hình Năng lực số")
+            loai_khung = st.radio("Chuẩn:", ["Giáo viên (Thông tư 18)", "Học sinh (DigComp)"], horizontal=True, key="khbd_loai_khung_nls")
             current_khung = KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
-
+            
             col_lv, col_tp, col_md = st.columns([2, 2, 1])
             with col_lv: linh_vuc = st.selectbox("Lĩnh vực", list(current_khung.keys()), key="khbd_nls_linh_vuc")
             with col_tp: thanh_phan = st.selectbox("Thành phần", list(current_khung[linh_vuc].keys()), key="khbd_nls_thanh_phan")
             with col_md: muc_do = st.selectbox("Mức độ", list(current_khung[linh_vuc][thanh_phan].keys()), key="khbd_nls_muc_do")
-
-            if "last_khung_state" not in st.session_state: st.session_state.last_khung_state = loai_khung
-            if "last_lv_state" not in st.session_state: st.session_state.last_lv_state = linh_vuc
-            if "last_tp_state" not in st.session_state: st.session_state.last_tp_state = thanh_phan
-            if "last_md_state" not in st.session_state: st.session_state.last_md_state = muc_do
-
-            if (st.session_state.last_khung_state != loai_khung or
-                st.session_state.last_lv_state != linh_vuc or
-                st.session_state.last_tp_state != thanh_phan or
-                st.session_state.last_md_state != muc_do):
-                
-                st.session_state.last_khung_state = loai_khung
-                st.session_state.last_lv_state = linh_vuc
-                st.session_state.last_tp_state = thanh_phan
-                st.session_state.last_md_state = muc_do
-                
-                st.session_state.khbd_nls_noi_dung = current_khung[linh_vuc][thanh_phan][muc_do]
-
-            st.text_area("Yêu cầu cần đạt (Auto-fill)", key="khbd_nls_noi_dung", height=130)
-            st.button("➕ Thêm năng lực số vào danh sách", on_click=add_nls, use_container_width=True)
-
+            
+            tu_dong_noi_dung = current_khung[linh_vuc][thanh_phan][muc_do]
+            st.session_state.khbd_nls_noi_dung = tu_dong_noi_dung
+            st.text_area("Yêu cầu cần đạt", value=tu_dong_noi_dung, height=100, disabled=True)
+            st.button("➕ Thêm vào danh sách", on_click=add_nls, use_container_width=True)
+            
             for index, item in enumerate(st.session_state.khbd_nls_list):
                 with st.container(border=True):
-                    st.markdown(f"**{index + 1}. [{item['van_ban']}] {item['linh_vuc']}**\n\n**Thành phần:** {item['thanh_phan']} ({item['muc_do']})\n\n**Yêu cầu:** {item['noi_dung']}")
+                    st.markdown(f"**{index + 1}. {item['linh_vuc']}** ({item['muc_do']})\n\n{item['noi_dung']}")
                     if st.button("Xóa", key=f"khbd_del_nls_{index}"):
                         st.session_state.khbd_nls_list.pop(index)
                         st.rerun()
 
-    # --------------------------------------------------------
-    # NGÔN NGỮ
-    # --------------------------------------------------------
-    tieng_anh = st.checkbox("Giáo án viết bằng ngôn ngữ Tiếng Anh", key="khbd_tieng_anh")
+    tieng_anh = st.checkbox("Giáo án bằng Tiếng Anh", key="khbd_tieng_anh")
 
-    # --------------------------------------------------------
-    # NÚT KÍCH HOẠT XỬ LÝ AI
-    # --------------------------------------------------------
     st.divider()
-
     if st.button("⚡ KÍCH HOẠT XỬ LÝ AI", type="primary", use_container_width=True):
         if ai_engine is None:
-            st.error("❌ Chưa truyền AI Engine.")
+            st.error("❌ Chưa cấu hình AI Core Engine.")
             st.stop()
         if mode == "chinh_sua" and not file_ga:
             st.error("⚠️ Vui lòng tải giáo án gốc.")
             st.stop()
         if mode == "tu_dong" and not file_sgk:
-            st.error("⚠️ Vui lòng tải SGK hoặc tài liệu bài học.")
+            st.error("⚠️ Vui lòng cung cấp tệp SGK.")
             st.stop()
-
-        with st.spinner("🧠 AI đang phân tích sâu tài liệu và xây dựng KHBD siêu chi tiết theo chuẩn 5512..."):
+            
+        with st.spinner("🧠 AI đang phân tích dữ liệu nguồn và biên soạn KHBD chuẩn 5512..."):
             try:
-                # Xử lý giới hạn trang cho PDF
-                if mode == "chinh_sua":
-                    noi_dung_chinh = read_multiple_files(file_ga)
-                else:
-                    noi_dung_chinh = read_multiple_files(file_sgk, range_trang)
-                    
+                noi_dung_chinh = read_multiple_files(file_ga) if mode == "chinh_sua" else read_multiple_files(file_sgk, range_trang)
                 noi_dung_ppct = read_uploaded_file(file_ppct)
                 noi_dung_ai = read_uploaded_file(file_ai)
+                noi_dung_mau = read_uploaded_file(file_template) if file_template else read_template_local()
+                    
+                thong_tin = f"- Khối: {khoi_lop}\n- Môn: {mon_hoc}\n- Tên bài: {ten_bai or 'Theo nguồn'}\n- Số tiết: {so_tiet}\n- Ngôn ngữ: {'English' if tieng_anh else 'Tiếng Việt'}"
+                hoat_dong = "\n".join(st.session_state.khbd_hoat_dong_list) or "Không có."
                 
-                if file_template:
-                    noi_dung_mau = read_uploaded_file(file_template)
-                else:
-                    noi_dung_mau = read_template_local()
-
-                thong_tin = f"- Cấp học: THCS\n- Khối lớp: {khoi_lop}\n- Môn học: {mon_hoc}\n- Tên bài dạy: {ten_bai or 'Theo tài liệu nguồn'}\n- Thời lượng: {so_tiet}\n- Ngôn ngữ: {'Tiếng Anh' if tieng_anh else 'Tiếng Việt'}"
-                hoat_dong = "\n".join(st.session_state.khbd_hoat_dong_list) or "Không có yêu cầu riêng."
-
                 prompt = build_prompt(
-                    thong_tin=thong_tin,
-                    noi_dung_chinh=noi_dung_chinh,
-                    noi_dung_ppct=noi_dung_ppct,
-                    noi_dung_ai=noi_dung_ai,
-                    noi_dung_mau=noi_dung_mau,
-                    nls=format_nls(),
-                    tich_hop_ai=tich_hop_ai,
-                    tich_hop_hoa_nhap=tich_hop_hoa_nhap,
-                    nhu_cau_hoa_nhap=", ".join(nhu_cau_hoa_nhap),
-                    hoat_dong=hoat_dong,
-                    mode=mode
+                    thong_tin=thong_tin, noi_dung_chinh=noi_dung_chinh, noi_dung_ppct=noi_dung_ppct,
+                    noi_dung_ai=noi_dung_ai, noi_dung_mau=noi_dung_mau, nls=format_nls(),
+                    tich_hop_ai=tich_hop_ai, tich_hop_hoa_nhap=tich_hop_hoa_nhap,
+                    nhu_cau_hoa_nhap=", ".join(nhu_cau_hoa_nhap), hoat_dong=hoat_dong, mode=mode
                 )
-
-                result = generate_ai(ai_engine, prompt)
-                st.session_state.khbd_result = result
-                st.success("🎉 Đã tạo KHBD chi tiết thành công!")
-
+                st.session_state.khbd_result = generate_ai(ai_engine, prompt)
+                st.success("🎉 Đã tạo giáo án thành công!")
             except Exception as e:
-                st.error(f"❌ Lỗi xử lý AI: {str(e)}")
+                st.error(f"❌ Lỗi: {str(e)}")
 
-    # --------------------------------------------------------
-    # KẾT QUẢ VÀ XUẤT FILE WORD QUA CORE ENGINE
-    # --------------------------------------------------------
     result = st.session_state.get("khbd_result")
     if result:
         st.subheader("📝 Kết quả Kế hoạch bài dạy")
         st.markdown(result)
         st.divider()
-
         st.subheader("📄 Xuất Word Chuẩn Định Dạng")
-
-        if WordExportEngine is None or TemplateLoader is None:
-            st.error("❌ Lỗi xuất Word: Không import được các module lõi `export.word_export_engine` hoặc `export.template_loader`.")
-            st.code(EXPORT_WORD_IMPORT_ERROR, language="text")
+        
+        if WordExportEngine is None:
+            st.error("❌ Lỗi: Không kết nối được module `export.word_export_engine`.")
         else:
             try:
                 template_path = "templates/KHBD_Mau.docx"
                 uploaded_template = st.session_state.get("khbd_file_template")
-                
                 if uploaded_template:
-                    import tempfile
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
                         tmp.write(uploaded_template.getvalue())
                         template_path = tmp.name
-
-                # Kết xuất file Word bằng động cơ của dự án
-                word_bytes = WordExportEngine.convert_markdown_to_docx_bytes(result)
-
-                st.download_button(
-                    "📥 TẢI KHBD WORD (Chuẩn định dạng hành chính)",
-                    data=word_bytes,
-                    file_name="Giao_An_Thong_Minh.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
-
+                
+                try:
+                    word_bytes = WordExportEngine.convert_markdown_to_docx_bytes(result, template_path=template_path)
+                except TypeError:
+                    word_bytes = WordExportEngine.convert_markdown_to_docx_bytes(result)
+                        
+                st.download_button("📥 TẢI KHBD WORD (Chuẩn 5512)", data=word_bytes, file_name="Giao_An_5512.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
                 if uploaded_template and template_path != "templates/KHBD_Mau.docx" and os.path.exists(template_path):
                     os.remove(template_path)
-
             except Exception as e:
-                st.error(f"❌ Lỗi xuất Word từ Core Engine: {str(e)}")
+                st.error(f"❌ Lỗi xuất Word: {str(e)}")
