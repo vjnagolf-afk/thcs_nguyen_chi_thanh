@@ -370,3 +370,27 @@ class WordExportEngine:
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
         markdown_content = data_cache.get("ai_generated_content", "")
         return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
+# ============================================================
+# PUBLIC API
+# ============================================================
+
+def export_word(
+    markdown_text: str
+) -> bytes:
+    """
+    API công khai dùng cho các View.
+
+    Parameters
+    ----------
+    markdown_text : str
+        Nội dung Markdown do AI sinh ra.
+
+    Returns
+    -------
+    bytes
+        File Word ở dạng bytes.
+    """
+
+    return WordExportEngine.convert_markdown_to_docx_bytes(
+        markdown_text
+    )
