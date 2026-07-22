@@ -8,7 +8,7 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # =========================================================
-# CÁC HÀM TIỆN ÍCH VÀ QUẢN LÝ TRẠNG THÁI (STATE)
+# 1. CÁC HÀM TIỆN ÍCH VÀ QUẢN LÝ TRẠNG THÁI (STATE)
 # =========================================================
 def init_session_state():
     if "hoat_dong_list" not in st.session_state:
@@ -35,8 +35,8 @@ def add_nls_item():
         st.session_state.nls_list.append({"thanh_phan": tp, "muc_do": md, "noi_dung": nd})
         st.session_state["nls_nd"] = ""
 
+# Đã bọc Try-Catch an toàn cho tính năng OCR ảnh để không crash hệ thống
 def doc_noi_dung_file(uploaded_file):
-    """Bóc tách văn bản: Hỗ trợ PDF, Bảng trong Word, Mọi Sheet trong Excel và OCR Hình ảnh"""
     if not uploaded_file: return ""
     try:
         ext = uploaded_file.name.split('.')[-1].lower()
@@ -67,20 +67,18 @@ def doc_noi_dung_file(uploaded_file):
                 import google.generativeai as genai
                 import PIL.Image
                 img = PIL.Image.open(uploaded_file)
-                # Dùng model nhẹ, đa phương tiện để OCR bóc chữ từ ảnh ra Text (Giải pháp khắc phục AI text engine không đọc được ảnh)
                 model = genai.GenerativeModel('gemini-1.5-flash')
-                response = model.generate_content(["Hãy trích xuất chính xác toàn bộ văn bản có trong bức ảnh tài liệu này:", img])
+                response = model.generate_content(["Hãy trích xuất văn bản từ bức ảnh này:", img])
                 text += f"\n[Nội dung chữ trích xuất từ ảnh {uploaded_file.name}]:\n{response.text}\n"
             except Exception as e:
-                text += f"[⚠️ Không thể bóc tách chữ từ ảnh {uploaded_file.name}. Lỗi: {str(e)}]\n"
+                text += f"\n[⚠️ Không thể OCR ảnh {uploaded_file.name}. Vui lòng đảm bảo API Key hợp lệ hoặc dùng file PDF/Word. Chi tiết: {str(e)}]\n"
                 
         return text
     except Exception as e:
-        # Hỗ trợ hiển thị rõ lỗi đọc file để debug
-        return f"[⚠️ Có lỗi khi đọc file {uploaded_file.name}. Chi tiết lỗi: {str(e)}]\n"
+        return f"\n[⚠️ Có lỗi khi đọc file {uploaded_file.name}. Chi tiết lỗi: {str(e)}]\n"
 
+# Đã nâng cấp thuật toán vẽ bảng: Chống lỗi lệch cột, bỏ qua dòng phân cách Markdown
 def tao_file_word_hoan_hao(van_ban):
-    """Chuyển đổi Markdown AI thành file Word cực đẹp, có kẻ bảng"""
     doc_word = docx.Document()
     style = doc_word.styles['Normal']
     style.font.name = 'Times New Roman'
@@ -88,13 +86,23 @@ def tao_file_word_hoan_hao(van_ban):
 
     lines = van_ban.split('\n')
     table_data = []
+    num_cols = 0
     
     for line in lines:
         line_str = line.strip()
         if line_str.startswith('|') and line_str.endswith('|'):
-            if '---' in line_str: continue
+            # Bỏ qua dòng phân cách của Markdown (ví dụ: |---|---|)
+            if '---' in line_str or '===' in line_str: 
+                continue
             row_cells = [cell.strip().replace('**', '') for cell in line_str.strip('|').split('|')]
-            table_data.append(row_cells)
+            
+            if not table_data:
+                table_data.append(row_cells)
+                num_cols = len(row_cells)
+            else:
+                # Ép các dòng sau phải có số cột bằng dòng đầu tiên (chống lỗi tràn cột Word)
+                row_cells = row_cells[:num_cols] + [''] * max(0, num_cols - len(row_cells))
+                table_data.append(row_cells)
             continue
         else:
             if table_data:
@@ -132,7 +140,7 @@ def tao_file_word_hoan_hao(van_ban):
     return bio
 
 # =========================================================
-# GIAO DIỆN CHÍNH (RENDER)
+# 2. GIAO DIỆN CHÍNH (RENDER)
 # =========================================================
 def render_xd_khbd(ai_engine=None):
     init_session_state()
@@ -166,11 +174,11 @@ def render_xd_khbd(ai_engine=None):
     st.markdown("#### ✨ Chế độ tích hợp")
     c_th1, c_th2, c_th3 = st.columns(3)
     with c_th1:
-        with st.container(border=True): tich_hop_nls = st.checkbox("**Tích hợp Năng lực số**")
+        with st.container(border=True): tich_hop_nls = st.checkbox("**Tích hợp Năng lực số**", key="chk_nls")
     with c_th2:
-        with st.container(border=True): tich_hop_ai = st.checkbox("**Tích hợp Năng lực AI**")
+        with st.container(border=True): tich_hop_ai = st.checkbox("**Tích hợp Năng lực AI**", key="chk_ai")
     with c_th3:
-        with st.container(border=True): tich_hop_kt = st.checkbox("**Dạy học khuyết tật**")
+        with st.container(border=True): tich_hop_kt = st.checkbox("**Dạy học khuyết tật**", key="chk_kt")
 
     st.write("")
     c_btn1, c_btn2 = st.columns(2)
@@ -178,6 +186,9 @@ def render_xd_khbd(ai_engine=None):
     with c_btn2: st.button("⚡ TỰ ĐỘNG SOẠN TỪ SGK", type="primary" if st.session_state.soan_mode == "tu_dong" else "secondary", use_container_width=True, on_click=set_mode, args=("tu_dong",))
     st.divider()
 
+    # =========================================================
+    # 3. GIAO DIỆN TẢI FILE
+    # =========================================================
     if st.session_state.soan_mode == "chinh_sua":
         with st.container(border=True):
             st.markdown("### 📤 Tài liệu đầu vào (Chỉ nên tải lên giáo án 1 tiết hoặc 1 bài)")
@@ -231,10 +242,15 @@ def render_xd_khbd(ai_engine=None):
                 with c_tl2:
                     with st.container(border=True): st.file_uploader("📋 Tải lên Bảng tích hợp AI", type=["pdf", "docx", "xlsx"], key="file_ai_tu_dong")
 
+    # =========================================================
+    # 4. THIẾT LẬP CHI TIẾT TÍCH HỢP
+    # =========================================================
+    dang_khuyet_tat_chon = []
     if tich_hop_kt:
         with st.container(border=True):
             st.markdown("#### 🎯 Chọn dạng khuyết tật hòa nhập")
-            st.pills("Chọn khuyết tật", ["Vận động", "Nghe", "Nói", "Nhìn", "Thần kinh", "Tâm thần", "Trí tuệ", "Tự kỷ", "Khác", "Chung"], selection_mode="multi", default=["Chung"])
+            # Đã lưu kết quả của Pills vào biến
+            dang_khuyet_tat_chon = st.pills("Chọn khuyết tật", ["Vận động", "Nghe", "Nói", "Nhìn", "Thần kinh", "Tâm thần", "Trí tuệ", "Tự kỷ", "Khác", "Chung"], selection_mode="multi", default=["Chung"])
 
     if tich_hop_nls:
         with st.container(border=True):
@@ -259,15 +275,16 @@ def render_xd_khbd(ai_engine=None):
     with st.container(border=True):
         is_english = st.checkbox("Giáo án viết bằng ngôn ngữ Tiếng Anh")
 
+    # =========================================================
+    # 5. LÕI GỌI AI ENGINE
+    # =========================================================
     st.write("")
     if st.button("⚡ KÍCH HOẠT XỬ LÝ AI", type="primary", use_container_width=True):
-        # Dọn dẹp kết quả phiên trước
         st.session_state.pop("ket_qua_giao_an", None)
         
         if not ai_engine:
-            st.error("❌ Chưa cấu hình AI Engine. Vui lòng kiểm tra lại luồng truyền dữ liệu từ app.py."); st.stop()
+            st.error("❌ Chưa cấu hình AI Engine. Lỗi tại file gọi hàm (app.py) chưa truyền tham số `ai_engine`."); st.stop()
 
-        # Kiểm tra tính hợp lệ của File trước khi cho vòng quay chạy
         if st.session_state.soan_mode == "chinh_sua" and not st.session_state.get("file_ga"):
             st.error("⚠️ Vui lòng tải lên ít nhất 1 Giáo án gốc để AI có cơ sở phân tích!")
             st.stop()
@@ -275,62 +292,86 @@ def render_xd_khbd(ai_engine=None):
             st.error("⚠️ Vui lòng tải lên Sách Giáo Khoa (PDF/Ảnh) để AI biên soạn!")
             st.stop()
 
-        with st.spinner("🧠 AI đang phân tích dữ liệu và thiết kế giáo án... (Có thể mất 1-2 phút)"):
+        with st.spinner("🧠 AI đang đọc, xử lý dữ liệu và thiết kế giáo án... (Sẽ mất khoảng 1-2 phút)"):
             try:
                 noi_dung_chinh = ""
                 noi_dung_ppct = doc_noi_dung_file(st.session_state.get("file_ppct" if st.session_state.soan_mode == "chinh_sua" else "file_ppct_tu_dong"))
                 noi_dung_ai_file = doc_noi_dung_file(st.session_state.get("file_ai" if st.session_state.soan_mode == "chinh_sua" else "file_ai_tu_dong"))
 
                 if st.session_state.soan_mode == "chinh_sua":
-                    files_ga = st.session_state.get("file_ga", [])
-                    for f in files_ga: noi_dung_chinh += f"\n--- GIÁO ÁN GỐC ({f.name}) ---\n" + doc_noi_dung_file(f)
+                    for f in st.session_state.get("file_ga", []): noi_dung_chinh += f"\n--- GIÁO ÁN GỐC ({f.name}) ---\n" + doc_noi_dung_file(f)
                 else:
-                    files_sgk = st.session_state.get("file_sgk", [])
-                    for f in files_sgk: noi_dung_chinh += f"\n--- SÁCH GIÁO KHOA ({f.name}) ---\n" + doc_noi_dung_file(f)
+                    for f in st.session_state.get("file_sgk", []): noi_dung_chinh += f"\n--- SÁCH GIÁO KHOA ({f.name}) ---\n" + doc_noi_dung_file(f)
 
-                # Lấy toàn bộ thông tin nền tảng bài dạy
+                if len(noi_dung_chinh) > 80000:
+                    st.warning("⚠️ Tài liệu đầu vào rất dài. AI sẽ tự động cô đọng thông tin để xử lý.")
+
                 thong_tin_bai_day = f"""
                 - Cấp học: {st.session_state.get('khbd_cap_hoc', 'Không xác định')}
                 - Khối lớp: {st.session_state.get('khbd_khoi_lop', 'Không xác định')}
                 - Môn học: {st.session_state.get('khbd_mon_hoc', 'Không xác định')}
-                - Tên bài dạy: {st.session_state.get('khbd_ten_bai', 'Không cung cấp. Tự lấy theo nội dung SGK')}
+                - Tên bài dạy: {st.session_state.get('khbd_ten_bai', 'Không cung cấp. Tự lấy theo nội dung tài liệu')}
                 - Thời lượng: {st.session_state.get('khbd_so_tiet', '1 tiết')}
-                - Mẫu giáo án: {st.session_state.get('khbd_mau_giao_an', 'Công văn 5512 (Chuẩn Bộ)')}
+                - Mẫu giáo án: {st.session_state.get('khbd_mau_giao_an', 'Công văn 5512')}
                 - Ngôn ngữ: {'Tiếng Anh' if is_english else 'Tiếng Việt'}
+                """
+                
+                # Phân rẽ lệnh Prompt rõ ràng cho từng chế độ
+                lenh_chinh_sua = """
+                1. Giữ lại các nội dung đúng, hay của giáo án gốc.
+                2. Phát hiện các hạn chế (nếu có) và cải tiến Mục tiêu, Hoạt động cho khoa học hơn.
+                3. Bổ sung rõ ràng: Giáo viên làm gì? Học sinh làm gì? Sản phẩm dự kiến là gì?
+                """
+                lenh_tu_dong = """
+                1. Xây dựng Kế hoạch bài dạy HOÀN TOÀN MỚI, đầy đủ chi tiết dựa trên nội dung SGK cung cấp.
+                2. Tuân thủ tuyệt đối cấu trúc 4 hoạt động: Khởi động, Hình thành kiến thức mới, Luyện tập, Vận dụng.
+                3. Viết rõ: Mục tiêu, Nội dung, Sản phẩm, Tổ chức thực hiện.
                 """
 
                 prompt = f"""BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO VIỆT NAM.
 
-NHIỆM VỤ: {'Phân tích, chỉnh sửa Giáo án dựa trên bản gốc' if st.session_state.soan_mode == 'chinh_sua' else 'Soạn Giáo án MỚI CHI TIẾT dựa TRỰC TIẾP vào file Sách Giáo Khoa đính kèm'}.
+NHIỆM VỤ CỐT LÕI: {lenh_chinh_sua if st.session_state.soan_mode == 'chinh_sua' else lenh_tu_dong}
 
-🚨 QUY TẮC BẮT BUỘC (NẾU VI PHẠM SẼ BỊ PHẠT):
-1. ĐÚNG CHỦ ĐỀ & KIẾN THỨC: Bám sát 100% nội dung sách/bài. Cấm bịa tên bài khác.
-2. XỬ LÝ TOÁN HỌC: TUYỆT ĐỐI KHÔNG DÙNG MÃ LATEX. Phải viết bằng văn bản thường (Ví dụ: phân số a/b, x^2) để không lỗi font Word.
-3. CHI TIẾT SƯ PHẠM: Phân rõ Hoạt động của Giáo viên, Hoạt động của Học sinh, Sản phẩm dự kiến. Sử dụng Bảng Markdown (dạng cột | |) để trình bày.
+🚨 QUY TẮC BẮT BUỘC (CẤM VI PHẠM):
+1. Bám sát 100% nội dung tài liệu gốc. Không bịa kiến thức bài khác.
+2. TUYỆT ĐỐI KHÔNG DÙNG MÃ LATEX. Viết công thức Toán/Lý/Hóa bằng văn bản thường (vd: a/b, x^2) để chống lỗi font Word.
+3. Sử dụng Markdown phân cấp rõ ràng. Nếu dùng Bảng, đảm bảo chuẩn cấu trúc | Cột 1 | Cột 2 |.
 
-🔹 [THÔNG TIN NỀN TẢNG BÀI DẠY (CỰC KỲ QUAN TRỌNG)]
+🔹 [THÔNG TIN NỀN TẢNG]
 {thong_tin_bai_day}
+
+🔹 [YÊU CẦU TÍCH HỢP]
+- Tích hợp Năng lực số: {'CÓ' if tich_hop_nls else 'KHÔNG'}
+- Danh sách Yêu cầu NLS cụ thể: {str(st.session_state.nls_list) if (tich_hop_nls and st.session_state.nls_list) else 'Tự lồng ghép theo bài.'}
+- Tích hợp Năng lực AI: {'CÓ' if tich_hop_ai else 'KHÔNG'}
+- Dạy học hòa nhập Khuyết tật: {', '.join(dang_khuyet_tat_chon) if (tich_hop_kt and dang_khuyet_tat_chon) else 'KHÔNG'}
 
 🔹 [DỮ LIỆU ĐẦU VÀO CỐT LÕI]
 {noi_dung_chinh}
-- Nội dung PPCT / Bảng AI / Yêu cầu NLS: Đã được hệ thống ghi nhận.
 
-Hãy trả lời thẳng vào nội dung giáo án chuyên nghiệp, không cần dạo đầu hay chào hỏi.
+🔹 [DỮ LIỆU BỔ SUNG (NẾU CÓ)]
+- Nội dung PPCT: {noi_dung_ppct if noi_dung_ppct else 'Không cung cấp.'}
+- Nội dung Bảng AI: {noi_dung_ai_file if noi_dung_ai_file else 'Không cung cấp.'}
+- Hoạt động yêu cầu thêm: {str(st.session_state.hoat_dong_list) if st.session_state.hoat_dong_list else 'Không có.'}
+
+Viết ngay giáo án, KHÔNG chào hỏi, KHÔNG dạo đầu.
 """
                 ket_qua_ai = ai_engine.generate_text(prompt)
                 
-                # Kiểm tra kết quả trả về có lỗi (Exception catch), hoặc bị rỗng (None/dict)
-                if ket_qua_ai and isinstance(ket_qua_ai, str) and not ket_qua_ai.startswith("❌"):
+                # Kiểm tra kết quả trả về chặt chẽ
+                if not ket_qua_ai:
+                    st.error("❌ Hệ thống AI không trả về dữ liệu. Vui lòng thử lại.")
+                elif isinstance(ket_qua_ai, str) and not ket_qua_ai.startswith("❌"):
                     st.session_state["ket_qua_giao_an"] = ket_qua_ai
-                    st.success("🎉 Soạn Giáo án thành công!")
+                    st.success("🎉 Xử lý Giáo án thành công!")
                 else:
                     st.error(f"❌ Lỗi từ AI Engine (Kết quả không hợp lệ hoặc lỗi API): {str(ket_qua_ai)}")
                     
             except Exception as e:
-                st.error(f"❌ Có lỗi trong luồng xử lý hoặc gọi API: {str(e)}")
+                st.error(f"❌ Lỗi hệ thống trong quá trình thực thi: {str(e)}")
 
     if st.session_state.get("ket_qua_giao_an"):
-        st.markdown("### 📝 Kết quả Giáo án đã xử lý")
+        st.markdown("### 📝 Kết quả Giáo án")
         with st.container(border=True): st.markdown(st.session_state["ket_qua_giao_an"])
             
         st.download_button(
