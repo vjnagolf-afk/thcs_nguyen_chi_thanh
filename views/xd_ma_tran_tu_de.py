@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Module: views/xd_ma_tran_tu_de.py
-Nhiệm vụ: Giao diện Sinh Ma trận & Đặc tả Đề kiểm tra chuẩn GDPT 2018.
+Nhiệm vụ: Giao diện Sinh Ma trận & Đặc tả từ Đề kiểm tra có sẵn (Ngược lại).
 """
 
 import streamlit as st
@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 # ============================================================
-# IMPORT EXPORT WORD - PIPELINE CHUẨN
+# IMPORT EXPORT WORD - PIPELINE CHUẨN TỪ LÕI DỰ ÁN
 # ============================================================
 
 try:
@@ -43,7 +43,7 @@ def init_session_state():
 
 
 # ============================================================
-# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN
+# SERVICE 1: ĐỌC VÀ TRÍCH XUẤT VĂN BẢN ĐỀ CÓ SẴN
 # ============================================================
 
 class ExamTextExtractor:
@@ -80,17 +80,11 @@ class ExamTextExtractor:
                 doc = Document(uploaded_file)
                 result = []
 
-                # -------------------------------
-                # ĐOẠN VĂN
-                # -------------------------------
                 for paragraph in doc.paragraphs:
                     text = paragraph.text.strip()
                     if text:
                         result.append(text)
 
-                # -------------------------------
-                # BẢNG
-                # -------------------------------
                 for table_index, table in enumerate(
                     doc.tables,
                     start=1
@@ -150,10 +144,6 @@ class ExamTextExtractor:
                 f"Lỗi đọc tệp {file_name}: {e}"
             )
 
-    # ========================================================
-    # CHUẨN HÓA
-    # ========================================================
-
     @staticmethod
     def normalize(text):
         if not text:
@@ -178,14 +168,10 @@ class ExamTextExtractor:
 
 
 # ============================================================
-# SERVICE 2: XỬ LÝ JSON
+# SERVICE 2: XỬ LÝ JSON CHO MA TRẬN & ĐẶC TẢ
 # ============================================================
 
 class MatrixCalculator:
-
-    # ========================================================
-    # PARSE JSON AI
-    # ========================================================
 
     @staticmethod
     def parse_ai_json(result_text):
@@ -195,10 +181,6 @@ class MatrixCalculator:
             )
 
         text = result_text.strip()
-
-        # ------------------------------------
-        # Loại markdown code fence
-        # ------------------------------------
         text = re.sub(
             r"^```json\s*",
             "",
@@ -217,9 +199,6 @@ class MatrixCalculator:
         )
         text = text.strip()
 
-        # ------------------------------------
-        # Tách JSON nếu AI có văn bản thừa
-        # ------------------------------------
         if not text.startswith("{"):
             start = text.find("{")
             end = text.rfind("}")
@@ -244,10 +223,6 @@ class MatrixCalculator:
             )
 
         return data
-
-    # ========================================================
-    # CHUYỂN SỐ
-    # ========================================================
 
     @staticmethod
     def to_number(value):
@@ -284,10 +259,6 @@ class MatrixCalculator:
             except ValueError:
                 return 0
         return 0
-
-    # ========================================================
-    # CHUẨN HÓA MA TRẬN
-    # ========================================================
 
     @staticmethod
     def normalize_matrix(
@@ -366,10 +337,6 @@ class MatrixCalculator:
             })
 
         return result
-
-    # ========================================================
-    # CHUẨN HÓA ĐẶC TẢ
-    # ========================================================
 
     @staticmethod
     def normalize_specification(
@@ -492,10 +459,6 @@ class MatrixCalculator:
 
         return result
 
-    # ========================================================
-    # CONTEXT CHUẨN
-    # ========================================================
-
     @staticmethod
     def prepare_context(
         parsed_data,
@@ -540,16 +503,11 @@ class MatrixCalculator:
 def render_xd_ma_tran_tu_de(
     ai_engine
 ):
-    # Khởi tạo session state chống lỗi KeyError
     init_session_state()
 
     st.markdown(
-        "### 🧩 Sinh Ma trận & Đặc tả Đề kiểm tra"
+        "### 🧩 Sinh Ma trận & Đặc tả từ Đề kiểm tra có sẵn"
     )
-
-    # ========================================================
-    # THÔNG TIN
-    # ========================================================
 
     col1, col2 = st.columns(2)
 
@@ -582,12 +540,8 @@ def render_xd_ma_tran_tu_de(
             key="mt_lop"
         )
 
-    # ========================================================
-    # UPLOAD
-    # ========================================================
-
     file_de = st.file_uploader(
-        "Tải lên đề kiểm tra",
+        "Tải lên đề kiểm tra có sẵn",
         type=[
             "pdf",
             "docx",
@@ -595,10 +549,6 @@ def render_xd_ma_tran_tu_de(
         ],
         key="mt_file"
     )
-
-    # ========================================================
-    # PHÂN TÍCH
-    # ========================================================
 
     if st.button(
         "PHÂN TÍCH ĐỀ & LẬP MA TRẬN",
@@ -615,9 +565,6 @@ def render_xd_ma_tran_tu_de(
             with st.spinner(
                 "AI đang phân tích đề kiểm tra..."
             ):
-                # ------------------------------------
-                # Đọc đề
-                # ------------------------------------
                 raw_text = (
                     ExamTextExtractor.extract(
                         file_de
@@ -634,9 +581,6 @@ def render_xd_ma_tran_tu_de(
                         "Không đọc được nội dung đề."
                     )
 
-                # ------------------------------------
-                # Schema
-                # ------------------------------------
                 json_schema = """
 {
   "ma_tran": [
@@ -671,9 +615,6 @@ def render_xd_ma_tran_tu_de(
 }
 """
 
-                # ------------------------------------
-                # Prompt
-                # ------------------------------------
                 prompt = f"""
 BẠN LÀ CHUYÊN GIA KHẢO THÍ
 THEO CHƯƠNG TRÌNH GDPT 2018.
@@ -701,29 +642,7 @@ MỤC TIÊU:
 5. Không được thêm nội dung
    không xuất hiện trong đề.
 
-6. Không suy đoán chương,
-   bài học hoặc kiến thức
-   nếu đề không đủ căn cứ.
-
-7. Chỉ trả về JSON hợp lệ.
-
-MA TRẬN:
-
-- Mỗi dòng tương ứng với một
-  nội dung kiến thức thực tế.
-
-- tong_so_cau =
-  nb + th + vd + vdc.
-
-- tong_diem là tổng điểm
-  của các câu trong dòng đó.
-
-ĐẶC TẢ:
-
-- yccd phải cụ thể.
-- Phải bám sát câu hỏi.
-- Phải thể hiện đúng mức độ nhận thức.
-- Không viết chung chung.
+6. Chỉ trả về JSON hợp lệ.
 
 ĐỀ KIỂM TRA:
 
@@ -740,25 +659,16 @@ JSON BẮT BUỘC:
 CHỈ TRẢ VỀ JSON.
 """
 
-                # ------------------------------------
-                # Gọi AI
-                # ------------------------------------
                 result = ai_engine.generate_text(
                     prompt
                 )
 
-                # ------------------------------------
-                # Parse
-                # ------------------------------------
                 parsed_data = (
                     MatrixCalculator.parse_ai_json(
                         result
                     )
                 )
 
-                # ------------------------------------
-                # Chuẩn hóa
-                # ------------------------------------
                 context = (
                     MatrixCalculator.prepare_context(
                         parsed_data,
@@ -767,9 +677,6 @@ CHỈ TRẢ VỀ JSON.
                     )
                 )
 
-                # ------------------------------------
-                # LƯU
-                # ------------------------------------
                 st.session_state[
                     "processed_matrix_data"
                 ] = context
@@ -782,14 +689,12 @@ CHỈ TRẢ VỀ JSON.
                     "mt_lop_file"
                 ] = lop
 
-                # ------------------------------------
-                # XUẤT WORD
-                # ------------------------------------
                 if export_word is None:
                     raise ImportError(
                         "export_word chưa được import."
                     )
 
+                # Sử dụng template ma_tran_dac_ta_mau.docx chuẩn cho chức năng ngược
                 word_bytes = export_word(
                     data=context,
                     template_name=(
@@ -815,10 +720,6 @@ CHỈ TRẢ VỀ JSON.
                 f"❌ Lỗi xử lý: {e}"
             )
 
-    # ========================================================
-    # HIỂN THỊ KẾT QUẢ
-    # ========================================================
-
     if (
         "processed_matrix_data"
         in st.session_state
@@ -833,9 +734,6 @@ CHỈ TRẢ VỀ JSON.
             "#### 👁️ Xem trước dữ liệu"
         )
 
-        # ====================================================
-        # MA TRẬN
-        # ====================================================
         if data.get(
             "MA_TRAN"
         ):
@@ -851,9 +749,6 @@ CHỈ TRẢ VỀ JSON.
                 use_container_width=True
             )
 
-        # ====================================================
-        # ĐẶC TẢ
-        # ====================================================
         if data.get(
             "DAC_TA"
         ):
@@ -869,9 +764,6 @@ CHỈ TRẢ VỀ JSON.
                 use_container_width=True
             )
 
-        # ====================================================
-        # DOWNLOAD (SỬ DỤNG .GET ĐỂ TRÁNH KEYERROR)
-        # ====================================================
         safe_mon = st.session_state.get(
             "mt_mon_hoc_file",
             "Mon"
