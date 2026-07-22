@@ -18,7 +18,7 @@ def extract_youtube_id(url):
     return None
 
 def get_youtube_transcript(url):
-    """Lấy transcript YouTube ưu tiên mọi loại phụ đề (Thủ công & Tự động)"""
+    """Lấy transcript YouTube ưu tiên mọi loại phụ đề (Thủ công & Tự động) - Đã bọc lỗi chặn IP"""
     video_id = extract_youtube_id(url)
     if not video_id:
         return None, "⚠️ Đường dẫn YouTube không hợp lệ."
@@ -47,6 +47,15 @@ def get_youtube_transcript(url):
         fetched_data = transcript.fetch()
         full_text = " ".join([item['text'] for item in fetched_data])
         return full_text, None
+        
+    except ImportError:
+        return None, "❌ Hệ thống chưa cài đặt thư viện youtube-transcript-api."
+    except Exception as e:
+        error_msg = str(e).lower()
+        # Xử lý lỗi YouTube chặn IP đám mây hoặc trả về trang trống
+        if "no element found" in error_msg or "xml" in error_msg:
+            return None, "❌ YouTube đang tạm chặn máy chủ lấy dữ liệu của video này (Có thể do chống Bot, giới hạn độ tuổi, hoặc chủ kênh khóa API). Vui lòng thử một link video khác hoặc tải tệp video trực tiếp lên hệ thống!"
+        return None, f"❌ Lỗi khi đọc dữ liệu từ YouTube. Chi tiết: {str(e)}"
         
     except ImportError:
         return None, "❌ Hệ thống chưa cài đặt thư viện youtube-transcript-api."
