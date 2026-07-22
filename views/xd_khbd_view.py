@@ -1,6 +1,37 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
+import PyPDF2
+import docx
+import pandas as pd
 
+def doc_noi_dung_file(uploaded_file):
+    """Hàm lõi bóc tách văn bản tự động từ các định dạng file khác nhau"""
+    if not uploaded_file:
+        return ""
+    try:
+        ext = uploaded_file.name.split('.')[-1].lower()
+        text = ""
+        # Xử lý PDF
+        if ext == "pdf":
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted: text += extracted + "\n"
+        # Xử lý Word
+        elif ext == "docx":
+            doc = docx.Document(uploaded_file)
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+        # Xử lý Excel
+        elif ext in ["xlsx", "xls"]:
+            df = pd.read_excel(uploaded_file)
+            text = df.to_string()
+        # Xử lý Hình ảnh (Dành cho bản update Multimodal sau này)
+        elif ext in ["jpg", "png", "jpeg"]:
+            text = f"[Tệp đính kèm là hình ảnh SGK: {uploaded_file.name}. AI vui lòng tự nội suy kiến thức bài học này.]"
+        return text
+    except Exception as e:
+        return f"[⚠️ Có lỗi khi đọc file {uploaded_file.name}. Hệ thống sẽ bỏ qua tệp này.]"
 def init_session_state():
     if "hoat_dong_list" not in st.session_state:
         st.session_state.hoat_dong_list = []
@@ -126,7 +157,7 @@ def render_xd_khbd(ai_engine=None):
                             <div class="upload-desc">Hỗ trợ Word (.docx), PDF, JPG, PNG.</div>
                         </div>
                     ''', unsafe_allow_html=True)
-                    st.file_uploader("Upload GA", type=["docx", "pdf", "jpg", "png", "jpeg"], accept_multiple_files=True, label_visibility="collapsed")
+                    st.file_uploader("Upload GA", type=["docx", "pdf", "jpg", "png", "jpeg"], accept_multiple_files=True, label_visibility="collapsed", key="file_ga")
                 st.markdown("<div style='text-align: center; color: #ef4444; font-size: 0.9em; margin-top: -10px;'>⚠️ Yêu cầu bắt buộc</div>", unsafe_allow_html=True)
                 
             with c_up2:
@@ -138,7 +169,7 @@ def render_xd_khbd(ai_engine=None):
                             <div class="upload-desc">Trích xuất chính xác năng lực số.</div>
                         </div>
                     ''', unsafe_allow_html=True)
-                    st.file_uploader("Upload PPCT", type=["pdf", "docx", "xlsx"], label_visibility="collapsed")
+                    st.file_uploader("Upload PPCT", type=["pdf", "docx", "xlsx"], label_visibility="collapsed", key="file_ppct")
                     
             with c_up3:
                 with st.container(border=True):
@@ -150,7 +181,7 @@ def render_xd_khbd(ai_engine=None):
                             <div class="upload-desc">Để hệ thống tự động phân tích</div>
                         </div>
                     ''', unsafe_allow_html=True)
-                    st.file_uploader("Upload AI", type=["pdf", "docx", "xlsx"], label_visibility="collapsed")
+                    st.file_uploader("Upload AI", type=["pdf", "docx", "xlsx"], label_visibility="collapsed", key="file_ai")
                     
         st.warning("**Lời khuyên:** Xin đừng đưa cả 1 kỳ học hoặc hàng chục trang giáo án vào cùng 1 lúc! Hãy tải **từng bài một (1 - 3 tiết)** để tránh AI bị ngợp và tốn Quota.", icon="⚠️")
 
@@ -173,72 +204,9 @@ def render_xd_khbd(ai_engine=None):
 
         st.markdown("**Hình ảnh / PDF SGK cơ sở** *(Khuyến nghị chụp thật nét)*")
         with st.container(border=True):
-            st.file_uploader("Kéo thả hoặc Nhấn để tải lên Sách Giáo Khoa", type=["pdf", "jpg", "png"], accept_multiple_files=True)
-
-        st.markdown("**Kế hoạch Hoạt động (Tùy chọn)**")
-        c_input, c_add = st.columns([4, 1])
-        with c_input:
-            st.text_input("Nhập hoạt động", placeholder="VD: Tìm hiểu cấu trúc máy tính...", key="new_hoat_dong", label_visibility="collapsed", on_change=add_hoat_dong)
-        with c_add:
-            st.button("Thêm", on_click=add_hoat_dong, type="primary", use_container_width=True)
-        
-        if st.session_state.hoat_dong_list:
-            for i, hd in enumerate(st.session_state.hoat_dong_list):
-                c_tag1, c_tag2 = st.columns([11, 1])
-                with c_tag1: st.info(f"📍 {hd}")
-                with c_tag2:
-                    if st.button("❌", key=f"del_{i}"):
-                        st.session_state.hoat_dong_list.remove(hd)
-                        st.rerun()
-
-        if tich_hop_nls or tich_hop_ai:
-            st.markdown("### 📤 Tài liệu tích hợp bổ sung")
-            c_tl1, c_tl2 = st.columns(2)
-            if tich_hop_nls:
-                with c_tl1:
-                    with st.container(border=True): st.file_uploader("📄 Tải lên PPCT (Năng lực số)", type=["pdf", "docx", "xlsx"])
-            if tich_hop_ai:
-                with c_tl2:
-                    with st.container(border=True): st.file_uploader("📋 Tải lên Bảng tích hợp AI", type=["pdf", "docx", "xlsx"])
+            st.file_uploader("Kéo thả hoặc Nhấn để tải lên Sách Giáo Khoa", type=["pdf", "jpg", "png"], accept_multiple_files=True, key="file_sgk")
 # =======================================================
-    # 4. CHỌN DẠNG KHUYẾT TẬT & YÊU CẦU NLS CHI TIẾT
-    # =======================================================
-    if tich_hop_kt:
-        with st.container(border=True):
-            st.markdown("#### 🎯 Chọn dạng khuyết tật hòa nhập")
-            st.pills("Chọn khuyết tật", ["Khuyết tật vận động", "Khuyết tật nghe", "Khuyết tật nói", "Khuyết tật nhìn", "Khuyết tật thần kinh", "Khuyết tật tâm thần", "Khuyết tật trí tuệ", "Khuyết tật tự kỷ", "Khuyết tật khác", "Khuyết tật chung"], selection_mode="multi", default=["Khuyết tật chung"])
-
-    if tich_hop_nls:
-        with st.container(border=True):
-            co_yc_nls = st.checkbox("🎯 **Yêu cầu Năng lực số cụ thể (Tùy chọn)**", value=True)
-            if co_yc_nls:
-                st.caption("Tích vào đây nếu bạn muốn chỉ định rõ thành phần và mức độ NLS cho AI")
-                c_tp, c_md, c_nd = st.columns([1.5, 1, 2.5])
-                with c_tp:
-                    st.selectbox("**1. THÀNH PHẦN**", THANH_PHAN_NLS, key="nls_tp")
-                with c_md:
-                    st.selectbox("**2. MỨC ĐỘ (TÙY CHỌN)**", MUC_DO_NLS, key="nls_md")
-                with c_nd:
-                    st.text_area("**3. NỘI DUNG YÊU CẦU**", placeholder="Mô tả năng lực hoặc hoạt động mong muốn...", key="nls_nd", height=70)
-                
-                c_space, c_btn_add = st.columns([3, 1])
-                with c_btn_add:
-                    st.button("➕ Thêm vào danh sách", type="primary", on_click=add_nls_item, use_container_width=True)
-                
-                if st.session_state.nls_list:
-                    st.markdown("---")
-                    for i, item in enumerate(st.session_state.nls_list):
-                        with st.container(border=True):
-                            c_item_info, c_item_del = st.columns([11, 1])
-                            with c_item_info:
-                                st.markdown(f"**{item['thanh_phan']}** (Mức độ: `{item['muc_do']}`)")
-                                st.write(f"👉 *{item['noi_dung']}*")
-                            with c_item_del:
-                                if st.button("❌", key=f"del_nls_{i}", help="Xóa yêu cầu này"):
-                                    st.session_state.nls_list.pop(i)
-                                    st.rerun()
-# =======================================================
-    # 5. TÙY CHỌN NGÔN NGỮ & NÚT KÍCH HOẠT CHÍNH
+    # 5. TÙY CHỌN NGÔN NGỮ & LÕI XỬ LÝ BACKEND AI
     # =======================================================
     st.write("")
     with st.container(border=True):
@@ -247,34 +215,94 @@ def render_xd_khbd(ai_engine=None):
     st.write("")
     if st.button("⚡ KÍCH HOẠT XỬ LÝ AI", type="primary", use_container_width=True):
         
-        # 1. Kiểm tra xem đã có lõi AI chưa
         if not ai_engine:
-            st.error("❌ Lỗi: Chưa tìm thấy AI Engine (Chưa nhập API Key). Vui lòng đăng nhập lại.")
+            st.error("❌ Hệ thống chưa khởi tạo AI Engine. Vui lòng kiểm tra lại cấu hình API Key.")
             st.stop()
 
-        # 2. Bật vòng quay (Spinner) để báo cho người dùng biết hệ thống ĐANG CHẠY
-        with st.spinner(f"🧠 AI đang đọc tài liệu và { 'chỉnh sửa' if st.session_state.soan_mode == 'chinh_sua' else 'soạn' } giáo án. Quá trình này có thể mất từ 30s - 2 phút..."):
-            
+        # Hiển thị vòng quay loading siêu mượt
+        with st.spinner(f"🧠 AI đang đọc tài liệu và {'phân tích giáo án cũ' if st.session_state.soan_mode == 'chinh_sua' else 'soạn giáo án mới'}... (Có thể mất 30s - 1 phút)"):
             try:
-                # ==============================================================
-                # 📍 PHẦN CODE LOGIC THỰC TẾ CỦA THẦY SẼ NẰM Ở ĐÂY
-                # 1. Code đọc nội dung từ các file SGK, PPCT thầy vừa tải lên
-                # 2. Ghép nội dung file vào Prompt
-                # 3. Gọi lệnh: response = ai_engine.generate_text(prompt)
-                # ==============================================================
+                # ---------------------------------------------------------
+                # BƯỚC 1: BÓC TÁCH TOÀN BỘ DỮ LIỆU ĐẦU VÀO
+                # ---------------------------------------------------------
+                noi_dung_chinh = ""
                 
-                import time
-                time.sleep(3) # Lệnh giả lập hệ thống đang suy nghĩ (Thầy xóa dòng này đi khi lắp code thật)
-                
-                # Sau khi AI xử lý xong, lưu kết quả và báo thành công
-                st.session_state["ket_qua_giao_an"] = "Đây là nội dung giáo án AI trả về (Đang chạy thử nghiệm UI)..."
-                st.success("🎉 AI đã xử lý xong giáo án!")
-                
-            except Exception as e:
-                st.error(f"❌ Có lỗi xảy ra trong quá trình xử lý AI: {str(e)}")
+                # 1.1 Đọc file Giáo án hoặc SGK
+                if st.session_state.soan_mode == "chinh_sua":
+                    files_ga = st.session_state.get("file_ga", [])
+                    if files_ga:
+                        for f in files_ga:
+                            noi_dung_chinh += f"\n--- NỘI DUNG GIÁO ÁN GỐC ({f.name}) ---\n" + doc_noi_dung_file(f)
+                    else:
+                        noi_dung_chinh += "\n[Giáo viên không tải lên giáo án gốc. AI tự tạo dựa trên tên bài.]"
+                else:
+                    files_sgk = st.session_state.get("file_sgk", [])
+                    if files_sgk:
+                        for f in files_sgk:
+                            noi_dung_chinh += f"\n--- NỘI DUNG SÁCH GIÁO KHOA ({f.name}) ---\n" + doc_noi_dung_file(f)
+                    else:
+                        noi_dung_chinh += "\n[Giáo viên không tải lên SGK. AI tự thiết kế theo kiến thức chuẩn.]"
 
-    # 3. Hiển thị kết quả sau khi AI chạy xong
+                # 1.2 Đọc file PPCT và File Bảng AI
+                noi_dung_ppct = doc_noi_dung_file(st.session_state.get("file_ppct"))
+                noi_dung_ai_file = doc_noi_dung_file(st.session_state.get("file_ai"))
+
+                # ---------------------------------------------------------
+                # BƯỚC 2: XÂY DỰNG PROMPT SƯ PHẠM (KỸ THUẬT PROMPT ENGINEERING)
+                # ---------------------------------------------------------
+                prompt = f"""BẠN LÀ MỘT CHUYÊN GIA SƯ PHẠM VÀ PHÁT TRIỂN CHƯƠNG TRÌNH ĐÀO TẠO TẠI VIỆT NAM.
+
+NHIỆM VỤ: {'Phân tích, chỉnh sửa và nâng cấp giáo án dựa trên bản gốc do giáo viên cung cấp' if st.session_state.soan_mode == 'chinh_sua' else 'Xây dựng một kế hoạch bài dạy (giáo án) hoàn toàn mới dựa trên dữ liệu Sách giáo khoa'}.
+
+🔹 [THÔNG TIN CẤU HÌNH BÀI DẠY]
+- Ngôn ngữ đầu ra: {'Tiếng Anh (BẮT BUỘC toàn bộ giáo án bằng Tiếng Anh)' if is_english else 'Tiếng Việt'}
+- Yêu cầu Tích hợp Năng lực số: {'CÓ' if tich_hop_nls else 'KHÔNG'}
+- Yêu cầu Tích hợp Năng lực AI: {'CÓ' if tich_hop_ai else 'KHÔNG'}
+- Dạy học hòa nhập (Khuyết tật): {'CÓ' if tich_hop_kt else 'KHÔNG'}
+
+🔹 [DỮ LIỆU ĐẦU VÀO CỐT LÕI]
+{noi_dung_chinh}
+
+🔹 [TÀI LIỆU & YÊU CẦU BỔ SUNG TỪ GIÁO VIÊN]
+- Trích xuất PPCT: {noi_dung_ppct if noi_dung_ppct else 'Không đính kèm.'}
+- Trích xuất Bảng tích hợp AI: {noi_dung_ai_file if noi_dung_ai_file else 'Không đính kèm, hãy tự lồng ghép thông minh.'}
+- Các hoạt động cụ thể GV mong muốn: {str(st.session_state.hoat_dong_list) if st.session_state.hoat_dong_list else 'Không có.'}
+- Yêu cầu Năng lực số cụ thể (Mức độ/Thành phần): {str(st.session_state.nls_list) if tich_hop_nls and st.session_state.nls_list else 'Hãy tự lồng ghép tự nhiên nhất.'}
+
+🔹 [YÊU CẦU ĐẦU RA SƯ PHẠM]
+1. Trình bày bài giảng bằng định dạng Markdown rõ ràng, chuyên nghiệp.
+2. Tuân thủ tuyệt đối cấu trúc Công văn 5512 gồm 4 hoạt động: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
+3. Mỗi hoạt động cần nêu rõ: Mục tiêu, Nội dung, Sản phẩm, và Tổ chức thực hiện.
+4. Lồng ghép mượt mà các công cụ số/AI và phương pháp hỗ trợ khuyết tật (nếu có yêu cầu) vào các pha của bài học mà không làm gượng ép kiến thức nền.
+5. TRẢ LỜI TRỰC TIẾP VÀO NỘI DUNG GIÁO ÁN, KHÔNG DẠO ĐẦU LỜI CHÀO.
+"""
+                # ---------------------------------------------------------
+                # BƯỚC 3: GỬI YÊU CẦU CHO GEMINI VÀ NHẬN KẾT QUẢ
+                # ---------------------------------------------------------
+                ket_qua_ai = ai_engine.generate_text(prompt)
+                
+                if ket_qua_ai and not str(ket_qua_ai).startswith("❌"):
+                    st.session_state["ket_qua_giao_an"] = ket_qua_ai
+                    st.success("🎉 Khởi tạo Giáo án thành công!")
+                else:
+                    st.error(f"❌ Lỗi từ AI Engine: {ket_qua_ai}")
+
+            except Exception as e:
+                st.error(f"❌ Có lỗi trong quá trình bóc tách tệp hoặc gọi AI: {str(e)}")
+
+    # =======================================================
+    # 6. KHỐI GIAO DIỆN HIỂN THỊ KẾT QUẢ SAU KHI CHẠY
+    # =======================================================
     if st.session_state.get("ket_qua_giao_an"):
-        st.markdown("### 📝 Kết quả Giáo án")
-        st.text_area("Nội dung", value=st.session_state["ket_qua_giao_an"], height=500, label_visibility="collapsed")
-        st.download_button("📥 Tải xuống Giáo án (.txt)", data=st.session_state["ket_qua_giao_an"], file_name="Giao_an_AI.txt", use_container_width=True)
+        st.markdown("### 📝 Kết quả Giáo án đã xử lý")
+        with st.container(border=True):
+            # Render Markdown giáo án tuyệt đẹp
+            st.markdown(st.session_state["ket_qua_giao_an"])
+            
+        # Nút cho phép tải thẳng giáo án về máy dạng .md (hoặc mở bằng Word)
+        st.download_button(
+            "📥 Tải xuống Giáo án (.md)", 
+            data=st.session_state["ket_qua_giao_an"], 
+            file_name="Giao_An_Thong_Minh.md", 
+            use_container_width=True
+        )
