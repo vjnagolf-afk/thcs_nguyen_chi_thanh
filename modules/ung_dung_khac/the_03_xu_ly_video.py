@@ -18,7 +18,7 @@ def extract_youtube_id(url):
     return None
 
 def get_youtube_transcript(url):
-    """Tự động lấy transcript (lời thoại) từ YouTube sử dụng list_transcripts an toàn tuyệt đối"""
+    """Tự động lấy transcript (lời thoại) từ YouTube với khả năng chống lỗi phiên bản"""
     video_id = extract_youtube_id(url)
     if not video_id:
         return None, "⚠️ Đường dẫn YouTube không hợp lệ hoặc không tìm thấy Video ID."
@@ -26,25 +26,33 @@ def get_youtube_transcript(url):
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         
-        # Sử dụng API list_transcripts để tương thích với mọi phiên bản thư viện
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        
-        try:
-            # Thử tìm bản phụ đề tiếng Việt hoặc tiếng Anh
-            transcript = transcript_list.find_transcript(['vi', 'en'])
-        except Exception:
-            # Nếu không có, lấy bản phụ đề đầu tiên có sẵn trong danh sách
-            transcript = next(iter(transcript_list))
+        # CÁCH 1: Thử dùng phương thức get_transcript (Phổ biến nhất)
+        if hasattr(YouTubeTranscriptApi, 'get_transcript'):
+            try:
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
+            except Exception:
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            full_text = " ".join([item['text'] for item in transcript_list])
+            return full_text, None
             
-        fetched_data = transcript.fetch()
-        full_text = " ".join([item['text'] for item in fetched_data])
-        return full_text, None
-        
+        # CÁCH 2: Dự phòng dùng list_transcripts nếu cách 1 không có
+        elif hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            try:
+                transcript = transcript_list.find_transcript(['vi', 'en'])
+            except Exception:
+                transcript = next(iter(transcript_list))
+            fetched_data = transcript.fetch()
+            full_text = " ".join([item['text'] for item in fetched_data])
+            return full_text, None
+            
+        else:
+            return None, "❌ Thư viện 'youtube-transcript-api' trên máy chủ bị lỗi. Vui lòng thêm đúng 'youtube-transcript-api==0.6.2' vào requirements.txt và Reboot lại App."
+            
     except ImportError:
-        return None, "❌ Hệ thống chưa cài đặt thư viện `youtube-transcript-api`. Vui lòng chạy lệnh `pip install youtube-transcript-api` trên terminal."
+        return None, "❌ Máy chủ chưa cài đặt thư viện. Vui lòng thêm `youtube-transcript-api==0.6.2` vào file requirements.txt."
     except Exception as e:
-        return None, f"❌ Không thể trích xuất phụ đề từ video này (Video có thể không có phụ đề, bật chế độ riêng tư hoặc bị chặn). Chi tiết lỗi: {str(e)}"
-
+        return None, f"❌ Không thể trích xuất phụ đề (Video này không có phụ đề, hoặc bị chủ kênh khóa). Chi tiết: {str(e)}"
 def render_the_03(ai_engine=None):
     st.markdown("### 🎬 Công cụ Trích xuất, Chuyển văn bản & Dịch Video (YouTube & Tải lên)")
     st.caption("Hỗ trợ giáo viên lấy kịch bản, chuyển lời thoại thành văn bản và dịch nội dung từ video bất kỳ phục vụ giảng dạy.")
