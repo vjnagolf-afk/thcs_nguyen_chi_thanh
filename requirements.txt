@@ -43,4 +43,4 @@ google-auth-httplib2
 google-auth-oauthlib
 google-generativeai
 Pillow
-youtube-transcript-api
+youtube-transcript-api==0.6.2
