@@ -116,7 +116,6 @@ def safe_text(value):
     if value is None: return ""
     if not isinstance(value, str):
         value = str(value)
-    # Giữ lại cấu trúc dòng, chỉ xóa các ký tự rác
     text = value.replace("\x00", "").replace("\ufeff", "").replace("\u200b", "")
     text = text.replace("\r", "")
     text = text.replace("\t", " ")
@@ -127,7 +126,6 @@ def safe_text(value):
 def normalize_source_text(text):
     text = safe_text(text)
     if not text: return ""
-    # Không nối các dòng bằng Regex phức tạp để tránh vỡ cấu trúc Bảng/Markdown
     return text.strip()
 
 def count_words(text):
@@ -139,7 +137,7 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     chars = len(text)
     words = count_words(text)
     if chars == 0:
-        return {"status": "empty", "message": f"Không thể đọc bất kỳ chữ nào từ {source_name}. Hãy chắc chắn thư viện PyMuPDF đã được cài đặt hoặc copy văn bản ra file Word.", "chars": chars, "words": words}
+        return {"status": "empty", "message": f"Không thể đọc bất kỳ chữ nào từ {source_name}. Hãy chắc chắn tệp không rỗng hoặc copy văn bản ra file Word.", "chars": chars, "words": words}
     if "[LỖI ĐỌC" in text.upper():
         return {"status": "error", "message": f"{source_name} có lỗi khi đọc.", "chars": chars, "words": words}
     if chars < MIN_SOURCE_CHARS or words < MIN_SOURCE_WORDS:
@@ -147,133 +145,248 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     return {"status": "valid", "message": f"{source_name} đủ dữ liệu.", "chars": chars, "words": words}
 
 def read_pdf(uploaded_file, range_str=""):
+    """
+    Đọc PDF bằng PyMuPDF trước, pypdf dự phòng.
+    Luôn đọc bytes từ đầu để tránh lỗi con trỏ file.
+    """
+    if uploaded_file is None:
+        return ""
+
     try:
-        if hasattr(uploaded_file, "seek"):
-            uploaded_file.seek(0)
-        content = uploaded_file.read()
-        if not content: return ""
+        # =====================================================
+        # ĐỌC BYTES AN TOÀN
+        # =====================================================
+        if hasattr(uploaded_file, "getvalue"):
+            content = uploaded_file.getvalue()
+        else:
+            if hasattr(uploaded_file, "seek"):
+                uploaded_file.seek(0)
+            content = uploaded_file.read()
 
-        text_result = ""
+        if not content:
+            return ""
 
-        # ƯU TIÊN 1: SỬ DỤNG PYMUPDF (fitz)
-        try:
-            import fitz
-            doc = fitz.open(stream=content, filetype="pdf")
-            total_pages = len(doc)
-            start, end = 1, total_pages
-
-            range_str = safe_text(range_str)
-            if range_str:
-                try:
-                    if "-" in range_str:
-                        s, e = range_str.split("-")
-                        start = max(1, int(s.strip()))
-                        end = min(total_pages, int(e.strip()))
-                    else:
-                        p = int(range_str)
-                        start = max(1, min(total_pages, p))
-                        end = start
-                except ValueError:
-                    pass
-
-            pages_text = []
-            for i in range(start - 1, end):
-                page = doc[i]
-                text = page.get_text("text")
-                if text and text.strip():
-                    pages_text.append(f"\n[PDF - Trang {i+1}]\n{safe_text(text)}")
-            
-            text_result = "\n".join(pages_text)
-            if len(text_result.strip()) > 50:
-                return normalize_source_text(text_result)
-        except Exception as e:
-            logger.warning("PyMuPDF (fitz) gặp sự cố trích xuất: %s", e)
-
-        # ƯU TIÊN 2: SỬ DỤNG PYPDF
-        import pypdf
-        if hasattr(uploaded_file, "seek"):
-            uploaded_file.seek(0)
-        reader = pypdf.PdfReader(BytesIO(content))
-        total_pages = len(reader.pages)
-        start, end = 1, total_pages
-        
+        # =====================================================
+        # XỬ LÝ PHẠM VI TRANG
+        # =====================================================
         range_str = safe_text(range_str)
+        selected_start = None
+        selected_end = None
+
         if range_str:
             try:
                 if "-" in range_str:
-                    s, e = range_str.split("-")
-                    start = max(1, int(s.strip()))
-                    end = min(total_pages, int(e.strip()))
+                    parts = range_str.split("-", 1)
+                    selected_start = int(parts[0].strip())
+                    selected_end = int(parts[1].strip())
                 else:
-                    p = int(range_str)
-                    start = max(1, min(total_pages, p))
-                    end = start
-            except ValueError:
-                pass
-                
-        result = []
-        for index in range(start, end + 1):
-            page = reader.pages[index - 1]
-            text = page.extract_text() or ""
-            text = safe_text(text)
-            if text:
-                result.append(f"\n[PDF - Trang {index}]\n{text}")
-                
-        text_result = "\n".join(result)
-        if len(text_result.strip()) < 100 and total_pages > 1:
-            fallback = []
-            for index, page in enumerate(reader.pages, start=1):
-                t = safe_text(page.extract_text() or "")
-                if t: fallback.append(f"\n[PDF - Trang {index}]\n{t}")
-            text_result = "\n".join(fallback)
-            
-        return normalize_source_text(text_result)
+                    selected_start = int(range_str)
+                    selected_end = selected_start
+            except Exception:
+                selected_start = None
+                selected_end = None
+
+        # =====================================================
+        # ƯU TIÊN 1: PYMUPDF
+        # =====================================================
+        try:
+            import fitz
+
+            doc = fitz.open(stream=content, filetype="pdf")
+            total_pages = len(doc)
+
+            if total_pages == 0:
+                return ""
+
+            start_page = 1 if selected_start is None else max(1, selected_start)
+            end_page = total_pages if selected_end is None else min(total_pages, selected_end)
+
+            if start_page > end_page:
+                start_page, end_page = 1, total_pages
+
+            pages = []
+
+            for page_number in range(start_page, end_page + 1):
+                page = doc[page_number - 1]
+                text = page.get_text("text") or ""
+
+                if text.strip():
+                    pages.append(
+                        f"[PDF - Trang {page_number}]\n{text.strip()}"
+                    )
+
+            result = "\n\n".join(pages)
+
+            if len(result.strip()) >= 50:
+                logger.info(
+                    "Đọc PDF bằng PyMuPDF thành công: %s ký tự",
+                    len(result)
+                )
+                return normalize_source_text(result)
+
+        except Exception as e:
+            logger.warning("PyMuPDF không đọc được PDF: %s", e)
+
+        # =====================================================
+        # ƯU TIÊN 2: PYPDF
+        # =====================================================
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(BytesIO(content))
+            total_pages = len(reader.pages)
+
+            if total_pages == 0:
+                return ""
+
+            start_page = 1 if selected_start is None else max(1, selected_start)
+            end_page = total_pages if selected_end is None else min(total_pages, selected_end)
+
+            if start_page > end_page:
+                start_page, end_page = 1, total_pages
+
+            pages = []
+
+            for page_number in range(start_page, end_page + 1):
+                text = reader.pages[page_number - 1].extract_text() or ""
+
+                if text.strip():
+                    pages.append(
+                        f"[PDF - Trang {page_number}]\n{text.strip()}"
+                    )
+
+            result = "\n\n".join(pages)
+
+            logger.info(
+                "Đọc PDF bằng pypdf thành công: %s ký tự",
+                len(result)
+            )
+
+            return normalize_source_text(result)
+
+        except Exception as e:
+            logger.error("pypdf cũng không đọc được PDF: %s", e)
+            return f"[LỖI ĐỌC PDF: {e}]"
+
     except Exception as e:
-        return f"[LỖI ĐỌC PDF: {str(e)}]"
+        logger.error("Lỗi tổng quát khi đọc PDF: %s", e)
+        return f"[LỖI ĐỌC PDF: {e}]"
 
 def read_docx_ordered(source):
-    result = []
+    """
+    Đọc DOCX theo đúng thứ tự đoạn văn và bảng.
+    Đảm bảo luôn đọc file từ đầu.
+    """
     try:
-        if hasattr(source, "seek"):
-            source.seek(0)
-            
+        # =====================================================
+        # MỞ DOCUMENT
+        # =====================================================
         if isinstance(source, (str, Path)):
             doc = Document(source)
+
+        elif hasattr(source, "getvalue"):
+            content = source.getvalue()
+
+            if not content:
+                return ""
+
+            doc = Document(BytesIO(content))
+
         elif hasattr(source, "read"):
+            if hasattr(source, "seek"):
+                source.seek(0)
+
             content = source.read()
+
             if isinstance(content, str):
                 content = content.encode("utf-8")
+
+            if not content:
+                return ""
+
             doc = Document(BytesIO(content))
+
         else:
             doc = Document(source)
 
+        # =====================================================
+        # ĐỌC THEO THỨ TỰ DOCUMENT XML
+        # =====================================================
+        result = []
+
+        from docx.text.paragraph import Paragraph
+        from docx.table import Table
+
         for element in doc.element.body:
-            if element.tag.endswith('p') or element.tag.endswith('}p'):
-                from docx.text.paragraph import Paragraph
+
+            # -------------------------
+            # ĐOẠN VĂN
+            # -------------------------
+            if element.tag.endswith("}p"):
+
                 paragraph = Paragraph(element, doc)
                 text = safe_text(paragraph.text)
+
                 if text:
                     result.append(text)
-            elif element.tag.endswith('tbl') or element.tag.endswith('}tbl'):
-                from docx.table import Table
+
+            # -------------------------
+            # BẢNG
+            # -------------------------
+            elif element.tag.endswith("}tbl"):
+
                 table = Table(element, doc)
-                result.append("\n[BẢNG DỮ LIỆU]")
+
+                result.append("[BẢNG DỮ LIỆU]")
+
                 for row in table.rows:
-                    cells = [safe_text(cell.text).replace("\n", " ") for cell in row.cells]
-                    row_text = " | ".join(cells)
-                    if row_text.strip():
-                        result.append(row_text)
-        return normalize_source_text("\n".join(result))
+
+                    cells = []
+
+                    for cell in row.cells:
+                        cell_text = safe_text(cell.text)
+                        cell_text = cell_text.replace("\n", " ")
+
+                        if cell_text:
+                            cells.append(cell_text)
+
+                    if cells:
+                        result.append(" | ".join(cells))
+
+        final_text = "\n".join(result)
+        final_text = normalize_source_text(final_text)
+
+        logger.info(
+            "Đọc DOCX thành công: %s ký tự",
+            len(final_text)
+        )
+
+        return final_text
+
     except Exception as e:
-        return f"[LỖI ĐỌC DOCX: {str(e)}]"
+        logger.error("Lỗi đọc DOCX: %s", e)
+        return f"[LỖI ĐỌC DOCX: {e}]"
 
 def read_excel_structured(uploaded_file):
+    """
+    Đọc Excel có cấu trúc.
+    Đảm bảo luôn đọc file từ đầu.
+    """
     result = []
     try:
-        if hasattr(uploaded_file, "seek"):
-            uploaded_file.seek(0)
+        # =====================================================
+        # ĐỌC BYTES AN TOÀN
+        # =====================================================
+        if hasattr(uploaded_file, "getvalue"):
+            content = uploaded_file.getvalue()
+            if not content: return ""
+            file_source = BytesIO(content)
+        else:
+            if hasattr(uploaded_file, "seek"):
+                uploaded_file.seek(0)
+            file_source = uploaded_file
             
-        sheets = pd.read_excel(uploaded_file, sheet_name=None)
+        sheets = pd.read_excel(file_source, sheet_name=None)
         for sheet_name, dataframe in sheets.items():
             result.append(f"\n[PHÂN PHỐI CHƯƠNG TRÌNH - SHEET: {sheet_name}]")
             dataframe = dataframe.dropna(how='all').fillna("")
@@ -282,23 +395,62 @@ def read_excel_structured(uploaded_file):
                 clean_rec = {safe_text(k): safe_text(v) for k, v in rec.items() if safe_text(v)}
                 if clean_rec:
                     result.append(f"Dòng {idx}: " + json.dumps(clean_rec, ensure_ascii=False))
-        return normalize_source_text("\n".join(result))
+                    
+        final_text = normalize_source_text("\n".join(result))
+        logger.info("Đọc EXCEL thành công: %s ký tự", len(final_text))
+        return final_text
     except Exception as e:
-        return f"[LỖI ĐỌC EXCEL: {str(e)}]"
+        logger.error("Lỗi đọc EXCEL: %s", e)
+        return f"[LỖI ĐỌC EXCEL: {e}]"
 
-def read_uploaded_file(uploaded_file, range_str="", is_pdf_target=False):
-    if uploaded_file is None: return ""
-    filename = getattr(uploaded_file, "name", "file.docx").lower()
-    extension = Path(filename).suffix.lower()
-    try:
-        if extension == ".pdf":
-            return read_pdf(uploaded_file, range_str if is_pdf_target else "")
-        if extension == ".docx":
-            return read_docx_ordered(uploaded_file)
-        if extension in [".xlsx", ".xls"]:
-            return read_excel_structured(uploaded_file)
+def read_uploaded_file(
+    uploaded_file,
+    range_str="",
+    is_pdf_target=False
+):
+    """
+    Bộ định tuyến đọc file nguồn.
+    """
+    if uploaded_file is None:
         return ""
+
+    try:
+        filename = getattr(
+            uploaded_file,
+            "name",
+            ""
+        )
+
+        extension = Path(
+            filename.lower()
+        ).suffix
+
+        if extension == ".pdf":
+            return read_pdf(
+                uploaded_file,
+                range_str if is_pdf_target else ""
+            )
+
+        elif extension == ".docx":
+            return read_docx_ordered(
+                uploaded_file
+            )
+
+        elif extension in [".xlsx", ".xls"]:
+            return read_excel_structured(
+                uploaded_file
+            )
+
+        else:
+            return ""
+
     except Exception as e:
+        logger.error(
+            "Lỗi định tuyến file %s: %s",
+            filename,
+            e
+        )
+
         return f"[LỖI ĐỌC FILE: {e}]"
 
 def read_multiple_files(files, range_str="", is_pdf_target=False):
@@ -314,8 +466,7 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
 def read_template_local(path="templates/KHBD_Mau.docx"):
     if not os.path.exists(path): return ""
     try:
-        with open(path, "rb") as f:
-            return read_docx_ordered(f)
+        return read_docx_ordered(path)
     except Exception:
         return ""
 
@@ -372,7 +523,6 @@ def normalize_ai_result(result):
 
 def generate_ai(ai_engine, prompt):
     if ai_engine is None: raise RuntimeError("Chưa truyền AI Engine.")
-    # Truyền trực tiếp prompt để tương thích tối đa với các wrapper của SDK mới
     if hasattr(ai_engine, "generate_text"):
         return normalize_ai_result(ai_engine.generate_text(prompt))
     if hasattr(ai_engine, "generate"):
@@ -384,7 +534,6 @@ def validate_khbd_result(text):
     if len(text) < 500:
         return False, "Nội dung giáo án quá ngắn."
     
-    # Kiểm tra linh hoạt hơn, không ép buộc cấu trúc I, II, III tuyệt đối
     upper = text.upper()
     valid_count = sum(1 for kw in ["MỤC TIÊU", "THIẾT BỊ", "TIẾN TRÌNH", "HOẠT ĐỘNG"] if kw in upper)
     if valid_count < 3:
@@ -400,9 +549,13 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung
     
     quality = diagnose_source_quality(source, "SGK")
     if quality["status"] != "valid" and mode == "tu_dong":
-        raise ValueError(f"{quality['message']}\nSố ký tự trích xuất được: {quality['chars']}\nSố từ: {quality['words']}")
+        raise ValueError(
+            f"❌ Không đọc được nội dung văn bản từ tài liệu nguồn.\n\n"
+            f"Chi tiết: {quality['message']}\n"
+            f"Số ký tự: {quality['chars']}\n"
+            f"Số từ: {quality['words']}"
+        )
 
-    # Khối nội dung phụ (đã khắc phục lỗi bỏ quên biến)
     ga_block = f"\n[GIÁO ÁN GỐC (THAM KHẢO CẤU TRÚC)]\n{safe_text(noi_dung_ga)}\n" if noi_dung_ga else ""
     ai_block = f"\n[HƯỚNG DẪN AI BỔ SUNG]\n{safe_text(noi_dung_ai)}\n" if noi_dung_ai else ""
     hoa_nhap_block = f"Bắt buộc thiết kế các hoạt động hỗ trợ riêng cho đối tượng: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Môi trường học tập đại trà."
