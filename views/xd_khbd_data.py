@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (HOÀN CHỈNH & KHỚP STATE)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUẨN HÓA KHÔNG DÙNG PYPDF2)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -29,9 +29,6 @@ MODE_LABELS = {
 MIN_SOURCE_CHARS = 300
 MIN_SOURCE_WORDS = 50
 
-# =====================================================
-# KHỞI TẠO SESSION STATE (Đã bổ sung đầy đủ)
-# =====================================================
 def init_session_state():
     defaults = {
         "khbd_mode": "tu_dong",
@@ -61,14 +58,11 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
-# =====================================================
-# KHUNG NĂNG LỰC SỐ
-# =====================================================
 KHUNG_NLS_GV = {
     "1. Miền 1: Tổ chức dạy học trong môi trường số": {
         "1.1. Dạy học trong môi trường số": {
-            "Cơ bản": "Sử dụng thiết bị cơ bản (máy tính, máy chiếu); Dùng ứng dụng giáo dục đơn giản.",
-            "Thành thạo": "Tích hợp học liệu số vào kế hoạch; Thiết kế hoạt động học tập tương tác."
+            "Cơ bản": "Sử dụng thiết bị cơ bản; Dùng ứng dụng giáo dục đơn giản.",
+            "Thành thạo": "Tích hợp học liệu số vào kế hoạch; Thiết kế hoạt động tương tác."
         }
     },
     "6. Miền 6: Trí tuệ nhân tạo (AI)": {
@@ -81,8 +75,8 @@ KHUNG_NLS_GV = {
 KHUNG_NLS_HS = {
     "1. Thông tin và dữ liệu số": {
         "1.1. Duyệt, tìm kiếm và lọc dữ liệu": {
-            "Mức 1": "Tìm kiếm dữ liệu đơn giản trong môi trường số.",
-            "Mức 2": "Sử dụng kĩ thuật tìm kiếm nâng cao để lấy thông tin chính xác."
+            "Mức 1": "Tìm kiếm dữ liệu đơn giản.",
+            "Mức 2": "Sử dụng kĩ thuật tìm kiếm nâng cao."
         }
     }
 }
@@ -131,9 +125,6 @@ def add_activity():
         st.session_state.khbd_hoat_dong_list.append(value)
     st.session_state.khbd_new_activity = ""
 
-# =====================================================
-# XỬ LÝ VĂN BẢN & ĐÁNH GIÁ NGUỒN
-# =====================================================
 def safe_text(value):
     if value is None: return ""
     text = str(value).replace("\x00", "").replace("\ufeff", "").replace("\u200b", "")
@@ -150,16 +141,11 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     chars = len(text)
     words = len(re.findall(r"\S+", text))
     if chars == 0:
-        return {"status": "empty", "message": f"Không thể đọc bất kỳ chữ nào từ {source_name}. File có thể bị hỏng hoặc rỗng.", "chars": chars, "words": words}
-    if "[LỖI ĐỌC" in text.upper():
-        return {"status": "error", "message": f"{source_name} có lỗi khi đọc.", "chars": chars, "words": words}
+        return {"status": "empty", "message": f"Không thể đọc chữ từ {source_name}.", "chars": chars, "words": words}
     if chars < MIN_SOURCE_CHARS:
-        return {"status": "insufficient", "message": f"{source_name} không đủ dữ liệu. (Cần tối thiểu {MIN_SOURCE_CHARS} ký tự)", "chars": chars, "words": words}
+        return {"status": "insufficient", "message": f"{source_name} không đủ dữ liệu (Cần tối thiểu {MIN_SOURCE_CHARS} ký tự).", "chars": chars, "words": words}
     return {"status": "valid", "message": f"{source_name} đủ dữ liệu.", "chars": chars, "words": words}
 
-# =====================================================
-# BỘ ĐỌC TÀI LIỆU AN TOÀN (PDF, DOCX, EXCEL)
-# =====================================================
 def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
     try:
@@ -182,7 +168,7 @@ def read_pdf(uploaded_file, range_str=""):
             except Exception:
                 pass
 
-        # 1. THỬ PYMUPDF (fitz)
+        # 1. PyMuPDF (fitz)
         try:
             import fitz
             doc = fitz.open(stream=content, filetype="pdf")
@@ -198,7 +184,7 @@ def read_pdf(uploaded_file, range_str=""):
         except Exception as e:
             logger.warning("PyMuPDF lỗi: %s", e)
 
-        # 2. THỬ PYPDF DỰ PHÒNG
+        # 2. pypdf (Thay thế hoàn toàn PyPDF2)
         try:
             from pypdf import PdfReader
             reader = PdfReader(BytesIO(content))
@@ -211,7 +197,6 @@ def read_pdf(uploaded_file, range_str=""):
                 pages = [reader.pages[i - 1].extract_text().strip() for i in range(s_page, e_page + 1) if reader.pages[i - 1].extract_text()]
                 return normalize_source_text("\n\n".join(pages))
         except Exception as e:
-            logger.error("pypdf lỗi: %s", e)
             return f"[LỖI ĐỌC PDF: {e}]"
     except Exception as e:
         return f"[LỖI ĐỌC PDF: {e}]"
@@ -281,9 +266,6 @@ def read_template_local(path="templates/KHBD_Mau.docx"):
     try: return read_docx_ordered(path)
     except: return ""
 
-# =====================================================
-# CẤU HÌNH AI VÀ PROMPT THEO CHUẨN MỚI
-# =====================================================
 def load_task_config():
     path = "prompts/task_config_khbd.txt"
     if os.path.exists(path):
@@ -302,11 +284,7 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
             "Tư duy mở rộng": "gemini-2.5-pro"
         }
         api_model = model_mapping.get(model_name, "gemini-2.5-flash")
-        
-        response = client.models.generate_content(
-            model=api_model,
-            contents=prompt
-        )
+        response = client.models.generate_content(model=api_model, contents=prompt)
         return getattr(response, "text", "").strip()
     except Exception as e:
         logger.error("Lỗi gọi AI: %s", e)
@@ -314,19 +292,18 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
 
 def validate_khbd_result(text):
     text = safe_text(text).upper()
-    if len(text) < 500: return False, "Nội dung giáo án quá ngắn, có thể AI bị ngắt quãng."
+    if len(text) < 500: return False, "Nội dung giáo án quá ngắn."
     valid_count = sum(1 for kw in ["MỤC TIÊU", "THIẾT BỊ", "TIẾN TRÌNH", "HOẠT ĐỘNG"] if kw in text)
-    if valid_count < 3: return False, "Thiếu các mục cấu trúc sư phạm cơ bản."
+    if valid_count < 3: return False, "Thiếu mục cấu trúc sư phạm."
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
     if mode not in MODE_LABELS: raise ValueError("Chế độ không hợp lệ.")
-    
-    source = safe_text(noi_dung_chinh)[:8000] 
+    source = safe_text(noi_dung_chinh)[:8000]
     
     quality = diagnose_source_quality(source, "Tài liệu nguồn")
     if quality["status"] != "valid" and mode in ["tu_dong", "tao_moi"]:
-        raise ValueError(f"❌ Không trích xuất được văn bản.\nChi tiết: {quality['message']}\nKý tự: {quality['chars']}, Từ: {quality['words']}")
+        raise ValueError(f"❌ Không trích xuất được văn bản.\nChi tiết: {quality['message']}")
 
     ga_block = f"\n[GIÁO ÁN GỐC THAM KHẢO]\n{safe_text(noi_dung_ga)[:3000]}\n" if noi_dung_ga else ""
     hoa_nhap_block = f"Hỗ trợ riêng cho học sinh: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Đại trà."
@@ -334,11 +311,11 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung
     return (
         f"{load_task_config()}\n\n"
         f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n"
-        f"--- NGUỒN KIẾN THỨC CỐT LÕI (BẮT BUỘC SỬ DỤNG) ---\n{source}\n\n"
+        f"--- NGUỒN KIẾN THỨC CỐT LÕI ---\n{source}\n\n"
         f"--- CHỈ ĐẠO BỔ SUNG ---\nPPCT: {safe_text(noi_dung_ppct)}\n{ga_block}\n"
         f"Năng lực số: {nls}\nAI: {'Có' if tich_hop_ai else 'Không'}\nHòa nhập: {hoa_nhap_block}\nThêm HĐ: {safe_text(hoat_dong)}\n\n"
         f"--- RÀNG BUỘC KỸ THUẬT ---\n"
-        f"1. TUYỆT ĐỐI KHÔNG bịa đặt kiến thức ngoài Nguồn cốt lõi.\n"
-        f"2. Nếu bài >1 tiết, phải phân tách: ### TIẾT 1, ### TIẾT 2... Mỗi tiết đều viết đầy đủ chi tiết tiến trình.\n"
+        f"1. Tuyệt đối không bịa đặt kiến thức ngoài Nguồn cốt lõi.\n"
+        f"2. Nếu bài >1 tiết, phải phân tách rõ ràng: ### TIẾT 1, ### TIẾT 2...\n"
         f"3. Dùng Markdown chuẩn, bắt đầu ngay bằng # TÊN BÀI HỌC.\n"
     )
