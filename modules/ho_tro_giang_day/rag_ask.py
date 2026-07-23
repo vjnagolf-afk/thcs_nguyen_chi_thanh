@@ -1,62 +1,66 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
-from pypdf import PdfReader
 
-# Logic xử lý RAG (Retrieval Augmented Generation) cơ bản
-def get_pdf_text(pdf_file):
-    text = ""
-    reader = PdfReader(pdf_file)
-    for page in reader.pages:
-        text += page.extract_text() or ""
-    return text
+def render_rag_ask(ai_engine=None):
+    st.markdown("### 📚 Trợ lý Chat & Hỏi đáp trên Tài liệu (RAG Ask)")
+    st.caption("Tải lên sách giáo khoa, tài liệu bài giảng. AI sẽ đọc và trả lời mọi câu hỏi của học sinh dựa trên nội dung tài liệu đó.")
 
-def render_rag(ai_engine):
-    st.markdown("### 🤖 AI Hỏi - Đáp Theo Tài Liệu (RAG)")
+    if "rag_chat_history" not in st.session_state:
+        st.session_state.rag_chat_history = [{"role": "assistant", "content": "Chào bạn! Hãy tải tài liệu lên và đặt câu hỏi nhé."}]
     
-    # Khu vực tải tài liệu
-    uploaded_file = st.file_uploader("Tải tài liệu PDF để AI học:", type=["pdf"])
-    
-    # Khởi tạo session state cho RAG
-    if "rag_context" not in st.session_state:
-        st.session_state.rag_context = ""
-    
-    # Xử lý file PDF khi upload
-    if uploaded_file:
-        with st.spinner("⏳ AI đang đọc và nạp tài liệu..."):
-            st.session_state.rag_context = get_pdf_text(uploaded_file)
-            st.success(f"✅ Đã nạp xong tài liệu: {uploaded_file.name}")
+    if "rag_document" not in st.session_state:
+        st.session_state.rag_document = ""
 
-    # Giao diện chat
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    col1, col2 = st.columns([1, 2])
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    if prompt := st.chat_input("Nhập câu hỏi dựa trên tài liệu đã tải lên..."):
-        if not st.session_state.rag_context:
-            st.warning("⚠️ Vui lòng tải tài liệu lên trước khi đặt câu hỏi!")
-            return
-
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            # Prompt đặc chế cho RAG
-            full_prompt = f"""
-            Dựa trên tài liệu dưới đây, hãy trả lời câu hỏi của người dùng một cách chính xác và sư phạm. 
-            Nếu thông tin không có trong tài liệu, hãy trả lời dựa trên kiến thức chung nhưng phải báo trước cho người dùng.
-
-            [TÀI LIỆU]:
-            {st.session_state.rag_context[:10000]} 
-
-            [CÂU HỎI]:
-            {prompt}
-            """
+    with col1:
+        st.markdown("#### 📤 Nạp dữ liệu")
+        uploaded_file = st.file_uploader("Tải tài liệu (TXT, Markdown)", type=["txt", "md"])
+        if uploaded_file:
             try:
-                response = ai_engine.generate_text(full_prompt)
-                st.markdown(response)
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                text = uploaded_file.read().decode("utf-8")
+                st.session_state.rag_document = text[:50000] # Giới hạn context
+                st.success("✅ Đã nạp tài liệu vào bộ nhớ AI!")
             except Exception as e:
-                st.error(f"Lỗi truy vấn AI: {e}")
+                st.error(f"Lỗi đọc file: {e}")
+                
+        if st.button("🗑️ Xóa bộ nhớ", use_container_width=True):
+            st.session_state.rag_chat_history = [{"role": "assistant", "content": "Đã xóa bộ nhớ. Hãy tải tài liệu mới!"}]
+            st.session_state.rag_document = ""
+            st.rerun()
+
+    with col2:
+        st.markdown("#### 💬 Khung Chatbot")
+        chat_container = st.container(height=400)
+        
+        user_query = st.chat_input("Hỏi AI về nội dung trong tài liệu...")
+        
+        if user_query:
+            st.session_state.rag_chat_history.append({"role": "user", "content": user_query})
+            
+            with chat_container:
+                for msg in st.session_state.rag_chat_history:
+                    st.chat_message(msg["role"]).write(msg["content"])
+                
+                with st.chat_message("assistant"):
+                    with st.spinner("AI đang tìm kiếm câu trả lời..."):
+                        if not ai_engine:
+                            st.error("Chưa kết nối AI Engine.")
+                        else:
+                            # Prompt kết hợp RAG cơ bản
+                            context = st.session_state.rag_document
+                            if context:
+                                prompt = f"Dựa vào tài liệu sau:\n\n{context}\n\nHãy trả lời câu hỏi: {user_query}\nNếu thông tin không có trong tài liệu, hãy nói rõ là tài liệu không đề cập."
+                            else:
+                                prompt = f"Trả lời câu hỏi sau một cách ngắn gọn: {user_query}"
+                                
+                            try:
+                                response = ai_engine.generate_text(prompt)
+                                st.write(response)
+                                st.session_state.rag_chat_history.append({"role": "assistant", "content": response})
+                            except Exception as e:
+                                st.error(f"Lỗi AI: {e}")
+        else:
+            with chat_container:
+                for msg in st.session_state.rag_chat_history:
+                    st.chat_message(msg["role"]).write(msg["content"])
