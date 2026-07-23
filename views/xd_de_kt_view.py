@@ -17,7 +17,7 @@ except ImportError:
 
 def render_xd_de_kt(ai_engine=None):
     """
-    Khớp chính xác tham số truyền vào từ app.py: with tabs[1]: render_xd_de_kt(ai_engine)
+    Khớp chính xác tham số truyền vào từ app.py
     """
     init_session_state_de_kt()
 
