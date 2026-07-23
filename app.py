@@ -44,16 +44,43 @@ except ImportError as e:
     st.error(f"❌ Lỗi import phân hệ Quản lý tổ chuyên môn: {e}")
 
 # ============================================================
-# IMPORT CÁC VIEW ĐÃ HOÀN THIỆN TRƯỚC ĐÓ (TẠM GỌI CHO PHÂN HỆ 2)
+# IMPORT PHÂN HỆ 2: HỖ TRỢ GIÁO VIÊN
 # ============================================================
 try:
     from views.xd_khbd_view import render_xd_khbd
     from views.xd_de_kt_view import render_xd_de_kt
     from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
-except ImportError:
-    render_xd_khbd = None
-    render_xd_de_kt = None
-    render_xd_ma_tran_tu_de = None
+    
+    from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
+    from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
+    from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
+    from modules.ho_tro_gv.xd_live import render_xd_live
+    from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
+    from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
+    from modules.ho_tro_gv.xd_rubric import render_xd_rubric
+    from modules.ho_tro_gv.xd_stem import render_xd_stem
+    from modules.ho_tro_gv.xd_tao_hoc_lieu import render_xd_tao_hoc_lieu
+    from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
+except ImportError as e:
+    st.error(f"❌ Lỗi import phân hệ Hỗ trợ Giáo viên: {e}")
+
+# ============================================================
+# IMPORT PHÂN HỆ 3: HỖ TRỢ GIẢNG DẠY
+# ============================================================
+try:
+    from modules.ho_tro_giang_day.rag_ask import render_rag_ask
+    from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
+    from modules.ho_tro_giang_day.xd_camera import render_xd_camera
+    from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
+    from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
+    from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_xd_kiem_tra_nhanh
+    from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
+    from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
+    from modules.ho_tro_giang_day.xd_phan_tich_bh import render_xd_phan_tich_bh
+    from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
+    from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
+except ImportError as e:
+    st.error(f"❌ Lỗi import phân hệ Hỗ trợ Giảng dạy: {e}")
 
 # ============================================================
 # IMPORT PHÂN HỆ 4: ỨNG DỤNG KHÁC
@@ -185,7 +212,6 @@ if menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
 elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     st.markdown("## 👨‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     
-    # 12 thẻ chức năng dựa theo kiến trúc thư mục ho_tro_gv
     tab_titles_gv = [
         "1. KHBD", "2. Đề kiểm tra", "3. Ma trận từ đề", 
         "4. Chấm viết", "5. Chủ nhiệm", "6. Chuyển đổi", 
@@ -194,23 +220,45 @@ elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     ]
     tabs_gv = st.tabs(tab_titles_gv)
     
-    # Mapping các module đã có mã
     with tabs_gv[0]:
-        if render_xd_khbd: render_xd_khbd(ai_instance)
-        else: st.info("Module Xây dựng Kế hoạch bài dạy chưa được import.")
-            
+        try: render_xd_khbd(ai_instance)
+        except NameError: st.warning("Module KHBD chưa sẵn sàng.")
     with tabs_gv[1]:
-        if render_xd_de_kt: render_xd_de_kt(ai_instance)
-        else: st.info("Module Đề kiểm tra chưa được import.")
-            
+        try: render_xd_de_kt(ai_instance)
+        except NameError: st.warning("Module Đề kiểm tra chưa sẵn sàng.")
     with tabs_gv[2]:
-        if render_xd_ma_tran_tu_de: render_xd_ma_tran_tu_de(ai_instance)
-        else: st.info("Module Ma trận ngược từ Đề chưa được import.")
-            
-    # Các module chưa có mã
-    for i in range(3, 12):
-        with tabs_gv[i]:
-            st.info(f"Khu vực tính năng của {tab_titles_gv[i]} đang được phát triển...")
+        try: render_xd_ma_tran_tu_de(ai_instance)
+        except NameError: st.warning("Module Ma trận ngược chưa sẵn sàng.")
+    with tabs_gv[3]:
+        try: render_xd_cham_viet(ai_instance)
+        except NameError: st.warning("Module Chấm viết chưa sẵn sàng.")
+    with tabs_gv[4]:
+        try: render_xd_chu_nhiem(ai_instance)
+        except NameError: st.warning("Module Chủ nhiệm chưa sẵn sàng.")
+    with tabs_gv[5]:
+        try: render_xd_chuyen_doi(ai_instance)
+        except NameError: st.warning("Module Chuyển đổi chưa sẵn sàng.")
+    with tabs_gv[6]:
+        try: render_xd_live(ai_instance)
+        except NameError: st.warning("Module Live chưa sẵn sàng.")
+    with tabs_gv[7]:
+        try: render_xd_mo_phong(ai_instance)
+        except NameError: st.warning("Module Mô phỏng chưa sẵn sàng.")
+    with tabs_gv[8]:
+        try: render_xd_quizizz(ai_instance)
+        except NameError: st.warning("Module Quizizz chưa sẵn sàng.")
+    with tabs_gv[9]:
+        try: render_xd_rubric(ai_instance)
+        except NameError: st.warning("Module Rubric chưa sẵn sàng.")
+    with tabs_gv[10]:
+        try: render_xd_stem(ai_instance)
+        except NameError: st.warning("Module STEM chưa sẵn sàng.")
+    with tabs_gv[11]:
+        try:
+            render_xd_tao_hoc_lieu(ai_instance)
+            st.divider()
+            render_xd_tao_prompt(ai_instance)
+        except NameError: st.warning("Module Tạo học liệu/Prompt chưa sẵn sàng.")
 
 # ------------------------------------------------------------
 # 3. PHÂN HỆ HỖ TRỢ GIẢNG DẠY
@@ -218,24 +266,55 @@ elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
 elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
     st.markdown("## 🎓 Phân hệ: Hỗ trợ Giảng dạy")
     
-    # 12 thẻ chức năng dựa theo kiến trúc thư mục ho_tro_giang_day
     tab_titles_gd = [
         "1. RAG Ask", "2. Cá nhân hóa", "3. Camera", 
         "4. Chấm nhanh", "5. Học liệu", "6. Kiểm tra nhanh", 
         "7. Ngân hàng đề", "8. Phân tích", "9. Phân tích BH", 
-        "10. Sinh video", "11. Trò chơi", "12. Mô phỏng"
+        "10. Sinh video", "11. Trò chơi", "12. Mô phỏng (Đang phát triển)"
     ]
     tabs_gd = st.tabs(tab_titles_gd)
     
-    for i in range(12):
-        with tabs_gd[i]:
-            st.info(f"Khu vực tính năng của {tab_titles_gd[i]} đang được phát triển...")
+    with tabs_gd[0]:
+        try: render_rag_ask(ai_instance)
+        except NameError: st.warning("Module RAG Ask chưa sẵn sàng.")
+    with tabs_gd[1]:
+        try: render_xd_ca_nhan_hoa(ai_instance)
+        except NameError: st.warning("Module Cá nhân hóa chưa sẵn sàng.")
+    with tabs_gd[2]:
+        try: render_xd_camera(ai_instance)
+        except NameError: st.warning("Module Camera chưa sẵn sàng.")
+    with tabs_gd[3]:
+        try: render_xd_cham_nhanh(ai_instance)
+        except NameError: st.warning("Module Chấm nhanh chưa sẵn sàng.")
+    with tabs_gd[4]:
+        try: render_xd_hoc_lieu(ai_instance)
+        except NameError: st.warning("Module Học liệu chưa sẵn sàng.")
+    with tabs_gd[5]:
+        try: render_xd_kiem_tra_nhanh(ai_instance)
+        except NameError: st.warning("Module Kiểm tra nhanh chưa sẵn sàng.")
+    with tabs_gd[6]:
+        try: render_xd_ngan_hang_de(ai_instance)
+        except NameError: st.warning("Module Ngân hàng đề chưa sẵn sàng.")
+    with tabs_gd[7]:
+        try: render_xd_phan_tich(ai_instance)
+        except NameError: st.warning("Module Phân tích chưa sẵn sàng.")
+    with tabs_gd[8]:
+        try: render_xd_phan_tich_bh(ai_instance)
+        except NameError: st.warning("Module Phân tích Bài học chưa sẵn sàng.")
+    with tabs_gd[9]:
+        try: render_xd_sinh_video(ai_instance)
+        except NameError: st.warning("Module Sinh video chưa sẵn sàng.")
+    with tabs_gd[10]:
+        try: render_xd_tro_choi(ai_instance)
+        except NameError: st.warning("Module Trò chơi chưa sẵn sàng.")
+    with tabs_gd[11]:
+        st.info("Khu vực tính năng Mô phỏng thuộc phân hệ Hỗ trợ giảng dạy đang được phát triển...")
 
 # ------------------------------------------------------------
 # 4. PHÂN HỆ ỨNG DỤNG KHÁC
 # ------------------------------------------------------------
 elif menu_category == "🛠️ Phân hệ Ứng dụng khác":
     try:
-        render_ung_dung_khac()
+        render_ung_dung_khac(ai_instance)
     except Exception as e:
         st.error(f"Lỗi hiển thị phân hệ Ứng dụng khác: {e}")
