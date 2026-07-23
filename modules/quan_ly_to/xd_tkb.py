@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 
-def render_tkb(db):
+def render_tkb(db=None):
     st.subheader("📅 Quản lý Thời Khóa Biểu Toàn Trường")
     
     # Kiểm tra kết nối Supabase
