@@ -1,260 +1,228 @@
 # -*- coding: utf-8 -*-
 """
-Module: views/xd_de_kt_view.py
-Nhiệm vụ: Giao diện Sinh đề kiểm tra (Ma trận, Đặc tả, Đề KT, Đáp án) chuẩn 5512.
+============================================================
+VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY
+FILE: views/xd_khbd_view.py
+============================================================
 """
 
 import streamlit as st
-import sys
-from pathlib import Path
-from io import BytesIO
-import re
+import os
+import tempfile
 
-def extract_text_from_file(uploaded_file):
-    """Bóc tách văn bản thô từ file PDF, Word hoặc TXT tải lên, chống trùng bảng."""
-    if uploaded_file is None:
-        return ""
-    try:
-        file_name = uploaded_file.name.lower()
-        file_bytes = uploaded_file.getvalue()
-        if not file_bytes:
-            return ""
-            
-        # 1. Xử lý tệp định dạng PDF
-        if file_name.endswith(".pdf"):
-            from pypdf import PdfReader
-            reader = PdfReader(BytesIO(file_bytes))
-            pages = []
-            for page_number, page in enumerate(reader.pages, start=1):
-                text = page.extract_text()
-                if text and text.strip():
-                    pages.append(f"\n--- TRANG {page_number} ---\n{text.strip()}")
-            return "\n\n".join(pages).strip()
-            
-        # 2. Xử lý tệp định dạng DOCX (Chống lặp nội dung ô bảng)
-        elif file_name.endswith(".docx"):
-            from docx import Document
-            document = Document(BytesIO(file_bytes))
-            contents = []
-            seen_texts = set()
-            
-            for paragraph in document.paragraphs:
-                text = paragraph.text.strip()
-                if text and text not in seen_texts:
-                    contents.append(text)
-                    seen_texts.add(text)
-                    
-            for table in document.tables:
-                for row in table.rows:
-                    row_data = [cell.text.strip().replace("\n", " ") for cell in row.cells]
-                    row_text = " | ".join(filter(None, row_data))
-                    if row_text.strip() and row_text not in seen_texts:
-                        contents.append(row_text)
-                        seen_texts.add(row_text)
-            return "\n".join(contents).strip()
-            
-        # 3. Xử lý tệp định dạng văn bản thuần TXT
-        elif file_name.endswith(".txt"):
-            for encoding in ["utf-8", "utf-8-sig", "cp1258", "latin-1"]:
-                try:
-                    return file_bytes.decode(encoding).strip()
-                except Exception:
-                    continue
-            return ""
-    except Exception as e:
-        st.error(f"❌ Lỗi đọc tài liệu {uploaded_file.name}: {e}")
-        return ""
-    return ""
-
-def normalize_outline(text):
-    """Chuẩn hóa dữ liệu chữ và giới hạn an toàn 6,000 từ để chống tràn Token."""
-    if not text:
-        return ""
-    clean_text = re.sub(r"\s+", " ", text).strip()
-    words = clean_text.split(" ")
-    safe_text = " ".join(words[:6000])
-    
-    if len(words) > 6000:
-        st.warning(f"⚠️ Dữ liệu tải lên rất dài ({len(words):,} từ). AI đã tự động lọc 6,000 từ để bảo vệ hệ thống.")
-    return safe_text
-
-def render_xd_de_kt(ai_engine):
-    """Hiển thị giao diện soạn thảo cấu hình đề kiểm tra chuẩn 5512."""
-    st.markdown("### Soạn thảo Ma trận, Đặc tả & Đề KT (Chuẩn 5512)")
-    
-    # --- KHỐI THÔNG TIN CHUNG ---
-    c1, c2, c3, c4, c5, c6 = st.columns([1, 0.8, 1.2, 1, 2, 0.8])
-    mon_hoc = c1.selectbox(
-        "Môn", 
-        [
-            "Toán học", "Ngữ văn", "Ngoại ngữ", "Khoa học Tự nhiên", 
-            "Lịch sử và Địa lý", "Lịch sử", "Địa lý", "Vật lý", "Hóa học", 
-            "Sinh học", "Giáo dục công dân", "Giáo dục kinh tế và pháp luật", 
-            "Tin học", "Công nghệ", "Giáo dục thể chất", "Khác"
-        ], 
-        key="de_kt_mon_hoc"
+try:
+    from views.xd_khbd_data import (
+        init_session_state,
+        get_nls_domains,
+        get_nls_components,
+        get_nls_levels,
+        get_nls_content,
+        read_multiple_files,
+        read_uploaded_file,
+        read_template_local,
+        add_nls,
+        format_nls,
+        add_activity,
+        build_prompt,
+        generate_ai,
+        validate_khbd_result
     )
-    lop = c2.selectbox("Lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"], index=2, key="de_kt_lop")
-    hinh_thuc = c3.selectbox("Hình thức", ["Trắc nghiệm & Tự luận", "100% Trắc nghiệm", "100% Tự luận"], key="de_kt_hinh_thuc")
-    thoi_gian = c4.selectbox("Thời gian", ["15 phút", "45 phút", "60 phút", "90 phút", "120 phút"], index=3, key="de_kt_thoi_gian")
-    ten_de = c5.text_input("Tên bài kiểm tra", key="de_kt_ten_de")
-    with c6:
-        st.markdown("<div style='margin-top: 25px;'></div>", unsafe_allow_html=True)
-        bam_sat = st.checkbox("Bám sát đề cương", value=True, key="de_kt_bam_sat")
-        
-    # --- KHỐI TẢI NHIỀU TÀI LIỆU CÙNG LÚC ---
-    files_de = st.file_uploader("📥 Tải đề cương / tài liệu (Có thể chọn nhiều file cùng lúc)", type=["pdf", "docx", "txt"], accept_multiple_files=True, key="de_kt_file_de_cuong")
+except Exception as e:
+    st.error(f"❌ Không thể nạp module logic: {e}")
+    raise
+
+try:
+    from export.word_export_engine import WordExportEngine
+except Exception:
+    WordExportEngine = None
+
+def _show_source_quality(text, title="Tài liệu kiến thức"):
+    chars = len(text)
+    words = len(text.split())
+    lines = len([x for x in text.splitlines() if x.strip()])
+
+    st.markdown(f"#### 📊 Kiểm tra dữ liệu: {title}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Số ký tự", f"{chars:,}")
+    c2.metric("Số từ", f"{words:,}")
+    c3.metric("Số dòng", f"{lines:,}")
+
+    if chars < 300:
+        st.warning("⚠️ Nội dung trích xuất quá ít hoặc là file Scan rỗng. Nếu AI sinh lỗi, hãy copy chữ dán ra file Word (.docx) rồi tải lại!")
+    else:
+        st.success("✅ Dữ liệu đã được đọc thành công.")
+
+def render_xd_khbd(ai_engine_client=None):
+    """
+    Nhận tham số ai_engine_client từ app.py (thường là client lấy từ get_ai_client)
+    """
+    init_session_state()
+
+    st.title("📘 XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUẨN 5512 & TT18)")
     
-    # --- KHỐI THIẾT LẬP TỶ LỆ NHẬN THỨC ---
-    with st.expander("📊 Cấu hình Tỷ lệ & Số câu", expanded=True):
-        r1, r2, r3, r4 = st.columns(4)
-        nb = r1.number_input("Nhận biết (%)", min_value=0, max_value=100, value=40, step=5, key="de_kt_nb")
-        th = r2.number_input("Thông hiểu (%)", min_value=0, max_value=100, value=30, step=5, key="de_kt_th")
-        vd = r3.number_input("Vận dụng (%)", min_value=0, max_value=100, value=20, step=5, key="de_kt_vd")
-        vdc = r4.number_input("Vận dụng cao (%)", min_value=0, max_value=100, value=10, step=5, key="de_kt_vdc")
+    st.subheader("🎛️ Thông tin bài dạy")
+    col1, col2 = st.columns(2)
+    with col1:
+        khoi_lop = st.selectbox("Khối lớp", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"])
+    with col2:
+        mon_hoc = st.selectbox("Môn học", ["Toán", "Ngữ văn", "Tiếng Anh", "Khoa học tự nhiên", "Vật lí", "Hóa học", "Sinh học", "Lịch sử và Địa lí", "Tin học", "Công nghệ", "Khác"])
         
-        tong_ty_le = nb + th + vd + vdc
-        if tong_ty_le != 100:
-            st.warning(f"⚠️ Tổng tỷ lệ mức độ hiện tại là {tong_ty_le}%. Phải bằng 100%.")
-            
-        # --- CẤU TRÚC ĐỀ TRẮC NGHIỆM ---
-        st.markdown("#### Cấu trúc các dạng câu hỏi")
-        cols = st.columns(8)
-        n_nlc = cols[0].number_input("NLC", min_value=0, value=10, key="de_kt_n_nlc")
-        d_nlc = cols[1].number_input("Đ.NLC", min_value=0.0, value=0.25, step=0.25, key="de_kt_d_nlc")
-        n_ds = cols[2].number_input("Đ/S", min_value=0, value=2, key="de_kt_n_ds")
-        d_ds = cols[3].number_input("Đ.Đ/S", min_value=0.0, value=0.25, step=0.25, key="de_kt_d_ds")
-        n_dk = cols[4].number_input("Điền K", min_value=0, value=2, key="de_kt_n_dk")
-        d_dk = cols[5].number_input("Đ.DK", min_value=0.0, value=0.25, step=0.25, key="de_kt_d_dk")
-        n_ngan = cols[6].number_input("TL Ngắn", min_value=0, value=2, key="de_kt_n_ngan")
-        d_ngan = cols[7].number_input("Đ.TLN", min_value=0.0, value=0.50, step=0.25, key="de_kt_d_ngan")
-        
-        total_diem_tn = (n_nlc * d_nlc) + (n_ds * d_ds) + (n_dk * d_dk) + (n_ngan * d_ngan)
-        
-        # --- CẤU TRÚC ĐỀ TỰ LUẬN ---
-        st.markdown("#### PHẦN TỰ LUẬN")
-        num_tl = st.number_input("Số câu Tự luận", min_value=0, max_value=10, value=3, key="de_kt_num_tl")
-        
-        tl_points = []
-        if num_tl > 0:
-            rows_needed = (num_tl + 3) // 4
-            for r in range(rows_needed):
-                tl_cols = st.columns(4)
-                for c in range(4):
-                    idx = r * 4 + c
-                    if idx < num_tl:
-                        p = tl_cols[c].number_input(f"Câu {idx + 1} (đ)", min_value=0.0, value=2.0, step=0.25, key=f"de_kt_tl_p_{idx}")
-                        tl_points.append(p)
-                        
-        total_diem_tl = sum(tl_points)
-        total_diem = total_diem_tn + total_diem_tl
-        
-        st.markdown("---")
-        res_cols = st.columns(3)
-        res_cols[0].metric("Tổng điểm Trắc nghiệm", f"{total_diem_tn:.2f}")
-        res_cols[1].metric("Tổng điểm Tự luận", f"{total_diem_tl:.2f}")
-        res_cols[2].metric("TỔNG ĐIỂM ĐỀ", f"{total_diem:.2f} / 10")
+    st.subheader("✨ Cấu hình AI & Chế độ")
+    c_md1, c_md2 = st.columns(2)
+    with c_md1:
+        mode = st.radio("Chế độ soạn", ["tu_dong", "chinh_sua"], format_func=lambda x: "⚡ Tự động soạn từ SGK" if x == "tu_dong" else "📄 Chỉnh sửa giáo án gốc", horizontal=True)
+    with c_md2:
+        model_name = st.selectbox("Mô hình AI xử lý", ["3.5 Flash", "3.1 Flash-Lite", "3.1 Pro", "Tư duy mở rộng"])
 
-    # --- KHỐI XỬ LÝ KÍCH HOẠT VÀ RENDER DỮ LIỆU ĐẦU RA ---
-    if st.button("🚀 TẠO MA TRẬN & ĐỀ KIỂM TRA", type="primary", use_container_width=True, key="de_kt_btn_generate"):
-        if tong_ty_le != 100:
-            st.error("❌ Tổng tỷ lệ Nhận biết + Thông hiểu + Vận dụng + Vận dụng cao phải bằng 100%.")
-            st.stop()
-        if bam_sat and not files_de:
-            st.error("❌ Thầy/Cô đã tích chọn 'Bám sát đề cương' nhưng chưa tải lên tệp căn cứ nào.")
-            st.stop()
-        if abs(total_diem - 10.0) > 0.01:
-            st.error(f"❌ Tổng điểm thiết lập hiện tại là {total_diem:.2f}/10. Vui lòng điều chỉnh lại cấu hình số câu/điểm.")
-            st.stop()
-            
-        with st.spinner("⏳ Hệ thống đang bóc tách và xử lý dữ liệu từ (các) tài liệu tải lên..."):
-            if bam_sat and files_de:
-                raw_outline = ""
-                for f in files_de:
-                    raw_outline += f"\n--- TÀI LIỆU: {f.name} ---\n"
-                    raw_outline += extract_text_from_file(f)
-                    
-                outline_text = normalize_outline(raw_outline)
-                if not outline_text:
-                    st.error("❌ Không trích xuất được nội dung chữ từ các file đã tải lên.")
-                    st.stop()
-            else:
-                outline_text = "Không cung cấp đề cương. AI tự động bám sát chương trình GDPT 2018 theo Môn học và Lớp."
+    range_trang = ""
+    if mode == "tu_dong":
+        st.info("💡 Nên giới hạn trang để trích xuất chuẩn. Ví dụ: 45-48")
+        range_trang = st.text_input("Phạm vi trang SGK", placeholder="Ví dụ: 45-48")
+
+    st.subheader("📤 Tài liệu đầu vào")
+    col_up1, col_up2, col_up3, col_up4 = st.columns(4)
+    if mode == "chinh_sua":
+        file_ga = col_up1.file_uploader("Giáo án gốc", type=["docx", "pdf"], accept_multiple_files=True)
+        file_sgk = []
+    else:
+        file_ga = []
+        file_sgk = col_up1.file_uploader("SGK / Tài liệu (.docx, .pdf)", type=["pdf", "docx"], accept_multiple_files=True)
         
-        # --- ĐỊNH VỊ SỐ THỨ TỰ CÂU ---
-        tong_cau_tn = n_nlc + n_ds + n_dk + n_ngan
-        idx_nlc_start, idx_nlc_end = 1, n_nlc
-        idx_ds_start, idx_ds_end = idx_nlc_end + 1, idx_nlc_end + n_ds
-        idx_dk_start, idx_dk_end = idx_ds_end + 1, idx_ds_end + n_dk
-        idx_ngan_start, idx_ngan_end = idx_dk_end + 1, idx_dk_end + n_ngan
-        idx_tl_start = tong_cau_tn + 1
-        idx_tl_end = idx_tl_start + num_tl - 1
-        
-        # --- ĐỌC PROMPT NGOÀI TỪ THƯ MỤC prompts/prompt_de_kt.txt (NẾU CÓ) ---
-        prompt_path = Path("prompts/prompt_de_kt.txt")
-        if prompt_path.exists():
+    file_ppct = col_up2.file_uploader("PPCT (Tùy chọn)", type=["pdf", "docx", "xlsx", "xls"])
+    file_ai = col_up3.file_uploader("Bảng AI (Tùy chọn)", type=["pdf", "docx", "xlsx", "xls"])
+    file_template = col_up4.file_uploader("Mẫu KHBD trường", type=["docx"])
+
+    st.subheader("📚 Chi tiết bài học")
+    col_td1, col_td2 = st.columns(2)
+    with col_td1: ten_bai = st.text_input("Tên bài dạy")
+    with col_td2: so_tiet = st.number_input("Thời lượng tiết học", min_value=1, max_value=10, value=1)
+
+    st.subheader("🔧 Tích hợp chuyên sâu")
+    c_th1, c_th2, c_th3 = st.columns(3)
+    with c_th1: tich_hop_nls = st.checkbox("Năng lực số (TT18)")
+    with c_th2: tich_hop_ai = st.checkbox("Năng lực AI")
+    with c_th3: tich_hop_hoa_nhap = st.checkbox("Dạy học hòa nhập")
+
+    nhu_cau_hoa_nhap = []
+    if tich_hop_hoa_nhap:
+        nhu_cau_hoa_nhap = st.multiselect("Chọn loại khuyết tật/nhu cầu", ["Vận động", "Nghe", "Nói", "Nhìn", "Trí tuệ", "Khác"], default=["Nhìn"])
+
+    # Xử lý nút KÍCH HOẠT
+    st.divider()
+    if st.button("⚡ KÍCH HOẠT TIẾN TRÌNH AI", type="primary", use_container_width=True):
+        if ai_engine_client is None:
+            st.error("❌ Chưa cấu hình API Key hoặc Client AI bị lỗi.")
+            st.stop()
+        if mode == "chinh_sua" and not file_ga:
+            st.warning("⚠️ Vui lòng tải giáo án gốc lên.")
+            st.stop()
+        if mode == "tu_dong" and not file_sgk:
+            st.warning("⚠️ Vui lòng tải SGK / Tài liệu kiến thức lên.")
+            st.stop()
+
+        with st.spinner("⏳ Trợ lý AI đang bóc tách tài liệu và thiết kế tiến trình..."):
             try:
-                base_prompt = prompt_path.read_text(encoding="utf-8")
-            except Exception:
-                base_prompt = "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n{outline_text}"
-        else:
-            base_prompt = "BẠN LÀ CHUYÊN GIA BIÊN SOẠN ĐỀ KIỂM TRA THEO CHUẨN GDPT 2018.\n{outline_text}"
-
-        strict_prompt = base_prompt.format(
-            mon_hoc=mon_hoc, lop=lop, ten_de=ten_de, thoi_gian=thoi_gian, nb=nb, th=th, vd=vd, vdc=vdc,
-            tong_cau_tn=tong_cau_tn, total_diem_tn=total_diem_tn, n_nlc=n_nlc, d_nlc=d_nlc,
-            idx_nlc_start=idx_nlc_start, idx_nlc_end=idx_nlc_end, n_ds=n_ds, d_ds=d_ds,
-            idx_ds_start=idx_ds_start, idx_ds_end=idx_ds_end, n_dk=n_dk, d_dk=d_dk,
-            idx_dk_start=idx_dk_start, idx_dk_end=idx_dk_end, 
-            n_ngan=n_ngan, d_ngan=d_ngan, idx_ngan_start=idx_ngan_start, idx_ngan_end=idx_ngan_end,
-            num_tl=num_tl, total_diem_tl=total_diem_tl, idx_tl_start=idx_tl_start, idx_tl_end=idx_tl_end,
-            outline_text=outline_text
-        )
-        
-        with st.spinner("🤖 AI đang phân tích dữ liệu đa luồng, soạn thảo ma trận và đề kiểm tra chuẩn mẫu dkt_mau.docx..."):
-            try:
-                result = ai_engine.generate_text(strict_prompt)
-                if not result or not result.strip():
-                    st.error("❌ AI trả về kết quả rỗng.")
-                    st.stop()
-                    
-                st.session_state["de_kt_content"] = result
-                st.session_state["de_kt_config"] = {
-                    "mon_hoc": mon_hoc, "lop": lop, "ten_de": ten_de,
-                    "hinh_thuc": hinh_thuc, "thoi_gian": thoi_gian,
-                    "tong_diem": total_diem, "bam_sat": bam_sat
-                }
-                st.success("✅ Đã xử lý xong toàn bộ tài liệu! Đề kiểm tra đã sẵn sàng.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Lỗi sinh đề: {e}")
-
-    # --- KHỐI HIỂN THỊ KẾT QUẢ VÀ XUẤT FILE WORD VỚI TEMPLATE dkt_mau.docx ---
-    if "de_kt_content" in st.session_state:
-        st.divider()
-        st.markdown("## KẾT QUẢ ĐỀ KIỂM TRA")
-        if st.button("🗑️ XÓA ĐỀ HIỆN TẠI", key="de_kt_delete"):
-            st.session_state.pop("de_kt_content", None)
-            st.session_state.pop("de_kt_config", None)
-            st.rerun()
-            
-        st.markdown(st.session_state["de_kt_content"])
-        
-        try:
-            root_path = str(Path(__file__).resolve().parents[2])
-            if root_path not in sys.path:
-                sys.path.insert(0, root_path)
+                # Trích xuất dữ liệu
+                noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if mode == "tu_dong" and file_sgk else ""
                 
-            from export.export_word import WordExportEngine
-            config = st.session_state.get("de_kt_config", {})
+                if mode == "tu_dong":
+                    _show_source_quality(noi_dung_chinh)
+                    if len(noi_dung_chinh.strip()) < 50:
+                        st.error("❌ Dữ liệu đọc được quá ít, dừng xử lý.")
+                        st.stop()
+
+                noi_dung_ga = read_multiple_files(file_ga) if mode == "chinh_sua" and file_ga else ""
+                noi_dung_ppct = read_uploaded_file(file_ppct) if file_ppct else ""
+                noi_dung_ai = read_uploaded_file(file_ai) if file_ai else ""
+                noi_dung_mau = read_uploaded_file(file_template) if file_template else read_template_local()
+
+                thong_tin = f"- Khối: {khoi_lop}\n- Môn: {mon_hoc}\n- Tên bài: {ten_bai}\n- Số tiết: {so_tiet} tiết"
+                
+                prompt = build_prompt(
+                    thong_tin=thong_tin,
+                    noi_dung_chinh=noi_dung_chinh,
+                    noi_dung_ga=noi_dung_ga,
+                    noi_dung_ppct=noi_dung_ppct,
+                    noi_dung_ai=noi_dung_ai,
+                    noi_dung_mau=noi_dung_mau,
+                    nls="Có",
+                    tich_hop_ai=tich_hop_ai,
+                    tich_hop_hoa_nhap=tich_hop_hoa_nhap,
+                    nhu_cau_hoa_nhap=", ".join(nhu_cau_hoa_nhap),
+                    hoat_dong="",
+                    mode=mode
+                )
+
+                # Gọi AI ổn định
+                raw_result = generate_ai(ai_engine_client, prompt, model_name)
+                is_valid, msg = validate_khbd_result(raw_result)
+
+                if not is_valid:
+                    st.warning(f"⚠️ Cảnh báo sư phạm: {msg}")
+
+                # Lưu vào cache ổn định
+                st.session_state['current_khbd_data'] = {
+                    "is_khbd": True,
+                    "title": ten_bai if ten_bai else "Giáo án AI",
+                    "ai_generated_content": raw_result
+                }
+                st.success("🎉 Khởi tạo giáo án thành công!")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"❌ Lỗi hệ thống: {e}")
+
+    # =====================================================================
+    # HIỂN THỊ VÀ KẾT XUẤT HỒ SƠ WORD TỰ ĐỘNG
+    # =====================================================================
+    if st.session_state.get('khbd_delete_trigger'):
+        if 'current_khbd_data' in st.session_state:
+            del st.session_state['current_khbd_data']
+        st.session_state['khbd_delete_trigger'] = False
+        st.rerun()
+
+    khbd_cache = st.session_state.get('current_khbd_data')
+    word_file = None
+    
+    if khbd_cache and khbd_cache.get('is_khbd'):
+        st.markdown("---")
+        st.markdown(f"### 📄 KẾT QUẢ: {khbd_cache['title']}")
+        
+        with st.expander("👀 Xem trước Kế hoạch bài dạy chi tiết", expanded=True):
+            st.markdown(khbd_cache.get('ai_generated_content', ''))
             
-            # Sử dụng template dkt_mau.docx chuẩn cho chức năng sinh đề kiểm tra
-            word_bytes = WordExportEngine.export_to_word({
-                "ai_generated_content": st.session_state["de_kt_content"],
-                "is_de_kt": True,
-                "title": config.get("ten_de", "Đề kiểm tra"),
-                "template_name": "dkt_mau.docx"
-            })
-            st.download_button("📥 TẢI XUỐNG FILE WORD (.DOCX)", data=word_bytes, file_name="De_Kiem_Tra_5512.docx", use_container_width=True, key="de_kt_download_word")
-        except Exception as e:
-            st.warning(f"⚠️ Tính năng xuất bản Word gặp sự cố: {e}")
+            # Xuất Word
+            if WordExportEngine:
+                try:
+                    template_path = "templates/KHBD_Mau.docx"
+                    # Nếu đang xài hàm cũ `convert_markdown_to_docx_bytes`:
+                    if hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
+                        word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'], template_path=template_path)
+                    # Hoặc nếu dùng hàm mới `export_to_word`:
+                    elif hasattr(WordExportEngine, 'export_to_word'):
+                        word_file = WordExportEngine.export_to_word(khbd_cache)
+                except Exception as e:
+                    st.error(f"⚠️ Trình xuất Word đang gặp sự cố: {e}")
+            
+        col_save, col_download, col_delete = st.columns(3)
+        with col_save:
+            if st.button("💾 Lưu file tạm thời", use_container_width=True):
+                st.toast("Đã lưu cấu hình giáo án vào bộ nhớ an toàn!")
+                
+        with col_download:
+            if word_file:
+                saved_title = khbd_cache.get("title", "Giao_An").replace(" ", "_")
+                st.download_button(
+                    label="📥 Tải file Word về máy",
+                    data=word_file,
+                    file_name=f"KHBD_{saved_title}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
+            else:
+                st.button("⏳ Trình xuất đang lỗi...", disabled=True, use_container_width=True)
+                
+        with col_delete:
+            if st.button("🗑️ Xóa kết quả", use_container_width=True):
+                st.session_state['khbd_delete_trigger'] = True
+                st.rerun()
