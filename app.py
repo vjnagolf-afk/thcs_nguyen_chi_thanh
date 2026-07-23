@@ -1,192 +1,187 @@
 # -*- coding: utf-8 -*-
+"""
+============================================================
+ĐIỀU HƯỚNG TRUNG TÂM DỰ ÁN: NGUYỄN CHÍ THANH
+FILE: app.py
+============================================================
+"""
+
 import streamlit as st
-import sys
 import os
+import sys
 
-# 1. CẤU HÌNH ĐƯỜNG DẪN
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+# Thêm thư mục gốc vào hệ thống path để đảm bảo import tuyệt đối chính xác
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
 
-# 2. IMPORT THƯ VIỆN & CẤU HÌNH TRANG
-from utils.db_connector import db
-from utils.ai_engine import AIEngine
-from utils.ai_engine_2 import AIEngine2
-
-st.set_page_config(page_title="Hệ sinh thái số - THCS Nguyễn Chí Thanh", layout="wide", page_icon="🏫")
-
-# 3. IMPORT CÁC MODULE PHÂN HỆ
-# --- PHÂN HỆ HỖ TRỢ GIÁO VIÊN ---
-from views.xd_khbd_view import render_xd_khbd
-from views.xd_de_kt_view import render_xd_de_kt
-from modules.ho_tro_gv.xd_stem import render_xd_stem
-from modules.ho_tro_gv.xd_rubric import render_xd_rubric
-from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
-from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
-from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
-from modules.ho_tro_gv.xd_quizizz import render_xd_quizizz
-from modules.ho_tro_gv.xd_mo_phong import render_xd_mo_phong
-from modules.ho_tro_gv.xd_live import render_xd_live
-from modules.ho_tro_gv.xd_chuyen_doi import render_chuyen_doi
-from modules.ho_tro_gv.xd_tao_hoc_lieu import render_tao_hoc_lieu
-from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
-# --- PHÂN HỆ HỖ TRỢ GIẢNG DẠY ---
-from modules.ho_tro_giang_day.rag_ask import render_rag
-from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
-from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
-from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_tuong_tac
-from modules.ho_tro_giang_day.mo_phong.page import render_mo_phong as render_mo_phong_giangday
-from modules.ho_tro_giang_day.xd_phan_tich import render_xd_phan_tich
-from modules.ho_tro_giang_day.xd_ngan_hang_de import render_xd_ngan_hang_de
-from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
-from modules.ho_tro_giang_day.xd_camera import render_camera_module
-from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
-from modules.ho_tro_giang_day.xd_phan_tich_bh import render_phan_tich_bh
-from modules.ho_tro_giang_day.xd_kiem_tra_nhanh import render_kiem_tra_nhanh
-
-# Phân hệ Quản lý Tổ chuyên môn
-from modules.quan_ly_to.danh_sach import render_danh_sach
-from modules.quan_ly_to.phan_cong import render_phan_cong
-from modules.quan_ly_to.bien_ban import render_bien_ban
-from modules.quan_ly_to.xd_ke_hoach import render_ke_hoach
-from modules.quan_ly_to.xd_thi_dua import render_thi_dua
-from modules.quan_ly_to.xd_kiem_tra_khbd import render_kiem_tra_khbd
-from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
-from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
-from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
-from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
-from modules.quan_ly_to.xd_tkb import render_tkb
-
-# 4. HÀM CẤU HÌNH ENGINE
-def get_ai_engine_instance():
-    if "ai_engine_instance" not in st.session_state:
-        keys = {}
-        if st.session_state.is_admin_mode:
-            keys["gemini"] = st.secrets.get("GEMINI_API_KEY")
-            keys["openai"] = st.secrets.get("OPENAI_API_KEY")
-        else:
-            k = st.session_state.user_api_key
-            if k: keys["gemini" if k.startswith("AIza") else "openai"] = k
-        keys = {k: v for k, v in keys.items() if v}
-        st.session_state.ai_engine_instance = AIEngine(keys=keys) if keys else None
-    return st.session_state.ai_engine_instance
-
-def get_ai_engine_2_instance():
-    if "ai_engine_2_instance" not in st.session_state:
-        key = st.secrets.get("OPENROUTER_API_KEY")
-        st.session_state.ai_engine_2_instance = AIEngine2(api_key=key) if key else None
-    return st.session_state.ai_engine_2_instance
-
-# 5. KHỞI TẠO STATE
-if "user_api_key" not in st.session_state: st.session_state.user_api_key = None
-if "is_admin_mode" not in st.session_state: st.session_state.is_admin_mode = False
-
-# 6. GIAO DIỆN CHÍNH
-with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #E63946;'>HỆ SINH THÁI SỐ</h2>", unsafe_allow_html=True)
-    if st.session_state.user_api_key or st.session_state.is_admin_mode:
-        phan_he = st.radio("Chọn phân hệ:", ["Hỗ trợ Giáo viên", "Hỗ trợ Giảng dạy", "Quản lý Tổ chuyên môn", "Ứng dụng khác"])
-        if st.button("🚪 Đăng xuất", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
-    else: 
-        phan_he = None
-# --- THÔNG TIN TÁC GIẢ ĐẨY SÁT CHÂN THANH ĐIỀU HƯỚNG (FLEXBOX CHUẨN) ---
-    st.sidebar.markdown(
-        """
-        <div style="display: flex; flex-direction: column; justify-content: flex-end; min-height: calc(70vh - 150px); text-align: center; padding-bottom: 10px;">
-            <p style="color: #1563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Tác giả: Lê Hồng Dưỡng</p>
-            <p style="color: #1563eb; font-style: italic; font-size: 0.85rem; margin: 0;">Đơn vị: Trường THCS Nguyễn Chí Thanh</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-if not phan_he:
-    st.info("🔑 Vui lòng đăng nhập để bắt đầu.")
-    
-    with st.form("login_form"):
-        key_input = st.text_input("Nhập API Key / Mật khẩu:", type="password")
-        submit = st.form_submit_button("Xác nhận đăng nhập")
-        
-        if submit:
-            admin_pwd = st.secrets.get("ADMIN_PASSWORD", "admin123456")
-            
-            if key_input.strip() == admin_pwd:
-                st.session_state.is_admin_mode = True
-                st.rerun()
-                
-            elif key_input.strip().startswith(("AIza", "sk-ant-", "sk-")):
-                st.session_state.user_api_key = key_input.strip()
-                st.rerun()
-                
-            else:
-                st.error("❌ Key không hợp lệ! Vui lòng kiểm tra lại.")
-                
-    st.stop()
-
-# ============================================================
-# 7. RENDER NỘI DUNG CHÍNH
-# ============================================================
+# Import các tầng tiện ích, cơ sở dữ liệu và AI Engine
 try:
-    ai_engine = get_ai_engine_instance()
-    ai_engine_2 = get_ai_engine_2_instance()
+    from utils.db_connector import init_db
+    from utils.ai_engine import AIEngine
+except ImportError:
+    # Fallback an toàn nếu chưa khởi tạo đầy đủ
+    init_db = None
+    AIEngine = None
 
-    # --- PHÂN HỆ 1: HỖ TRỢ GIÁO VIÊN ---
-    if phan_he == "Hỗ trợ Giáo viên":
-        st.markdown("## 👩‍🏫 Phân hệ: Hỗ trợ Giáo viên")
-        tabs = st.tabs(["XD KHBD", "XD ĐỀ KT", "STEM", "RUBRIC", "CHỦ NHIỆM", "KT KĨ NĂNG VIẾT", "PROMPT", "QUIZIZZ", "MÔ PHỎNG TN", "LIVE", "T.LIỆU SANG KHBD", "TẠO HỌC LIỆU", "DỊCH ĐỀ SANG MA TRẬN"])
-        
-        with tabs[0]: render_xd_khbd(ai_engine=ai_engine)
-        with tabs[1]: render_xd_de_kt(ai_engine)
-        with tabs[2]: render_xd_stem(ai_engine)
-        with tabs[3]: render_xd_rubric(ai_engine)
-        with tabs[4]: render_xd_chu_nhiem(ai_engine)
-        with tabs[5]: render_xd_cham_viet(ai_engine)
-        with tabs[6]: render_xd_tao_prompt(ai_engine)
-        with tabs[7]: render_xd_quizizz(ai_engine)
-        with tabs[8]: render_xd_mo_phong(ai_engine)
-        with tabs[9]: render_xd_live(ai_engine)
-        with tabs[10]: render_chuyen_doi(ai_engine) 
-        with tabs[11]: render_tao_hoc_lieu(ai_engine)
-        with tabs[12]: render_xd_ma_tran_tu_de(ai_engine)
+# Import các phân hệ giao diện chính
+try:
+    from modules.quan_ly_to.danh_sach import render_danh_sach
+    from modules.quan_ly_to.phan_cong import render_phan_cong
+    from modules.quan_ly_to.bien_ban import render_bien_ban
+    from modules.quan_ly_to.xd_ke_hoach import render_ke_hoach
+    from modules.quan_ly_to.xd_kiem_tra_khbd import render_kiem_tra_khbd
+    from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
+    from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
+    from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
+    from modules.quan_ly_to.xd_thi_dua import render_thi_dua
+    from modules.quan_ly_to.xd_tkb import render_tkb
+    from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
+except ImportError as e:
+    st.error(f"❌ Lỗi import phân hệ Quản lý tổ chuyên môn: {e}")
 
-    # --- PHÂN HỆ 2: HỖ TRỢ GIẢNG DẠY ---
-    elif phan_he == "Hỗ trợ Giảng dạy":
-        st.markdown("## 🪴 Phân hệ: Hỗ trợ Giảng dạy")
-        tabs = st.tabs(["Hỏi đáp", "Trò chơi", "Chấm bài", "Tóm tắt tài liệu", "Mô phỏng LT TN ảo", "Phân tích KQ học tập", "Tạo đề nhanh", "Tạo Video", "Camera chấm bài", "Cá nhân hóa", "Phân tích bài học", "Tương tác trên lớp"])
-        
-        with tabs[0]: render_rag(ai_engine)
-        with tabs[1]: render_xd_tro_choi(ai_engine)
-        with tabs[2]: render_xd_cham_nhanh(ai_engine)
-        with tabs[3]: render_xd_tuong_tac(ai_engine) 
-        with tabs[4]: render_mo_phong_giangday(ai_engine_2)
-        with tabs[5]: render_xd_phan_tich(ai_engine)
-        with tabs[6]: render_xd_ngan_hang_de(ai_engine)
-        with tabs[7]: render_xd_sinh_video(ai_engine)
-        with tabs[8]: render_camera_module()
-        with tabs[9]: render_xd_ca_nhan_hoa(ai_engine)
-        with tabs[10]: render_phan_tich_bh(ai_engine)
-        with tabs[11]: render_kiem_tra_nhanh(ai_engine)
-       
-    # --- PHÂN HỆ 3: QUẢN LÝ TỔ CHUYÊN MÔN ---
-    elif phan_he == "Quản lý Tổ chuyên môn":
-        st.markdown("## 📊 Phân hệ: Quản lý Tổ chuyên môn")
-        tabs = st.tabs(["Danh sách", "Phân công", "Biên bản", "Chuyên đề", "Thi đua", "Kiểm tra KHBD", "Kỹ năng số", "Tóm tắt Gmail", "Viết sáng kiến", "Chấm sáng kiến","TKB"])
-        
-        with tabs[0]: render_danh_sach()
-        with tabs[1]: render_phan_cong(db)
-        with tabs[2]: render_bien_ban(db)
-        with tabs[3]: render_ke_hoach()
-        with tabs[4]: render_thi_dua()
-        with tabs[5]: render_kiem_tra_khbd(ai_engine)
-        with tabs[6]: render_sach_kn_so()
-        with tabs[7]: render_tom_tat_gmail(ai_engine)
-        with tabs[8]: render_viet_sang_kien(ai_engine_2)
-        with tabs[9]: render_cham_sang_kien(ai_engine_2)
-        with tabs[10]: render_tkb(db)
+try:
+    from views.ung_dung_khac import render_ung_dung_khac
+    from views.xd_de_kt_view import render_xd_de_kt
+    from views.xd_khbd_view import render_xd_khbd
+    from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
+except ImportError as e:
+    st.error(f"❌ Lỗi import các View phân hệ bổ trợ: {e}")
 
-    elif phan_he == "Ứng dụng khác":
-        from modules.ung_dung_khac.main import render_ung_dung_khac
-        render_ung_dung_khac(ai_engine)
+# ============================================================
+# CẤU HÌNH TRANG STREAMLIT
+# ============================================================
+st.set_page_config(
+    page_title="Hệ thống Quản lý & Hỗ trợ Chuyên môn - Nguyễn Chí Thanh",
+    page_icon="🏫",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-except Exception as e:
-    st.error("🚨 Lỗi hệ thống trong quá trình tạo giao diện!")
-    st.exception(e)
+# ============================================================
+# KHỞI TẠO BỘ NHỚ TRẠNG THÁI & AI ENGINE
+# ============================================================
+def init_global_state():
+    if "db" not in st.session_state:
+        try:
+            st.session_state.db = init_db() if init_db else None
+        except Exception:
+            st.session_state.db = None
+
+    if "ai_engine" not in st.session_state:
+        try:
+            st.session_state.ai_engine = AIEngine() if AIEngine else None
+        except Exception:
+            st.session_state.ai_engine = None
+
+    if "danh_sach_gv" not in st.session_state:
+        st.session_state.danh_sach_gv = []
+
+init_global_state()
+
+# ============================================================
+# THANH ĐIỀU HƯỚNG CHÍNH (SIDEBAR)
+# ============================================================
+st.sidebar.markdown("## 🏫 TRƯỜNG THCS NGUYỄN CHÍ THANH")
+st.sidebar.caption("Hệ thống Trợ lý AI Quản lý & Chuyên môn Tổ KHTN")
+st.sidebar.divider()
+
+menu_category = st.sidebar.radio(
+    "📂 Chọn phân hệ:",
+    [
+        "👥 Quản lý Tổ chuyên môn",
+        "📘 Xây dựng & Thẩm định KHBD",
+        "📝 Đề kiểm tra & Ma trận",
+        "🧩 Ma trận ngược từ Đề",
+        "🛠️ Ứng dụng khác"
+    ]
+)
+
+st.sidebar.divider()
+st.sidebar.markdown("### ⚙️ Cấu hình API & Hệ thống")
+user_api_key_input = st.sidebar.text_input("Nhập Gemini API Key cá nhân:", type="password", key="user_api_key")
+if user_api_key_input:
+    st.sidebar.success("✅ Đã ghi nhận API Key cá nhân!")
+
+st.sidebar.markdown("---")
+st.sidebar.info("💡 **Hệ thống vận hành chuẩn:** Bám sát công văn 5512, Thông tư 18 và chuẩn khảo thí giáo dục phổ thông mới.")
+
+# ============================================================
+# ĐIỀU HƯỚNG NỘI DUNG (ROUTING)
+# ============================================================
+db_instance = st.session_state.get("db")
+ai_instance = st.session_state.get("ai_engine")
+
+if menu_category == "👥 Quản lý Tổ chuyên môn":
+    st.markdown("## 👥 Phân hệ: Quản lý Tổ chuyên môn")
+    sub_tab = st.tabs([
+        "Danh sách GV", 
+        "Phân công", 
+        "Thời khóa biểu", 
+        "Biên bản họp", 
+        "Kế hoạch chuyên đề", 
+        "Kiểm tra KHBD", 
+        "Chấm sáng kiến", 
+        "Viết sáng kiến", 
+        "Tóm tắt Email", 
+        "Tủ sách số", 
+        "Thi đua"
+    ])
+    
+    with sub_tab[0]:
+        try: render_danh_sach()
+        except NameError: st.warning("Module Danh sách chưa sẵn sàng.")
+    with sub_tab[1]:
+        try: render_phan_cong(db_instance)
+        except NameError: st.warning("Module Phân công chưa sẵn sàng.")
+    with sub_tab[2]:
+        try: render_tkb(db_instance)
+        except NameError: st.warning("Module Thời khóa biểu chưa sẵn sàng.")
+    with sub_tab[3]:
+        try: render_bien_ban(ai_instance)
+        except NameError: st.warning("Module Biên bản chưa sẵn sàng.")
+    with sub_tab[4]:
+        try: render_ke_hoach()
+        except NameError: st.warning("Module Kế hoạch chuyên đề chưa sẵn sàng.")
+    with sub_tab[5]:
+        try: render_kiem_tra_khbd(ai_instance)
+        except NameError: st.warning("Module Kiểm tra KHBD chưa sẵn sàng.")
+    with sub_tab[6]:
+        try: render_cham_sang_kien(ai_instance)
+        except NameError: st.warning("Module Chấm sáng kiến chưa sẵn sàng.")
+    with sub_tab[7]:
+        try: render_viet_sang_kien(ai_instance)
+        except NameError: st.warning("Module Viết sáng kiến chưa sẵn sàng.")
+    with sub_tab[8]:
+        try: render_tom_tat_gmail(ai_instance)
+        except NameError: st.warning("Module Tóm tắt Gmail chưa sẵn sàng.")
+    with sub_tab[9]:
+        try: render_sach_kn_so()
+        except NameError: st.warning("Module Tủ sách số chưa sẵn sàng.")
+    with sub_tab[10]:
+        try: render_thi_dua()
+        except NameError: st.warning("Module Thi đua chưa sẵn sàng.")
+
+elif menu_category == "📘 Xây dựng & Thẩm định KHBD":
+    try:
+        render_xd_khbd(ai_instance)
+    except Exception as e:
+        st.error(f"Lỗi hiển thị phân hệ KHBD: {e}")
+
+elif menu_category == "📝 Đề kiểm tra & Ma trận":
+    try:
+        render_xd_de_kt(ai_instance)
+    except Exception as e:
+        st.error(f"Lỗi hiển thị phân hệ Đề kiểm tra: {e}")
+
+elif menu_category == "🧩 Ma trận ngược từ Đề":
+    try:
+        render_xd_ma_tran_tu_de(ai_instance)
+    except Exception as e:
+        st.error(f"Lỗi hiển thị phân hệ Ma trận ngược: {e}")
+
+elif menu_category == "🛠️ Ứng dụng khác":
+    try:
+        render_ung_dung_khac()
+    except Exception as e:
+        st.error(f"Lỗi hiển thị phân hệ Ứng dụng khác: {e}")
