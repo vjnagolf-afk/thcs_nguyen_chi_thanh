@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP PYMUPDF & PYPDF MỚI)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TỐI ƯU TOÀN DIỆN VÀ RÀNG BUỘC SCOPE)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -116,8 +116,10 @@ def safe_text(value):
     if value is None: return ""
     if not isinstance(value, str):
         value = str(value)
+    # Giữ lại cấu trúc dòng, chỉ xóa các ký tự rác
     text = value.replace("\x00", "").replace("\ufeff", "").replace("\u200b", "")
-    text = re.sub(r"[\r\t]+", " ", text)
+    text = text.replace("\r", "")
+    text = text.replace("\t", " ")
     text = re.sub(r"[ ]{2,}", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
@@ -125,7 +127,7 @@ def safe_text(value):
 def normalize_source_text(text):
     text = safe_text(text)
     if not text: return ""
-    text = re.sub(r"(?<![.!?:;])\n(?=[a-zà-ỹA-ZÀ-Ỹ0-9])", " ", text)
+    # Không nối các dòng bằng Regex phức tạp để tránh vỡ cấu trúc Bảng/Markdown
     return text.strip()
 
 def count_words(text):
@@ -153,7 +155,7 @@ def read_pdf(uploaded_file, range_str=""):
 
         text_result = ""
 
-        # ƯU TIÊN 1: SỬ DỤNG PYMUPDF (fitz) - CHUYÊN TRỊ SGK TOÁN/LÝ/HÓA
+        # ƯU TIÊN 1: SỬ DỤNG PYMUPDF (fitz)
         try:
             import fitz
             doc = fitz.open(stream=content, filetype="pdf")
@@ -184,11 +186,13 @@ def read_pdf(uploaded_file, range_str=""):
             text_result = "\n".join(pages_text)
             if len(text_result.strip()) > 50:
                 return normalize_source_text(text_result)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("PyMuPDF (fitz) gặp sự cố trích xuất: %s", e)
 
-        # ƯU TIÊN 2: SỬ DỤNG PYPDF (PHIÊN BẢN MỚI) LÀM DỰ PHÒNG
+        # ƯU TIÊN 2: SỬ DỤNG PYPDF
         import pypdf
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
         reader = pypdf.PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         start, end = 1, total_pages
@@ -230,6 +234,9 @@ def read_pdf(uploaded_file, range_str=""):
 def read_docx_ordered(source):
     result = []
     try:
+        if hasattr(source, "seek"):
+            source.seek(0)
+            
         if isinstance(source, (str, Path)):
             doc = Document(source)
         elif hasattr(source, "read"):
@@ -263,10 +270,13 @@ def read_docx_ordered(source):
 def read_excel_structured(uploaded_file):
     result = []
     try:
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
+            
         sheets = pd.read_excel(uploaded_file, sheet_name=None)
         for sheet_name, dataframe in sheets.items():
             result.append(f"\n[PHÂN PHỐI CHƯƠNG TRÌNH - SHEET: {sheet_name}]")
-            dataframe = dataframe.fillna("")
+            dataframe = dataframe.dropna(how='all').fillna("")
             records = dataframe.to_dict(orient="records")
             for idx, rec in enumerate(records, start=1):
                 clean_rec = {safe_text(k): safe_text(v) for k, v in rec.items() if safe_text(v)}
@@ -304,7 +314,8 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
 def read_template_local(path="templates/KHBD_Mau.docx"):
     if not os.path.exists(path): return ""
     try:
-        return read_docx_ordered(path)
+        with open(path, "rb") as f:
+            return read_docx_ordered(f)
     except Exception:
         return ""
 
@@ -361,20 +372,23 @@ def normalize_ai_result(result):
 
 def generate_ai(ai_engine, prompt):
     if ai_engine is None: raise RuntimeError("Chưa truyền AI Engine.")
+    # Truyền trực tiếp prompt để tương thích tối đa với các wrapper của SDK mới
     if hasattr(ai_engine, "generate_text"):
         return normalize_ai_result(ai_engine.generate_text(prompt))
     if hasattr(ai_engine, "generate"):
         return normalize_ai_result(ai_engine.generate(prompt))
-    raise RuntimeError("AI Engine không phản hồi.")
+    raise RuntimeError("AI Engine không phản hồi hoặc không có phương thức sinh văn bản hợp lệ.")
 
 def validate_khbd_result(text):
     text = safe_text(text)
     if len(text) < 500:
         return False, "Nội dung giáo án quá ngắn."
+    
+    # Kiểm tra linh hoạt hơn, không ép buộc cấu trúc I, II, III tuyệt đối
     upper = text.upper()
-    for keyword in ["MỤC TIÊU", "THIẾT BỊ DẠY HỌC", "TIẾN TRÌNH DẠY HỌC"]:
-        if keyword not in upper:
-            return False, f"Thiếu phần bắt buộc: {keyword}"
+    valid_count = sum(1 for kw in ["MỤC TIÊU", "THIẾT BỊ", "TIẾN TRÌNH", "HOẠT ĐỘNG"] if kw in upper)
+    if valid_count < 3:
+         return False, "Giáo án trả về thiếu các từ khóa sư phạm căn bản (Mục tiêu, Thiết bị, Tiến trình)."
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
@@ -385,8 +399,13 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung
     source = safe_text(noi_dung_chinh)
     
     quality = diagnose_source_quality(source, "SGK")
-    if quality["status"] != "valid":
+    if quality["status"] != "valid" and mode == "tu_dong":
         raise ValueError(f"{quality['message']}\nSố ký tự trích xuất được: {quality['chars']}\nSố từ: {quality['words']}")
+
+    # Khối nội dung phụ (đã khắc phục lỗi bỏ quên biến)
+    ga_block = f"\n[GIÁO ÁN GỐC (THAM KHẢO CẤU TRÚC)]\n{safe_text(noi_dung_ga)}\n" if noi_dung_ga else ""
+    ai_block = f"\n[HƯỚNG DẪN AI BỔ SUNG]\n{safe_text(noi_dung_ai)}\n" if noi_dung_ai else ""
+    hoa_nhap_block = f"Bắt buộc thiết kế các hoạt động hỗ trợ riêng cho đối tượng: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Môi trường học tập đại trà."
 
     return (
         f"{task_config}\n\n"
@@ -395,21 +414,30 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung
         f"================================================================\n"
         f"{thong_tin}\n\n"
         f"================================================================\n"
-        f"NGUỒN KIẾN THỨC CHÍNH (SGK)\n"
+        f"NGUỒN KIẾN THỨC CHÍNH (SGK BẮT BUỘC SỬ DỤNG)\n"
         f"================================================================\n"
         f"{source}\n\n"
         f"================================================================\n"
-        f"YÊU CẦU PHÂN BỔ SỐ TIẾT\n"
+        f"TÀI LIỆU CHỈ ĐẠO & THAM KHẢO\n"
         f"================================================================\n"
-        f"- Nếu bài học có 2 tiết trở lên, bắt buộc phân tách rõ ràng theo từng tiết (### TIẾT 1, ### TIẾT 2...). Mỗi tiết phải có đủ hoạt động chi tiết.\n\n"
+        f"[PHÂN PHỐI CHƯƠNG TRÌNH]\n"
+        f"{safe_text(noi_dung_ppct)}\n"
+        f"{ga_block}{ai_block}\n"
         f"================================================================\n"
-        f"PHÂN PHỐI CHƯƠNG TRÌNH & MẪU KHBD\n"
+        f"YÊU CẦU ĐẶC THÙ & TÍCH HỢP\n"
         f"================================================================\n"
-        f"PPCT: {safe_text(noi_dung_ppct)}\n"
-        f"Mẫu trường:\n{safe_text(noi_dung_mau)}\n\n"
-        f"Năng lực số: {nls}\n"
-        f"Tích hợp AI: {'Có' if tich_hop_ai else 'Không'}\n"
-        f"Hòa nhập: {safe_text(nhu_cau_hoa_nhap)}\n"
-        f"Hoạt động bổ sung: {safe_text(hoat_dong)}\n\n"
-        f"Hãy trả về giáo án hoàn chỉnh bằng Markdown, bắt đầu ngay bằng # TÊN BÀI HỌC."
+        f"- Năng lực số: {nls}\n"
+        f"- Tích hợp AI: {'Có sử dụng công cụ AI hỗ trợ.' if tich_hop_ai else 'Không yêu cầu.'}\n"
+        f"- Giáo dục hòa nhập: {hoa_nhap_block}\n"
+        f"- Hoạt động bổ sung giáo viên yêu cầu: {safe_text(hoat_dong)}\n\n"
+        f"================================================================\n"
+        f"RÀNG BUỘC NGHIÊM NGẶT (KNOWLEDGE SCOPE & FORMAT)\n"
+        f"================================================================\n"
+        f"1. CHỐNG SUY DIỄN: Mọi định nghĩa, ví dụ, câu hỏi phải được lấy TRỰC TIẾP từ NGUỒN KIẾN THỨC CHÍNH. Nghiêm cấm bịa đặt kiến thức ngoài SGK.\n"
+        f"2. ĐỐI CHIẾU SỐ TIẾT: \n"
+        f"   - Nếu bài học có 2 tiết trở lên, BẮT BUỘC phân tách rõ ràng tiến trình theo: ### TIẾT 1, ### TIẾT 2...\n"
+        f"   - Mỗi tiết phải có đủ các hoạt động thực chất, không viết gộp chung.\n"
+        f"3. KHUÔN MẪU (SCHEMA TƯƠNG THÍCH WORD):\n"
+        f"{safe_text(noi_dung_mau)}\n\n"
+        f"Hãy tạo giáo án chuẩn Markdown, bắt đầu ngay bằng # TÊN BÀI HỌC."
     )
