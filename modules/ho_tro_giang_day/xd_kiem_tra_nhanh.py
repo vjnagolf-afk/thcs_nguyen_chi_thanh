@@ -1,46 +1,47 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
-import urllib.parse
 
-def render_kiem_tra_nhanh(ai_engine):
-    st.markdown("### ⚡ Hệ thống Kiểm tra Nhanh Trực tiếp")
-    st.caption("Khởi tạo bài kiểm tra siêu tốc, học sinh quét mã QR và trả lời ngay trên điện thoại.")
+def render_xd_kiem_tra_nhanh(ai_engine=None):
+    st.markdown("### ⏱️ Sinh Đề Kiểm tra Nhanh (Mini Test)")
+    st.caption("Khởi tạo nhanh các bài kiểm tra 5 phút, 15 phút ngay trên lớp với các câu hỏi trắc nghiệm hoặc điền khuyết.")
 
-    st.markdown("""
-    <div style="background-color: #e8f4f8; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
-        👨‍🏫 GV tạo câu hỏi ➔ 📱 Chiếu mã QR ➔ 📸 HS quét ➔ ✍️ Trả lời trên điện thoại ➔ 📊 Kết quả hiển thị trực tiếp
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        muc_dich = st.selectbox("Mục đích sử dụng:", ["Khởi động (Warm-up)", "Kiểm tra bài cũ", "Hình thành kiến thức", "Luyện tập", "Exit Ticket (Đánh giá cuối giờ)"])
-    with col2:
-        chu_de_kt = st.text_input("Chủ đề câu hỏi:", placeholder="Ví dụ: Công thức tính Vận tốc...")
-
-    link_nhan_kq = st.text_input("🔗 Dán Link công cụ nhận câu trả lời (Google Form, Quizizz, Padlet...):", placeholder="https://...")
-
-    if st.button("Tạo phiên Kiểm tra Live", type="primary"):
-        if chu_de_kt.strip() and link_nhan_kq.strip():
-            st.success(f"Đã mở phiên kiểm tra: {muc_dich} - {chu_de_kt}")
+    with st.form("form_kiem_tra_nhanh"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            mon_hoc = st.selectbox("Môn học:", ["Toán", "Ngữ Văn", "Tiếng Anh", "KHTN", "Vật lí", "Hóa học", "Sinh học", "Tin học"])
+        with col2:
+            khoi_lop = st.selectbox("Khối lớp:", ["Lớp 6", "Lớp 7", "Lớp 8", "Lớp 9", "Lớp 10", "Lớp 11", "Lớp 12"])
+        with col3:
+            so_luong = st.number_input("Số lượng câu hỏi:", min_value=1, max_value=50, value=10)
             
-            # Chia 2 cột để hiển thị Mã QR và Gợi ý câu hỏi AI
-            col_qr, col_cau_hoi = st.columns([1, 2])
-            
-            with col_qr:
-                st.markdown("#### 📸 Mời học sinh quét mã:")
-                # Sinh mã QR tự động từ link giáo viên nhập vào
-                qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={urllib.parse.quote(link_nhan_kq)}"
-                st.image(qr_url, use_container_width=True)
-                st.caption(f"Link: {link_nhan_kq}")
-                
-            with col_cau_hoi:
-                st.markdown("#### 🤖 AI Gợi ý câu hỏi:")
-                with st.spinner("Đang biên soạn câu hỏi phù hợp..."):
-                    prompt = f"Sinh nhanh 1 câu hỏi/tình huống siêu ngắn gọn nhằm mục đích '{muc_dich}' cho nội dung '{chu_de_kt}' để học sinh THCS trả lời ngay trên điện thoại."
-                    try:
-                        cau_hoi = ai_engine.generate_text(prompt)
-                        st.info(cau_hoi)
-                    except Exception as e:
-                        st.error("Lỗi AI khi tạo câu hỏi.")
+        chu_de = st.text_input("Chủ đề kiểm tra (Nhập chi tiết bài học):", placeholder="Ví dụ: Cấu tạo tế bào thực vật, Các thì trong Tiếng Anh...")
+        muc_do = st.multiselect("Mức độ nhận thức:", ["Nhận biết", "Thông hiểu", "Vận dụng"], default=["Nhận biết", "Thông hiểu"])
+        
+        submitted = st.form_submit_button("🚀 Sinh Đề Kiểm Tra", type="primary", use_container_width=True)
+
+    if submitted:
+        if not chu_de.strip():
+            st.warning("⚠️ Vui lòng nhập chủ đề kiểm tra.")
         else:
-            st.warning("Vui lòng nhập chủ đề và dán Link nhận kết quả để tạo mã QR!")
+            with st.spinner("AI đang soạn câu hỏi trắc nghiệm và trộn đề..."):
+                prompt = f"""
+                Bạn là một giáo viên {mon_hoc} {khoi_lop} giàu kinh nghiệm.
+                Hãy soạn một bài kiểm tra nhanh gồm {so_luong} câu hỏi trắc nghiệm (có 4 đáp án A, B, C, D).
+                Chủ đề: {chu_de}.
+                Mức độ tập trung vào: {", ".join(muc_do)}.
+                
+                YÊU CẦU:
+                1. Các câu hỏi phải chính xác về mặt khoa học, không có đáp án gây tranh cãi.
+                2. Đánh số thứ tự từ Câu 1 đến Câu {so_luong}.
+                3. BẮT BUỘC: Ở phần cuối cùng của kết quả, hãy cung cấp một [BẢNG ĐÁP ÁN ĐÚNG] và giải thích ngắn gọn cho các câu hỏi Khó/Vận dụng.
+                """
+                if ai_engine:
+                    try:
+                        result = ai_engine.generate_text(prompt)
+                        st.success("✅ Đã sinh đề thành công!")
+                        st.markdown("---")
+                        st.markdown(result)
+                    except Exception as e:
+                        st.error(f"Lỗi khi gọi AI: {e}")
+                else:
+                    st.error("❌ Chưa kết nối AI Engine.")
