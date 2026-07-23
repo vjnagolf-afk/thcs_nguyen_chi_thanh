@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import io
 
-def render_phan_cong(db):
+def render_phan_cong(db=None):
     st.markdown("### 🗓️ Phân công chuyên môn")
     
     # 1. Gọi danh sách giáo viên đã lưu từ thẻ "Danh sách"
@@ -21,7 +22,7 @@ def render_phan_cong(db):
     # 2. KHU VỰC NHẬP LIỆU (CHIA 2 TABS)
     tab_thu_cong, tab_file = st.tabs(["✍️ Nhập thủ công", "📂 Tải lên từ File (Excel/CSV)"])
     
-    # --- Tab 1: Nhập thủ công (Như cũ) ---
+    # --- Tab 1: Nhập thủ công ---
     with tab_thu_cong:
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -54,14 +55,13 @@ def render_phan_cong(db):
         with col_mau1:
             st.markdown("**Bước 1:** Tải file mẫu về máy, điền dữ liệu bằng Excel (Không đổi tên các cột).")
         with col_mau2:
-            # Tạo file mẫu động dựa trên các cột yêu cầu, thêm sẵn 1 dòng dữ liệu mẫu
             df_mau = pd.DataFrame({
                 "Giáo viên": [ds_gv[0] if ds_gv else "Nguyễn Văn A"],
                 "Môn giảng dạy": ["KHTN 9"],
                 "Số tiết": [4],
                 "Nhiệm vụ kiêm nhiệm": ["Tổ trưởng"]
             })
-            csv_mau = df_mau.to_csv(index=False).encode('utf-8-sig') # Dùng utf-8-sig để Excel mở không bị lỗi font Tiếng Việt
+            csv_mau = df_mau.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
                 label="⬇️ Tải File Mẫu (CSV)",
                 data=csv_mau,
@@ -76,20 +76,17 @@ def render_phan_cong(db):
         
         if uploaded_file is not None:
             try:
-                # Đọc file dựa vào đuôi mở rộng
                 if uploaded_file.name.endswith('.csv'):
                     df_upload = pd.read_csv(uploaded_file)
                 else:
                     df_upload = pd.read_excel(uploaded_file)
                 
-                # Kiểm tra xem file có đủ 4 cột bắt buộc không
                 cot_yeu_cau = ["Giáo viên", "Môn giảng dạy", "Số tiết", "Nhiệm vụ kiêm nhiệm"]
                 if all(col in df_upload.columns for col in cot_yeu_cau):
                     st.success("✅ File hợp lệ! Xem trước dữ liệu bên dưới:")
                     st.dataframe(df_upload, use_container_width=True, hide_index=True)
                     
                     if st.button("🚀 Ghi đè dữ liệu lên hệ thống", type="primary", use_container_width=True):
-                        # Ghi đè dữ liệu mới vào bộ nhớ
                         st.session_state.bang_phan_cong = df_upload[cot_yeu_cau].to_dict('records')
                         st.rerun()
                 else:
@@ -97,7 +94,7 @@ def render_phan_cong(db):
             except Exception as e:
                 st.error(f"Có lỗi xảy ra khi đọc file: {e}. Vui lòng thử dùng định dạng .csv thay vì .xlsx nếu bị lỗi thư viện.")
 
-    # 3. HIỂN THỊ BẢNG TỔNG HỢP (Luôn hiển thị ở dưới cùng)
+    # 3. HIỂN THỊ BẢNG TỔNG HỢP
     st.markdown("---")
     if st.session_state.bang_phan_cong:
         st.markdown("#### 📋 Bảng tổng hợp Phân công hiện tại")
