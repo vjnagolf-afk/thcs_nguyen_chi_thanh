@@ -50,7 +50,7 @@ def render_xd_de_kt(ai_engine_client=None):
                     ma_trận = f"- Nhận biết: {pt_nhan_biet}%\n- Thông hiểu: {pt_thong_hieu}%\n- Vận dụng: {pt_van_dung}%"
                     
                     prompt = build_prompt_de_kt(thong_tin, ma_trận, noi_dung_on)
-                    result = generate_de_kt_ai(ai_engine_client, prompt)
+                    result = generate_de_kt_ai(ai_engine_client, prompt, model_name="3.5 Flash")
                     
                     st.session_state['de_kt_result'] = result
                     st.success("🎉 Đã tạo đề kiểm tra thành công!")
