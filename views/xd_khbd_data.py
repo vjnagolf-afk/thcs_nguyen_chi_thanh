@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP PYMUPDF)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP PYMUPDF & PYPDF MỚI)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -26,7 +26,6 @@ MODE_LABELS = {
     "tu_dong": "Soạn mới hoàn toàn từ tài liệu SGK",
 }
 
-# Hạ ngưỡng ký tự để linh hoạt với các trang Toán ít chữ
 MIN_SOURCE_CHARS = 300
 MIN_SOURCE_WORDS = 50
 
@@ -156,7 +155,7 @@ def read_pdf(uploaded_file, range_str=""):
 
         # ƯU TIÊN 1: SỬ DỤNG PYMUPDF (fitz) - CHUYÊN TRỊ SGK TOÁN/LÝ/HÓA
         try:
-            import fitz  # PyMuPDF
+            import fitz
             doc = fitz.open(stream=content, filetype="pdf")
             total_pages = len(doc)
             start, end = 1, total_pages
@@ -188,9 +187,9 @@ def read_pdf(uploaded_file, range_str=""):
         except Exception:
             pass
 
-        # ƯU TIÊN 2: SỬ DỤNG PYPDF2 LÀM DỰ PHÒNG
-        import PyPDF2
-        reader = PyPDF2.PdfReader(BytesIO(content))
+        # ƯU TIÊN 2: SỬ DỤNG PYPDF (PHIÊN BẢN MỚI) LÀM DỰ PHÒNG
+        import pypdf
+        reader = pypdf.PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         start, end = 1, total_pages
         
@@ -297,12 +296,9 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
     for uploaded_file in files or []:
         fname = getattr(uploaded_file, "name", "Tài liệu")
         content = read_uploaded_file(uploaded_file, range_str, is_pdf_target)
-        
-        # CHỈ GẮN TIÊU ĐỀ NẾU THỰC SỰ TRÍCH XUẤT ĐƯỢC CHỮ
         if len(content.strip()) > 30:
             result.append(f"\n--- TÀI LIỆU NGUỒN: {fname} ---")
             result.append(content)
-            
     return normalize_source_text("\n".join(result))
 
 def read_template_local(path="templates/KHBD_Mau.docx"):
@@ -388,7 +384,6 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung
     task_config = load_task_config()
     source = safe_text(noi_dung_chinh)
     
-    # Kiểm duyệt chất lượng nguồn
     quality = diagnose_source_quality(source, "SGK")
     if quality["status"] != "valid":
         raise ValueError(f"{quality['message']}\nSố ký tự trích xuất được: {quality['chars']}\nSố từ: {quality['words']}")
