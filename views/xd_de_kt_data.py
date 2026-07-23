@@ -29,7 +29,7 @@ def generate_de_kt_ai(ai_engine, prompt, model_name="3.5 Flash"):
     
     # Hỗ trợ cả 2 chuẩn gọi hàm của AIEngine tùy chỉnh hoặc Client gốc
     if hasattr(ai_engine, "generate_text"):
-        return str(ai_engine.generate_text(prompt)).strip()
+        return str(ai_engine.generate_text(prompt, model_name=model_name)).strip()
     if hasattr(ai_engine, "generate"):
         return str(ai_engine.generate(prompt)).strip()
     
