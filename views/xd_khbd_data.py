@@ -277,6 +277,11 @@ def load_task_config():
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI.")
     try:
+        # Cập nhật để hỗ trợ việc sử dụng AIEngine wrapper thống nhất
+        if hasattr(client, "generate_text"):
+            return client.generate_text(prompt, model_name=model_name)
+        
+        # Hỗ trợ tương thích ngược nếu truyền thẳng thư viện
         model_mapping = {
             "3.1 Flash-Lite": "gemini-2.5-flash-lite",
             "3.5 Flash": "gemini-2.5-flash",
