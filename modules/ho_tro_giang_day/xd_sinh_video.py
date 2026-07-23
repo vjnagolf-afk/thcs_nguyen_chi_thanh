@@ -1,78 +1,53 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
-from gtts import gTTS
-import io
 
-def render_xd_sinh_video(ai_engine):
-    st.markdown("### 🎬 Trợ lý Sinh Kịch bản & Khung Video Bài giảng")
-    st.info("💡 Hệ thống tự động tạo Kịch bản chi tiết (Hình ảnh + Lời đọc) và sinh trực tiếp **Giọng đọc AI (Voiceover)** để giáo viên ghép vào video.")
+def render_xd_sinh_video(ai_engine=None):
+    st.markdown("### 🎬 Trợ lý Kịch bản & Sinh Video Giáo dục")
+    st.caption("AI hỗ trợ viết kịch bản phân cảnh chi tiết (Script) và câu lệnh (Prompt) tạo ảnh/video cho các công cụ AI Text-to-Video.")
 
-    # Khởi tạo session state
-    if "video_script" not in st.session_state:
-        st.session_state.video_script = ""
-    if "video_audio_text" not in st.session_state:
-        st.session_state.video_audio_text = ""
-
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        chu_de = st.text_input(
-            "Chủ đề hoặc nội dung cần làm Video:", 
-            placeholder="Ví dụ: Hiện tượng Nhật thực, hoặc tóm tắt tiểu sử Hồ Chí Minh..."
-        )
-    with col2:
-        thoi_luong = st.selectbox("Thời lượng dự kiến:", ["1 phút (Shorts/Reels)", "3 phút (Tóm tắt)", "5 phút (Chi tiết)"])
-
-    yeu_cau_hinh_anh = st.text_input("Yêu cầu về hình ảnh (Tùy chọn):", placeholder="Ví dụ: Phong cách hoạt hình, 3D chân thực, sơ đồ tư duy...")
-
-    st.markdown("---")
-
-    if st.button("🚀 TIẾN HÀNH TẠO KỊCH BẢN & GIỌNG ĐỌC AI", type="primary"):
-        if chu_de.strip():
-            with st.spinner("⏳ AI đang viết kịch bản và thu âm giọng đọc... (có thể mất 10-15 giây)"):
-                # Lệnh 1: Tạo kịch bản chi tiết
-                prompt_script = f"""Đóng vai là một đạo diễn và chuyên gia giáo dục. Hãy viết kịch bản cho một video bài giảng thời lượng {thoi_luong} về chủ đề: '{chu_de}'.
-                Yêu cầu hình ảnh: {yeu_cau_hinh_anh if yeu_cau_hinh_anh else 'Phù hợp với môi trường sư phạm'}.
-                
-                Trình bày theo dạng bảng Markdown với 3 cột:
-                | Cảnh số | Mô tả Hình ảnh (Visual/Prompt) | Lời đọc thuyết minh (Voiceover/Audio) |
-                
-                Sau bảng, hãy tóm tắt lại TOÀN BỘ Lời đọc thuyết minh thành 1 đoạn văn liền mạch để tôi dùng làm kịch bản thu âm."""
-                
-                try:
-                    # Gọi AI tạo kịch bản
-                    script_res = ai_engine.generate_text(prompt_script)
-                    st.session_state.video_script = script_res
-                    
-                    # Lệnh 2: Tạo một đoạn văn bản ngắn, thuần chữ để đưa vào máy đọc (tránh AI đọc cả các ký tự đặc biệt)
-                    prompt_audio = f"Dựa vào chủ đề '{chu_de}', hãy viết ĐÚNG 1 đoạn văn (khoảng 150-200 chữ) dùng làm lời thuyết minh video. Viết tự nhiên, truyền cảm, KHÔNG dùng các ký tự đặc biệt, gạch đầu dòng hay bảng biểu."
-                    audio_res = ai_engine.generate_text(prompt_audio)
-                    st.session_state.video_audio_text = audio_res
-                    
-                except Exception as e:
-                    st.error(f"Lỗi khi gọi AI: {e}")
-        else:
-            st.warning("⚠️ Vui lòng nhập chủ đề cần làm video!")
-
-    # HIỂN THỊ KẾT QUẢ NGAY TRÊN GIAO DIỆN
-    if st.session_state.video_script:
-        st.markdown("### 📝 1. Kịch bản Video chi tiết")
-        st.markdown(st.session_state.video_script)
+    with st.container(border=True):
+        col_info, col_setting = st.columns([1, 1])
         
-        st.markdown("---")
-        st.markdown("### 🎧 2. Giọng đọc AI (Voiceover tự động)")
-        st.success("Tệp âm thanh dưới đây được tạo hoàn toàn tự động từ kịch bản. Thầy có thể bấm nút ba chấm (⋮) ở góc phải trình phát để tải về làm video ghép!")
+        with col_info:
+            chu_de_video = st.text_input("Chủ đề Video:", placeholder="VD: Cấu tạo Trái Đất, Sự hình thành lỗ đen...")
+            đoi_tuong = st.selectbox("Khán giả mục tiêu:", ["Học sinh Tiểu học (Vui nhộn, đơn giản)", "Học sinh THCS (Trực quan, logic)", "Học sinh THPT (Chuyên sâu, học thuật)"])
         
-        try:
-            # Dùng gTTS để biến văn bản thành giọng nói thật và xuất ra giao diện
-            tts = gTTS(text=st.session_state.video_audio_text, lang='vi', slow=False)
-            bio = io.BytesIO()
-            tts.write_to_fp(bio)
-            st.audio(bio.getvalue(), format='audio/mp3')
-        except Exception as e:
-            st.error(f"Đã xảy ra lỗi khi tạo âm thanh: {e}")
+        with col_setting:
+            thoi_luong = st.selectbox("Thời lượng dự kiến:", ["Dưới 1 phút (Short/Reel/TikTok)", "1 - 3 phút", "3 - 5 phút"])
+            phong_cach = st.selectbox("Phong cách Video:", ["Hoạt hình (Animation/2D)", "Tài liệu khoa học (Documentary)", "Bảng trắng giảng bài (Whiteboard)"])
             
-        st.markdown("---")
-        st.markdown("### 🎞️ 3. Khung phát Video (Trình chiếu)")
-        st.info("💡 Để sinh video người ảo (AI Avatar) trực tiếp, cần tích hợp API trả phí (HeyGen/D-ID). Dưới đây là khung phát video mẫu sẵn sàng để giáo viên upload video thành phẩm.")
+        noi_dung_chinh = st.text_area("Các ý chính bắt buộc phải có trong video:", height=100, placeholder="1. Lớp vỏ, 2. Lớp Manti, 3. Lõi...")
         
-        # Khung phát Video (Mô phỏng 1 video có sẵn)
-        st.video("https://www.w3schools.com/html/mov_bbb.mp4")
+        btn_tao = st.button("🎥 Lên kịch bản Video", type="primary", use_container_width=True)
+
+    if btn_tao:
+        if not chu_de_video.strip():
+            st.warning("⚠️ Vui lòng nhập chủ đề video.")
+        else:
+            with st.spinner("AI đang xây dựng phân cảnh và viết kịch bản lời thoại..."):
+                prompt = f"""
+                Bạn là một Đạo diễn Video Giáo dục và Người viết kịch bản chuyên nghiệp.
+                Hãy viết một kịch bản chi tiết để sản xuất video học tập với các thông số:
+                - Chủ đề: {chu_de_video}
+                - Khán giả: {đoi_tuong}
+                - Thời lượng: {thoi_luong}
+                - Phong cách: {phong_cach}
+                - Nội dung bắt buộc: {noi_dung_chinh}
+                
+                YÊU CẦU TRÌNH BÀY (Dạng Bảng Markdown hoặc Cấu trúc Phân cảnh):
+                Với mỗi Cảnh (Scene), phải nêu rõ 3 yếu tố:
+                1. Visual (Hình ảnh hiển thị/Chuyển động trên màn hình)
+                2. Audio/Voiceover (Lời thoại của MC)
+                3. Prompt tạo ảnh/video (Câu lệnh tiếng Anh để copy ném vào các công cụ AI tạo video).
+                """
+                
+                if ai_engine:
+                    try:
+                        result = ai_engine.generate_text(prompt)
+                        st.markdown("---")
+                        st.markdown("#### 🎞️ Kịch bản Video Chi tiết")
+                        st.markdown(result)
+                    except Exception as e:
+                        st.error(f"Lỗi kết nối AI: {e}")
+                else:
+                    st.error("❌ Chưa kết nối AI Engine.")
