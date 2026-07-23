@@ -1,7 +1,7 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 
 def render_ke_hoach():
-    # Thầy vẫn có thể để tên hàm/file cũ để khỏi sửa import, nhưng giao diện sẽ mang tên mới
     st.markdown("### 🎯 Quản lý và Xây dựng Chuyên đề Giáo dục")
     st.caption("Không gian chia sẻ, thiết kế và lưu trữ các chuyên đề chuyên môn sâu rộng, bám sát định hướng đổi mới giáo dục.")
 
@@ -102,8 +102,8 @@ def render_ke_hoach():
                     Trình bày chuyên nghiệp, sử dụng bullet point rõ ràng.
                     """
                     try:
-                        # Giả định ai_engine được lưu trong session_state hoặc truyền ngầm
-                        if "ai_engine" in st.session_state:
+                        # Lấy ai_engine được lưu trong session_state
+                        if "ai_engine" in st.session_state and st.session_state.ai_engine:
                             khung_ke_hoach = st.session_state.ai_engine.generate_text(prompt)
                         else:
                             khung_ke_hoach = f"*(Demo - Chưa kết nối AI)*\n\n**KẾ HOẠCH TRIỂN KHAI CHUYÊN ĐỀ: {ten_chuyen_de.upper()}**\n\n- Nhóm: {nhom_cd}\n- Người phụ trách: {nguoi_bao_cao}\n\n[Nội dung chi tiết do AI sinh ra...]"
