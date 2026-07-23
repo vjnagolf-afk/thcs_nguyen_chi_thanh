@@ -53,9 +53,6 @@ def _show_source_quality(text, title="Tài liệu kiến thức"):
         st.success("✅ Dữ liệu đã được đọc thành công.")
 
 def render_xd_khbd(ai_engine_client=None):
-    """
-    Nhận tham số ai_engine_client từ app.py (thường là client lấy từ get_ai_client)
-    """
     init_session_state()
 
     st.title("📘 XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUẨN 5512 & TT18)")
@@ -107,7 +104,6 @@ def render_xd_khbd(ai_engine_client=None):
     if tich_hop_hoa_nhap:
         nhu_cau_hoa_nhap = st.multiselect("Chọn loại khuyết tật/nhu cầu", ["Vận động", "Nghe", "Nói", "Nhìn", "Trí tuệ", "Khác"], default=["Nhìn"])
 
-    # Xử lý nút KÍCH HOẠT
     st.divider()
     if st.button("⚡ KÍCH HOẠT TIẾN TRÌNH AI", type="primary", use_container_width=True):
         if ai_engine_client is None:
@@ -122,7 +118,6 @@ def render_xd_khbd(ai_engine_client=None):
 
         with st.spinner("⏳ Trợ lý AI đang bóc tách tài liệu và thiết kế tiến trình..."):
             try:
-                # Trích xuất dữ liệu
                 noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if mode == "tu_dong" and file_sgk else ""
                 
                 if mode == "tu_dong":
@@ -153,14 +148,12 @@ def render_xd_khbd(ai_engine_client=None):
                     mode=mode
                 )
 
-                # Gọi AI ổn định
                 raw_result = generate_ai(ai_engine_client, prompt, model_name)
                 is_valid, msg = validate_khbd_result(raw_result)
 
                 if not is_valid:
                     st.warning(f"⚠️ Cảnh báo sư phạm: {msg}")
 
-                # Lưu vào cache ổn định
                 st.session_state['current_khbd_data'] = {
                     "is_khbd": True,
                     "title": ten_bai if ten_bai else "Giáo án AI",
@@ -172,9 +165,6 @@ def render_xd_khbd(ai_engine_client=None):
             except Exception as e:
                 st.error(f"❌ Lỗi hệ thống: {e}")
 
-    # =====================================================================
-    # HIỂN THỊ VÀ KẾT XUẤT HỒ SƠ WORD TỰ ĐỘNG
-    # =====================================================================
     if st.session_state.get('khbd_delete_trigger'):
         if 'current_khbd_data' in st.session_state:
             del st.session_state['current_khbd_data']
@@ -191,14 +181,11 @@ def render_xd_khbd(ai_engine_client=None):
         with st.expander("👀 Xem trước Kế hoạch bài dạy chi tiết", expanded=True):
             st.markdown(khbd_cache.get('ai_generated_content', ''))
             
-            # Xuất Word
             if WordExportEngine:
                 try:
                     template_path = "templates/KHBD_Mau.docx"
-                    # Nếu đang xài hàm cũ `convert_markdown_to_docx_bytes`:
                     if hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
                         word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'], template_path=template_path)
-                    # Hoặc nếu dùng hàm mới `export_to_word`:
                     elif hasattr(WordExportEngine, 'export_to_word'):
                         word_file = WordExportEngine.export_to_word(khbd_cache)
                 except Exception as e:
