@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 from pypdf import PdfReader
 
-def render_bien_ban(db):
+def render_bien_ban(ai_engine=None):
     st.markdown("### 📝 Trợ lý Thư ký: Xây dựng Biên bản Sinh hoạt")
     st.caption("AI tự động soạn thảo biên bản họp bám sát cấu trúc dự thảo kế hoạch, hỗ trợ nhiều hình thức sinh hoạt chuyên môn khác nhau.")
 
@@ -74,7 +75,6 @@ def render_bien_ban(db):
                 st.warning("⚠️ Thầy vui lòng cung cấp nội dung hoặc file Dự thảo trước nhé!")
             else:
                 with st.spinner("🧠 Thư ký AI đang tổng hợp và soạn thảo biên bản..."):
-                    # Đã bổ sung các trường thông tin mới vào Prompt để AI viết mở đầu
                     prompt = f"""
                     Bạn là Thư ký tổ chuyên môn trường THCS. Hãy viết một "Biên bản cuộc họp" chi tiết, mang văn phong hành chính trang trọng.
                     
@@ -101,7 +101,9 @@ def render_bien_ban(db):
                     """
                     
                     try:
-                        if "ai_engine" in st.session_state:
+                        if ai_engine:
+                            bien_ban = ai_engine.generate_text(prompt)
+                        elif "ai_engine" in st.session_state and st.session_state.ai_engine:
                             bien_ban = st.session_state.ai_engine.generate_text(prompt)
                         else:
                             bien_ban = f"*(Chưa kết nối AI)*\n\n**BIÊN BẢN {loai_cuoc_hop.upper()}**\n\n- Thời gian: {thoi_gian}\n- Địa điểm: {dia_diem}\n- Thành phần: Có mặt {co_mat}, vắng {vang_mat}\n- Chủ tọa: {chu_toa}\n- Thư ký: {thu_ky}\n\n[Nội dung AI sinh ra sẽ hiện ở đây...]"
