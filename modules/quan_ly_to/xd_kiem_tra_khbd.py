@@ -4,8 +4,7 @@ from pypdf import PdfReader
 import re
 import docx
 
-# Đổi tham số nhận vào thành ai_engine_2 để đồng bộ với luồng xử lý mới
-def render_kiem_tra_khbd(ai_engine_2):
+def render_kiem_tra_khbd(ai_engine=None):
     st.markdown("### 🔎 Kiểm tra, phê duyệt Kế hoạch bài dạy (Giáo án)")
     st.caption("AI đọc trực tiếp file KHBD tải lên (hỗ trợ PDF và Word), rà soát lỗi đa chiều và trích dẫn minh chứng thực tế từ văn bản.")
 
@@ -93,8 +92,11 @@ def render_kiem_tra_khbd(ai_engine_2):
                                 '''{st.session_state.noidung_khbd}'''
                                 """
                                 
-                                # Sử dụng luồng ai_engine_2
-                                report = ai_engine_2.generate_text(prompt_scan)
+                                if ai_engine:
+                                    report = ai_engine.generate_text(prompt_scan)
+                                else:
+                                    report = "❌ Không tìm thấy AI Engine để xử lý."
+                                    
                                 st.session_state.ai_analysis_report = report
                                 
                                 st.session_state.chat_history_khbd.append({"role": "assistant", "content": f"✅ Tôi đã phân tích xong giáo án **{mon_hoc} {khoi_lop}**. Mời thầy/cô xem **Báo cáo chi tiết** ở tab bên cạnh."})
@@ -165,8 +167,11 @@ def render_kiem_tra_khbd(ai_engine_2):
                                     prompt_template = f.read()
                                 prompt_hoan_thien = prompt_template.replace("[NOI_DUNG_KHBD_ODAY]", st.session_state.noidung_khbd)
                                 
-                                # Gọi luồng ai_engine_2
-                                ket_qua_tham_dinh = ai_engine_2.generate_text(prompt_hoan_thien)
+                                if ai_engine:
+                                    ket_qua_tham_dinh = ai_engine.generate_text(prompt_hoan_thien)
+                                else:
+                                    ket_qua_tham_dinh = "❌ Không kết nối được AI Engine."
+                                    
                                 st.markdown(ket_qua_tham_dinh)
                                 st.session_state.chat_history_khbd.append({"role": "assistant", "content": ket_qua_tham_dinh})
                             except FileNotFoundError:
@@ -180,8 +185,11 @@ def render_kiem_tra_khbd(ai_engine_2):
                             try:
                                 chat_prompt = f"Dựa vào nội dung KHBD sau:\n\n{st.session_state.noidung_khbd}\n\nThực hiện yêu cầu sau: {prompt}"
                                 
-                                # Gọi luồng ai_engine_2
-                                ai_response = ai_engine_2.generate_text(chat_prompt)
+                                if ai_engine:
+                                    ai_response = ai_engine.generate_text(chat_prompt)
+                                else:
+                                    ai_response = "❌ Lỗi: Chưa kết nối AI Engine."
+                                    
                                 st.markdown(ai_response)
                                 st.session_state.chat_history_khbd.append({"role": "assistant", "content": ai_response})
                             except Exception as e:
