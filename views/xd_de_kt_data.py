@@ -20,18 +20,25 @@ def init_session_state_de_kt():
         if key not in st.session_state:
             st.session_state[key] = value
 
-def generate_de_kt_ai(client, prompt, model_name="3.5 Flash"):
-    if client is None:
-        raise RuntimeError("Chưa truyền đối tượng Client AI.")
+def generate_de_kt_ai(ai_engine, prompt, model_name="3.5 Flash"):
+    """
+    Tương thích với AIEngine truyền từ app.py giống như các module khác.
+    """
+    if ai_engine is None:
+        raise RuntimeError("Chưa truyền AI Engine.")
+    
+    # Hỗ trợ cả 2 chuẩn gọi hàm của AIEngine tùy chỉnh hoặc Client gốc
+    if hasattr(ai_engine, "generate_text"):
+        return str(ai_engine.generate_text(prompt)).strip()
+    if hasattr(ai_engine, "generate"):
+        return str(ai_engine.generate(prompt)).strip()
+    
+    # Nếu truyền thẳng google-genai client gốc
     try:
-        model_mapping = {
-            "3.1 Flash-Lite": "gemini-2.5-flash-lite",
-            "3.5 Flash": "gemini-2.5-flash",
-            "3.1 Pro": "gemini-2.5-pro",
-            "Tư duy mở rộng": "gemini-2.5-pro"
-        }
-        api_model = model_mapping.get(model_name, "gemini-2.5-flash")
-        response = client.models.generate_content(model=api_model, contents=prompt)
+        response = ai_engine.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
         return getattr(response, "text", "").strip()
     except Exception as e:
         logger.error("Lỗi gọi AI đề kiểm tra: %s", e)
