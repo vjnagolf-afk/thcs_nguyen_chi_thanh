@@ -1,6 +1,14 @@
 import streamlit as st
 import docx
-import PyPDF2
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    pass
+
+try:
+    from pypdf import PdfReader
+except ImportError:
+    pass
 
 # --- HÀM HỖ TRỢ ĐỌC FILE ---
 def extract_text_from_file(uploaded_file):
