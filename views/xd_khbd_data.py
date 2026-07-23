@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TỐI ƯU TOÀN DIỆN SDK MỚI)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (HOÀN CHỈNH & KHỚP STATE)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -15,18 +15,7 @@ import pandas as pd
 from docx import Document
 from pathlib import Path
 from io import BytesIO
-def init_session_state():
-    defaults = {
-        "khbd_mode": "tu_dong",
-        "khbd_result": None,
-        "khbd_nls_list": [],
-        "khbd_hoat_dong_list": [],
-        "khbd_processing": False,
-        "khbd_nls_noi_dung": "",
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+
 logger = logging.getLogger(__name__)
 
 NLS_GV_VAN_BAN_MAC_DINH = "18/2026/TT-BGDĐT"
@@ -39,6 +28,38 @@ MODE_LABELS = {
 
 MIN_SOURCE_CHARS = 300
 MIN_SOURCE_WORDS = 50
+
+# =====================================================
+# KHỞI TẠO SESSION STATE (Đã bổ sung đầy đủ)
+# =====================================================
+def init_session_state():
+    defaults = {
+        "khbd_mode": "tu_dong",
+        "khbd_result": None,
+        "khbd_nls_list": [],
+        "khbd_hoat_dong_list": [],
+        "khbd_processing": False,
+        "khbd_nls_noi_dung": "",
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+def reset_ket_qua():
+    st.session_state["khbd_result"] = None
+
+def reset_toan_bo_khbd():
+    st.session_state["khbd_result"] = None
+    st.session_state["khbd_nls_list"] = []
+    st.session_state["khbd_hoat_dong_list"] = []
+    st.session_state["khbd_nls_noi_dung"] = ""
+    st.session_state["khbd_mode"] = "tu_dong"
+    st.session_state["khbd_processing"] = False
+
+def set_mode(mode: str):
+    if mode not in MODE_LABELS:
+        raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
+    st.session_state.khbd_mode = mode
 
 # =====================================================
 # KHUNG NĂNG LỰC SỐ
@@ -83,6 +104,32 @@ def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do):
         return get_nls_framework(loai_khung)[linh_vuc][thanh_phan][muc_do]
     except Exception:
         return ""
+
+def add_nls():
+    linh_vuc = safe_text(st.session_state.get("khbd_nls_linh_vuc", ""))
+    thanh_phan = safe_text(st.session_state.get("khbd_nls_thanh_phan", ""))
+    muc_do = safe_text(st.session_state.get("khbd_nls_muc_do", ""))
+    noi_dung = safe_text(st.session_state.get("khbd_nls_noi_dung", ""))
+    if not noi_dung: return
+
+    van_ban = NLS_GV_VAN_BAN_MAC_DINH if st.session_state.get("khbd_loai_khung_nls") == "Giáo viên (Thông tư 18)" else "DigComp"
+    item = {"van_ban": van_ban, "linh_vuc": linh_vuc, "thanh_phan": thanh_phan, "muc_do": muc_do, "noi_dung": noi_dung}
+    if item not in st.session_state.khbd_nls_list:
+        st.session_state.khbd_nls_list.append(item)
+
+def format_nls():
+    items = st.session_state.khbd_nls_list
+    if not items: return "Không tích hợp năng lực số cụ thể."
+    result = []
+    for index, item in enumerate(items, start=1):
+        result.append(f"{index}. [{item['van_ban']}] {item['linh_vuc']} - Thành phần: {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}")
+    return "\n".join(result)
+
+def add_activity():
+    value = safe_text(st.session_state.get("khbd_new_activity", ""))
+    if value and value not in st.session_state.khbd_hoat_dong_list:
+        st.session_state.khbd_hoat_dong_list.append(value)
+    st.session_state.khbd_new_activity = ""
 
 # =====================================================
 # XỬ LÝ VĂN BẢN & ĐÁNH GIÁ NGUỒN
@@ -246,10 +293,6 @@ def load_task_config():
     return "BẠN LÀ CHUYÊN GIA SƯ PHẠM CHUẨN PHỤ LỤC 4 CÔNG VĂN 5512."
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
-    """
-    Sử dụng API chuẩn mới của google-genai
-    client: Thể hiện của đối tượng trả về từ get_ai_client()
-    """
     if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI.")
     try:
         model_mapping = {
@@ -260,7 +303,6 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         }
         api_model = model_mapping.get(model_name, "gemini-2.5-flash")
         
-        # Cú pháp chuẩn của google-genai SDK >= 1.0.0
         response = client.models.generate_content(
             model=api_model,
             contents=prompt
@@ -280,7 +322,6 @@ def validate_khbd_result(text):
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, noi_dung_ppct, noi_dung_ai, noi_dung_mau, nls, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, hoat_dong, mode):
     if mode not in MODE_LABELS: raise ValueError("Chế độ không hợp lệ.")
     
-    # Cắt ngắn an toàn để không bị tràn Token Limit (khoảng 8000 ký tự)
     source = safe_text(noi_dung_chinh)[:8000] 
     
     quality = diagnose_source_quality(source, "Tài liệu nguồn")
