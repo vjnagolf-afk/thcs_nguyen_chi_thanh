@@ -1,7 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import streamlit as st
-import PyPDF2
+import PyPDF2try:
+    import fitz  # PyMuPDF
+except ImportError:
+    pass
+
+try:
+    from pypdf import PdfReader
+except ImportError:
+    pass
 
 from docx import Document
 
