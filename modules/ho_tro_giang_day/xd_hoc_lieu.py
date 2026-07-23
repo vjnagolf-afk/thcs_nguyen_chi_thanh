@@ -1,75 +1,57 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
-import docx
-try:
-    import fitz  # PyMuPDF
-except ImportError:
-    pass
 
-try:
-    from pypdf import PdfReader
-except ImportError:
-    pass
+def render_xd_hoc_lieu(ai_engine=None):
+    st.markdown("### 📚 Trợ lý Tổng hợp & Thiết kế Học liệu")
+    st.caption("Chuyển đổi văn bản thô, bài báo hoặc chương sách dài thành các định dạng học liệu ngắn gọn, dễ hiểu cho học sinh.")
 
-# --- HÀM HỖ TRỢ ĐỌC FILE ---
-def extract_text_from_file(uploaded_file):
-    text = ""
-    try:
-        if uploaded_file.name.endswith('.txt'):
-            text = uploaded_file.getvalue().decode('utf-8')
-        elif uploaded_file.name.endswith('.docx'):
-            doc = docx.Document(uploaded_file)
-            text = "\n".join([para.text for para in doc.paragraphs])
-        elif uploaded_file.name.endswith('.pdf'):
-            reader = PyPDF2.PdfReader(uploaded_file)
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-    except Exception as e:
-        text = f"[Lỗi khi đọc file: {e}]"
-    return text
+    col_input, col_config = st.columns([2, 1])
 
-# --- GIAO DIỆN CHÍNH ---
-def render_xd_tuong_tac(ai_engine):
-    st.markdown("### 📚 Trợ lý Quản lý & Khai thác Học liệu")
+    with col_input:
+        van_ban_goc = st.text_area("Dán nội dung kiến thức thô vào đây (Tối đa 10.000 từ):", height=250, placeholder="Ví dụ: Đoạn văn bản dài về Lịch sử Việt Nam giai đoạn 1945-1954...")
     
-    # 1. Gom các chế độ nhập liệu vào 1 khối
-    che_do = st.radio("Nguồn tài liệu:", ["🔗 Nhập đường link (URL)", "📎 Tải file lên (PDF/Word/TXT)"], horizontal=True)
+    with col_config:
+        st.markdown("**Cấu hình đầu ra:**")
+        loai_hoc_lieu = st.selectbox(
+            "Chọn định dạng học liệu:", 
+            ["Tóm tắt Ý chính (Bullet points)", "Sơ đồ tư duy (Định dạng văn bản)", "Kịch bản Thuyết trình (Slides)", "Thẻ ghi nhớ (Flashcards Q&A)"]
+        )
+        doi_tuong = st.selectbox("Đối tượng học sinh:", ["Cấp THCS (Dễ hiểu, trực quan)", "Cấp THPT (Sâu sắc, phân tích)", "Giáo viên (Học thuật)"])
+        
+        btn_tao = st.button("🪄 Tạo Học liệu", type="primary", use_container_width=True)
 
-    file_context = ""
-    if che_do == "🔗 Nhập đường link (URL)":
-        url = st.text_input("Dán đường link tài liệu web vào đây:")
-        if st.button("Lấy nội dung từ link"):
-            st.info("Chức năng đang phát triển. Thầy có thể copy nội dung web dán vào box bên dưới.")
-    else:
-        uploaded_files = st.file_uploader("Tải lên file để AI đọc:", accept_multiple_files=True, type=["pdf", "docx", "txt"])
-        if uploaded_files:
-            for file in uploaded_files:
-                file_context += f"\n--- Nội dung: {file.name} ---\n{extract_text_from_file(file)}\n"
-            st.success(f"Đã đọc xong {len(uploaded_files)} file.")
-
-    # 2. Khung chat chung
-    if "chat_messages" not in st.session_state: st.session_state.chat_messages = []
-    
-    chat_container = st.container(height=350)
-    with chat_container:
-        for message in st.session_state.chat_messages:
-            with st.chat_message(message["role"]): st.markdown(message["content"])
-
-    if prompt := st.chat_input("Hỏi AI về tài liệu hoặc yêu cầu phân tích..."):
-        st.session_state.chat_messages.append({"role": "user", "content": prompt})
-        with chat_container:
-            with st.chat_message("user"): st.markdown(prompt)
-            with st.chat_message("assistant"):
-                full_prompt = f"Tài liệu: {file_context}\n\nCâu hỏi: {prompt}"
-                response = ai_engine.generate_text(full_prompt)
-                st.markdown(response)
-                st.session_state.chat_messages.append({"role": "assistant", "content": response})
-
-def render_camera_cham_bai():
-    st.markdown("### 📷 Camera chấm bài")
-    st.info("Tính năng này sử dụng Camera để quét bài thi và AI tự động chấm điểm.")
-    
-    # Placeholder cho tính năng Camera (Thầy sẽ tích hợp sau)
-    img_file = st.camera_input("Chụp ảnh bài kiểm tra")
-    if img_file:
-        st.success("Đã nhận ảnh bài làm. Đang xử lý...")
-        # Code gọi AI xử lý ảnh nằm ở đây
+    if btn_tao:
+        if not van_ban_goc.strip():
+            st.warning("⚠️ Vui lòng cung cấp văn bản gốc.")
+        else:
+            with st.spinner(f"AI đang chuyển đổi văn bản thành {loai_hoc_lieu}..."):
+                prompt = f"""
+                Bạn là một Chuyên gia thiết kế học liệu sư phạm xuất sắc.
+                Dựa vào nội dung văn bản dưới đây, hãy chuyển đổi nó thành định dạng: {loai_hoc_lieu}.
+                Đối tượng tiếp cận: {doi_tuong}.
+                
+                YÊU CẦU ĐẶC BIỆT TÙY THEO ĐỊNH DẠNG:
+                - Nếu là Sơ đồ tư duy: Trình bày dạng cây phân cấp (Sử dụng các ký tự -, *, >, để thụt lề rõ ràng).
+                - Nếu là Kịch bản Slides: Chia rõ Slide 1 (Tiêu đề, Nội dung chính, Hình ảnh gợi ý), Slide 2...
+                - Nếu là Thẻ ghi nhớ: Liệt kê các cặp Mặt trước (Câu hỏi/Khái niệm) - Mặt sau (Trả lời/Định nghĩa).
+                
+                VĂN BẢN GỐC:
+                {van_ban_goc}
+                """
+                if ai_engine:
+                    try:
+                        result = ai_engine.generate_text(prompt)
+                        st.markdown("---")
+                        st.markdown(f"#### 📄 Kết quả: {loai_hoc_lieu}")
+                        st.markdown(result)
+                        
+                        st.download_button(
+                            label="⬇️ Tải học liệu về máy (.txt)",
+                            data=result,
+                            file_name=f"HocLieu_{loai_hoc_lieu.replace(' ', '')}.txt",
+                            mime="text/plain"
+                        )
+                    except Exception as e:
+                        st.error(f"Lỗi khi gọi AI: {e}")
+                else:
+                    st.error("❌ Chưa kết nối AI Engine.")
