@@ -31,11 +31,7 @@ def generate_de_kt_ai(client, prompt, model_name="3.5 Flash"):
             "Tư duy mở rộng": "gemini-2.5-pro"
         }
         api_model = model_mapping.get(model_name, "gemini-2.5-flash")
-        
-        response = client.models.generate_content(
-            model=api_model,
-            contents=prompt
-        )
+        response = client.models.generate_content(model=api_model, contents=prompt)
         return getattr(response, "text", "").strip()
     except Exception as e:
         logger.error("Lỗi gọi AI đề kiểm tra: %s", e)
