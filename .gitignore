@@ -1,8 +1,0 @@
-# Cấu hình bảo mật
-credentials.json
-token.json
-
-# Các file hệ thống khác (nên có)
-.env
-__pycache__/
-.DS_Store
