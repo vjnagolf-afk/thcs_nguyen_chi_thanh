@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 
 def render_sach_kn_so():
@@ -77,7 +78,8 @@ def render_sach_kn_so():
                         st.session_state.kho_video[cm].pop(idx) # Lệnh xóa khỏi danh sách
                         st.rerun()
                 try:
-                    st.video("https://youtu.be/ilZZCFGTSjo?list=PLuhZEkj5cFvy-LyYmGshf289eXF47Bh5g")
+                    # Render link video theo input thay vì fixed tĩnh
+                    st.video(link_video)
                 except:
                     st.error(f"Không thể tải video từ link: {link_video}")
                 st.markdown("<br>", unsafe_allow_html=True)
