@@ -15,7 +15,18 @@ import pandas as pd
 from docx import Document
 from pathlib import Path
 from io import BytesIO
-
+def init_session_state():
+    defaults = {
+        "khbd_mode": "tu_dong",
+        "khbd_result": None,
+        "khbd_nls_list": [],
+        "khbd_hoat_dong_list": [],
+        "khbd_processing": False,
+        "khbd_nls_noi_dung": "",
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 logger = logging.getLogger(__name__)
 
 NLS_GV_VAN_BAN_MAC_DINH = "18/2026/TT-BGDĐT"
