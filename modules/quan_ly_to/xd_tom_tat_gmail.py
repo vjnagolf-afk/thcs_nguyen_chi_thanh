@@ -1,23 +1,19 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 
 def render_tom_tat_gmail(ai_engine):
     st.markdown("### 📧 Đọc và Tóm tắt Văn bản / Email")
     st.caption("Trợ lý AI giúp đọc các email/công văn dài từ nhà trường, Phòng/Sở GD&ĐT và trích xuất lại các ý chính, lịch công tác quan trọng.")
 
-    # --- Chia làm 2 Tab (Dán tay và Kết nối sau này) ---
     tab_nhap, tab_api = st.tabs(["✍️ Xử lý Email thủ công", "🔗 Kết nối tài khoản Gmail (Sắp ra mắt)"])
 
     with tab_nhap:
-        # Thêm chức năng tải file
         uploaded_file = st.file_uploader("Hoặc tải lên file công văn (PDF, TXT, DOCX):", type=["txt", "pdf", "docx"])
         
         col_input, col_options = st.columns([2, 1])
-        
         with col_input:
-            # Nếu có file tải lên, tự động lấy nội dung file
             content_from_file = ""
             if uploaded_file is not None:
-                # Xử lý đơn giản cho file .txt (Thầy có thể mở rộng cho .pdf/.docx sau)
                 if uploaded_file.type == "text/plain":
                     content_from_file = uploaded_file.read().decode("utf-8")
                 else:
@@ -39,7 +35,6 @@ def render_tom_tat_gmail(ai_engine):
             st.markdown("<br>", unsafe_allow_html=True)
             btn_tom_tat = st.button("🪄 Phân tích bằng AI", type="primary", use_container_width=True)
 
-        # Xử lý khi bấm nút Tóm tắt
         if btn_tom_tat:
             if not email_content.strip():
                 st.warning("⚠️ Thầy vui lòng dán nội dung Email hoặc công văn vào ô trống trước nhé!")
@@ -58,15 +53,17 @@ def render_tom_tat_gmail(ai_engine):
                     '''{email_content}'''
                     """
                     try:
-                        summary = ai_engine.generate_text(prompt)
+                        if ai_engine:
+                            summary = ai_engine.generate_text(prompt)
+                        else:
+                            summary = "❌ Chưa kết nối AI Engine."
+                            
                         st.success("✅ Đã xử lý xong văn bản!")
                         
                         st.markdown("#### 📌 Kết quả Phân tích:")
-                        # Đặt kết quả vào một khung container cho đẹp
                         with st.container(border=True):
                             st.markdown(summary)
                             
-                        # Nút copy nhanh
                         st.download_button(
                             label="⬇️ Lưu kết quả về máy (.txt)",
                             data=summary,
