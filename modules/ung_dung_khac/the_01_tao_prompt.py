@@ -16,7 +16,6 @@ def render_the_01(ai_engine=None):
         
         muc_tieu = st.text_area("Mục tiêu bài học / Yêu cầu cần đạt", placeholder="Ví dụ: Học sinh hiểu được mối quan hệ giữa U, I, R và biết vận dụng giải bài toán thực tế.", key="tp_ductat")
 
-        # Lựa chọn nền tảng mục tiêu (Yêu cầu mới của thầy)
         nen_tang = st.selectbox(
             "Nền tảng mục tiêu để sử dụng Prompt",
             [
@@ -48,7 +47,6 @@ def render_the_01(ai_engine=None):
             else:
                 with st.spinner("🤖 Hệ thống đang tinh chỉnh prompt theo đúng tiêu chuẩn sư phạm..."):
                     
-                    # Logic tự động phân rã prompt dựa theo nền tảng
                     if "Canva AI" in nen_tang:
                         platform_instructions = """
 - Dành riêng cho Canva AI (Magic Design / Magic Write / Tạo bản thuyết trình tương tác):
