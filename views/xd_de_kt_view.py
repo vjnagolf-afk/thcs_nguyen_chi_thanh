@@ -12,10 +12,13 @@ try:
     from views.xd_de_kt_data import init_session_state_de_kt, generate_de_kt_ai, build_prompt_de_kt
 except ImportError:
     def init_session_state_de_kt(): pass
-    def generate_de_kt_ai(c, p, m): return ""
+    def generate_de_kt_ai(c, p, m="3.5 Flash"): return ""
     def build_prompt_de_kt(t, m, n): return ""
 
-def render_xd_de_kt(ai_engine_client=None):
+def render_xd_de_kt(ai_engine=None):
+    """
+    Khớp chính xác tham số truyền vào từ app.py: with tabs[1]: render_xd_de_kt(ai_engine)
+    """
     init_session_state_de_kt()
 
     st.title("📝 XÂY DỰNG ĐỀ KIỂM TRA & MA TRẬN (CHUẨN GDPT 2018)")
@@ -39,8 +42,8 @@ def render_xd_de_kt(ai_engine_client=None):
 
     st.divider()
     if st.button("⚡ TẠO ĐỀ KIỂM TRA & MA TRẬN", type="primary", use_container_width=True):
-        if ai_engine_client is None:
-            st.error("❌ Chưa cấu hình API Key hoặc Client AI.")
+        if ai_engine is None:
+            st.error("❌ Chưa cấu hình AI Engine.")
         elif not noi_dung_on.strip():
             st.warning("⚠️ Vui lòng nhập nội dung ôn tập/kiểm tra.")
         else:
@@ -50,7 +53,7 @@ def render_xd_de_kt(ai_engine_client=None):
                     ma_trận = f"- Nhận biết: {pt_nhan_biet}%\n- Thông hiểu: {pt_thong_hieu}%\n- Vận dụng: {pt_van_dung}%"
                     
                     prompt = build_prompt_de_kt(thong_tin, ma_trận, noi_dung_on)
-                    result = generate_de_kt_ai(ai_engine_client, prompt, model_name="3.5 Flash")
+                    result = generate_de_kt_ai(ai_engine, prompt)
                     
                     st.session_state['de_kt_result'] = result
                     st.success("🎉 Đã tạo đề kiểm tra thành công!")
