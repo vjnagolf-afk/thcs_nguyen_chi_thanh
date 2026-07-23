@@ -1,62 +1,53 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 
-def render_xd_phan_tich(ai_engine):
-    st.markdown("### 📈 Trợ lý Phân tích Kết quả Học tập")
-    st.info("💡 Hỗ trợ giáo viên phân tích phổ điểm, đánh giá năng lực học sinh (qua điểm số hoặc nhận xét) và tự động đề xuất giải pháp phụ đạo/bồi dưỡng.")
+def render_xd_phan_tich(ai_engine=None):
+    st.markdown("### 📈 Phân tích Dữ liệu Điểm số & Học tập")
+    st.caption("AI đóng vai trò như một chuyên gia phân tích dữ liệu (Data Analyst) để tìm ra xu hướng điểm, phổ điểm và dự báo học lực của học sinh.")
 
-    # Khởi tạo session để giữ kết quả
-    if "phan_tich_result" not in st.session_state:
-        st.session_state.phan_tich_result = ""
+    col_data, col_prompt = st.columns([1, 1])
 
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        loai_du_lieu = st.selectbox(
-            "Loại dữ liệu phân tích:", 
-            ["Bảng điểm (Số)", "Nhận xét/Đánh giá (Chữ)", "Kết quả khảo sát"]
+    with col_data:
+        st.markdown("**Dữ liệu điểm số (CSV, Text):**")
+        bang_diem = st.text_area(
+            "Dán bảng điểm (Tên, Điểm Toán, Điểm Văn...) hoặc dữ liệu thô:", 
+            height=200, 
+            placeholder="Nguyen Van A, 8.5, 7.0\nTran Thi B, 9.0, 8.5\nLe Van C, 5.0, 6.5"
         )
         
-        muc_tieu = st.multiselect(
-            "Trọng tâm phân tích:",
-            ["Phân loại học lực", "Tìm ra lỗ hổng kiến thức", "Đề xuất kế hoạch phụ đạo", "Đề xuất bài tập nâng cao"],
-            default=["Phân loại học lực", "Đề xuất kế hoạch phụ đạo"]
+    with col_prompt:
+        st.markdown("**Yêu cầu Phân tích:**")
+        muc_tieu = st.radio(
+            "AI cần tập trung vào:",
+            ["Thống kê phổ điểm chung (Trung bình, Giỏi, Yếu)", "Tìm ra học sinh cần lưu ý đặc biệt (Khen thưởng / Phụ đạo)", "Nhận xét tổng quan chất lượng lớp học"]
         )
+        btn_phan_tich = st.button("📊 Chạy Phân Tích", type="primary", use_container_width=True)
 
-    with col2:
-        du_lieu = st.text_area(
-            "Nhập dữ liệu (Copy/Paste từ Excel hoặc Word):", 
-            height=200, 
-            placeholder="Ví dụ 1 (Nhận xét):\nNguyễn Văn A: 5 (Sai nhiều phần hình học)\nTrần Thị B: 9 (Làm tốt, tư duy nhanh)\nLê Văn C: 4 (Tính toán chậm, ẩu)...\n\nVí dụ 2 (Chỉ có điểm): 5, 6, 8, 9, 4, 3, 10, 8, 7..."
-        )
-
-    st.markdown("---")
-
-    if st.button("📊 TIẾN HÀNH PHÂN TÍCH", type="primary"):
-        if du_lieu.strip():
-            with st.spinner("⏳ AI đang xử lý số liệu và lập báo cáo..."):
-                prompt = f"""Đóng vai là một chuyên gia phân tích dữ liệu giáo dục và phương pháp giảng dạy cấp THCS. Hãy phân tích tập dữ liệu sau của học sinh.
+    if btn_phan_tich:
+        if not bang_diem.strip():
+            st.warning("⚠️ Vui lòng dán dữ liệu bảng điểm.")
+        else:
+            with st.spinner("AI đang tính toán và phân tích các chỉ số..."):
+                prompt = f"""
+                Bạn là một chuyên gia Thống kê và Quản lý chất lượng giáo dục.
+                Dựa trên bộ dữ liệu điểm số thô dưới đây, hãy thực hiện phân tích: {muc_tieu}.
                 
-                - Loại dữ liệu: {loai_du_lieu}
-                - Dữ liệu đầu vào:
-                {du_lieu}
+                DỮ LIỆU ĐIỂM SỐ:
+                {bang_diem}
                 
-                - Trọng tâm cần phân tích: {', '.join(muc_tieu)}
-                
-                YÊU CẦU ĐẦU RA BÁO CÁO (Trình bày bằng Markdown chuyên nghiệp):
-                1. Đánh giá tổng quan: Tình hình chung của lớp/nhóm học sinh này như thế nào?
-                2. Phân tích chi tiết: Đi sâu vào các trọng tâm mà giáo viên yêu cầu ở trên. Nếu có thể, hãy gom nhóm học sinh (nhóm giỏi, khá, cần cố gắng).
-                3. Giải pháp sư phạm: Đưa ra 3-4 lời khuyên thiết thực, các dạng bài tập nên giao thêm, hoặc cách điều chỉnh kịch bản giảng dạy cho phù hợp với thực trạng vừa phân tích.
-                (Lưu ý: Dùng bảng biểu markdown nếu nó giúp báo cáo dễ nhìn hơn).
+                YÊU CẦU:
+                - Phân tích khách quan, sử dụng số liệu để chứng minh.
+                - Trình bày gọn gàng, có điểm nhấn (bold) các kết luận quan trọng.
+                - Nếu phát hiện điểm bất thường (outliers), hãy nêu rõ.
                 """
                 
-                try:
-                    res = ai_engine.generate_text(prompt)
-                    st.session_state.phan_tich_result = res
-                except Exception as e:
-                    st.error(f"Lỗi khi gọi AI: {e}")
-        else:
-            st.warning("⚠️ Vui lòng dán dữ liệu điểm số hoặc nhận xét vào ô trống để AI có thể phân tích!")
-
-    if st.session_state.phan_tich_result:
-        st.markdown("### 📑 Báo cáo Phân tích Năng lực Học sinh")
-        st.markdown(st.session_state.phan_tich_result)
+                if ai_engine:
+                    try:
+                        result = ai_engine.generate_text(prompt)
+                        st.markdown("---")
+                        st.success("✅ Phân tích hoàn tất!")
+                        st.markdown(result)
+                    except Exception as e:
+                        st.error(f"Lỗi kết nối AI: {e}")
+                else:
+                    st.error("❌ Chưa kết nối AI.")
