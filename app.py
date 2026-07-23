@@ -15,16 +15,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
-# Import các tầng tiện ích, cơ sở dữ liệu và AI Engine
+# ============================================================
+# IMPORT UTILS & AI ENGINE
+# ============================================================
 try:
     from utils.db_connector import init_db
     from utils.ai_engine import AIEngine
 except ImportError:
-    # Fallback an toàn nếu chưa khởi tạo đầy đủ
     init_db = None
     AIEngine = None
 
-# Import các phân hệ giao diện chính
+# ============================================================
+# IMPORT PHÂN HỆ 1: QUẢN LÝ TỔ CHUYÊN MÔN
+# ============================================================
 try:
     from modules.quan_ly_to.danh_sach import render_danh_sach
     from modules.quan_ly_to.phan_cong import render_phan_cong
@@ -40,13 +43,25 @@ try:
 except ImportError as e:
     st.error(f"❌ Lỗi import phân hệ Quản lý tổ chuyên môn: {e}")
 
+# ============================================================
+# IMPORT CÁC VIEW ĐÃ HOÀN THIỆN TRƯỚC ĐÓ (TẠM GỌI CHO PHÂN HỆ 2)
+# ============================================================
+try:
+    from views.xd_khbd_view import render_xd_khbd
+    from views.xd_de_kt_view import render_xd_de_kt
+    from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
+except ImportError:
+    render_xd_khbd = None
+    render_xd_de_kt = None
+    render_xd_ma_tran_tu_de = None
+
+# ============================================================
+# IMPORT PHÂN HỆ 4: ỨNG DỤNG KHÁC
+# ============================================================
 try:
     from views.ung_dung_khac import render_ung_dung_khac
-    from views.xd_de_kt_view import render_xd_de_kt
-    from views.xd_khbd_view import render_xd_khbd
-    from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
 except ImportError as e:
-    st.error(f"❌ Lỗi import các View phân hệ bổ trợ: {e}")
+    st.error(f"❌ Lỗi import phân hệ Ứng dụng khác: {e}")
 
 # ============================================================
 # CẤU HÌNH TRANG STREAMLIT
@@ -83,17 +98,16 @@ init_global_state()
 # THANH ĐIỀU HƯỚNG CHÍNH (SIDEBAR)
 # ============================================================
 st.sidebar.markdown("## 🏫 TRƯỜNG THCS NGUYỄN CHÍ THANH")
-st.sidebar.caption("Hệ thống Trợ lý AI Quản lý & Chuyên môn Tổ KHTN")
+st.sidebar.caption("Hệ thống Trợ lý AI Quản lý & Chuyên môn")
 st.sidebar.divider()
 
 menu_category = st.sidebar.radio(
-    "📂 Chọn phân hệ:",
+    "📂 BẢNG ĐIỀU KHIỂN CHÍNH:",
     [
-        "👥 Quản lý Tổ chuyên môn",
-        "📘 Xây dựng & Thẩm định KHBD",
-        "📝 Đề kiểm tra & Ma trận",
-        "🧩 Ma trận ngược từ Đề",
-        "🛠️ Ứng dụng khác"
+        "👥 Phân hệ Quản lý Tổ chuyên môn",
+        "👨‍🏫 Phân hệ Hỗ trợ Giáo viên",
+        "🎓 Phân hệ Hỗ trợ Giảng dạy",
+        "🛠️ Phân hệ Ứng dụng khác"
     ]
 )
 
@@ -112,7 +126,10 @@ st.sidebar.info("💡 **Hệ thống vận hành chuẩn:** Bám sát công văn
 db_instance = st.session_state.get("db")
 ai_instance = st.session_state.get("ai_engine")
 
-if menu_category == "👥 Quản lý Tổ chuyên môn":
+# ------------------------------------------------------------
+# 1. PHÂN HỆ QUẢN LÝ TỔ CHUYÊN MÔN
+# ------------------------------------------------------------
+if menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
     st.markdown("## 👥 Phân hệ: Quản lý Tổ chuyên môn")
     sub_tab = st.tabs([
         "Danh sách GV", 
@@ -162,25 +179,62 @@ if menu_category == "👥 Quản lý Tổ chuyên môn":
         try: render_thi_dua()
         except NameError: st.warning("Module Thi đua chưa sẵn sàng.")
 
-elif menu_category == "📘 Xây dựng & Thẩm định KHBD":
-    try:
-        render_xd_khbd(ai_instance)
-    except Exception as e:
-        st.error(f"Lỗi hiển thị phân hệ KHBD: {e}")
+# ------------------------------------------------------------
+# 2. PHÂN HỆ HỖ TRỢ GIÁO VIÊN
+# ------------------------------------------------------------
+elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
+    st.markdown("## 👨‍🏫 Phân hệ: Hỗ trợ Giáo viên")
+    
+    # 12 thẻ chức năng dựa theo kiến trúc thư mục ho_tro_gv
+    tab_titles_gv = [
+        "1. KHBD", "2. Đề kiểm tra", "3. Ma trận từ đề", 
+        "4. Chấm viết", "5. Chủ nhiệm", "6. Chuyển đổi", 
+        "7. Live", "8. Mô phỏng", "9. Quizizz", 
+        "10. Rubric", "11. STEM", "12. Tạo học liệu/Prompt"
+    ]
+    tabs_gv = st.tabs(tab_titles_gv)
+    
+    # Mapping các module đã có mã
+    with tabs_gv[0]:
+        if render_xd_khbd: render_xd_khbd(ai_instance)
+        else: st.info("Module Xây dựng Kế hoạch bài dạy chưa được import.")
+            
+    with tabs_gv[1]:
+        if render_xd_de_kt: render_xd_de_kt(ai_instance)
+        else: st.info("Module Đề kiểm tra chưa được import.")
+            
+    with tabs_gv[2]:
+        if render_xd_ma_tran_tu_de: render_xd_ma_tran_tu_de(ai_instance)
+        else: st.info("Module Ma trận ngược từ Đề chưa được import.")
+            
+    # Các module chưa có mã
+    for i in range(3, 12):
+        with tabs_gv[i]:
+            st.info(f"Khu vực tính năng của {tab_titles_gv[i]} đang được phát triển...")
 
-elif menu_category == "📝 Đề kiểm tra & Ma trận":
-    try:
-        render_xd_de_kt(ai_instance)
-    except Exception as e:
-        st.error(f"Lỗi hiển thị phân hệ Đề kiểm tra: {e}")
+# ------------------------------------------------------------
+# 3. PHÂN HỆ HỖ TRỢ GIẢNG DẠY
+# ------------------------------------------------------------
+elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
+    st.markdown("## 🎓 Phân hệ: Hỗ trợ Giảng dạy")
+    
+    # 12 thẻ chức năng dựa theo kiến trúc thư mục ho_tro_giang_day
+    tab_titles_gd = [
+        "1. RAG Ask", "2. Cá nhân hóa", "3. Camera", 
+        "4. Chấm nhanh", "5. Học liệu", "6. Kiểm tra nhanh", 
+        "7. Ngân hàng đề", "8. Phân tích", "9. Phân tích BH", 
+        "10. Sinh video", "11. Trò chơi", "12. Mô phỏng"
+    ]
+    tabs_gd = st.tabs(tab_titles_gd)
+    
+    for i in range(12):
+        with tabs_gd[i]:
+            st.info(f"Khu vực tính năng của {tab_titles_gd[i]} đang được phát triển...")
 
-elif menu_category == "🧩 Ma trận ngược từ Đề":
-    try:
-        render_xd_ma_tran_tu_de(ai_instance)
-    except Exception as e:
-        st.error(f"Lỗi hiển thị phân hệ Ma trận ngược: {e}")
-
-elif menu_category == "🛠️ Ứng dụng khác":
+# ------------------------------------------------------------
+# 4. PHÂN HỆ ỨNG DỤNG KHÁC
+# ------------------------------------------------------------
+elif menu_category == "🛠️ Phân hệ Ứng dụng khác":
     try:
         render_ung_dung_khac()
     except Exception as e:
