@@ -293,8 +293,36 @@ def read_pdf(uploaded_file, range_str=""):
             uploaded_file.seek(0)
         content = uploaded_file.read()
         if not content:
-            return "[LỖI ĐỌC PDF: Tệp tải lên bị rỗng]"
-            
+            return ""
+
+        # ƯU TIÊN 1: Thử dùng pdfplumber (Thư viện chuyên trị PDF font phức tạp/Toán học)
+        try:
+            import pdfplumber
+            with pdfplumber.open(BytesIO(content)) as pdf:
+                total_pages = len(pdf.pages)
+                start, end = 1, total_pages
+                range_str = safe_text(range_str)
+                if range_str and "-" in range_str:
+                    s, e = range_str.split("-")
+                    start = max(1, int(s.strip()))
+                    end = min(total_pages, int(e.strip()))
+                elif range_str:
+                    p = int(range_str)
+                    start = max(1, min(total_pages, p))
+                    end = start
+                    
+                for i in range(start - 1, end):
+                    page_text = pdf.pages[i].extract_text()
+                    if page_text and page_text.strip():
+                        result.append(f"\n[PDF - Trang {i+1}]\n{page_text.strip()}")
+            if result:
+                return normalize_source_text("\n".join(result))
+        except ImportError:
+            pass # Chuyển sang PyPDF2 nếu server không cài pdfplumber
+
+        # ƯU TIÊN 2: Dùng PyPDF2 (Dễ bị lỗi với SGK Toán)
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
         reader = PyPDF2.PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         start, end = 1, total_pages
@@ -322,18 +350,38 @@ def read_pdf(uploaded_file, range_str=""):
                 
         text_result = "\n".join(result)
         
-        # Nếu dải trang chỉ định đọc quá ít chữ, hệ thống tự động quét toàn bộ các trang còn lại của file PDF để lấy đủ nội dung SGK
-        if len(text_result.strip()) < 200 and total_pages > 1:
-            fallback_result = []
+        # Nếu trích xuất rỗng, thử quét toàn bộ file
+        if len(text_result.strip()) < 100 and total_pages > 1:
+            fallback = []
             for index, page in enumerate(reader.pages, start=1):
                 t = safe_text(page.extract_text() or "")
-                if t:
-                    fallback_result.append(f"\n[PDF - Trang {index}]\n{t}")
-            text_result = "\n".join(fallback_result)
+                if t: fallback.append(f"\n[PDF - Trang {index}]\n{t}")
+            text_result = "\n".join(fallback)
             
         return normalize_source_text(text_result)
     except Exception as e:
         return f"[LỖI ĐỌC PDF: {str(e)}]"
+
+
+def read_multiple_files(files, range_str="", is_pdf_target=False):
+    result = []
+    for uploaded_file in files or []:
+        fname = getattr(uploaded_file, "name", "Tài liệu")
+        content = read_uploaded_file(uploaded_file, range_str, is_pdf_target)
+        
+        # LỚP BẢO VỆ CHỐNG RÁC: Chỉ thêm header nếu thực sự đọc được nội dung bên trong
+        if len(content.strip()) > 50 and "[LỖI ĐỌC PDF" not in content:
+            result.append(f"\n--- TÀI LIỆU NGUỒN: {fname} ---")
+            result.append(content)
+        else:
+            # Nếu nội dung rỗng, trả về thông báo lỗi rõ ràng để hàm validate bắt được
+            result.append(
+                f"\n[LỖI TRÍCH XUẤT: Hệ thống không thể đọc được chữ từ file '{fname}'. "
+                "File này có thể sử dụng font mã hóa phức tạp (CID). "
+                "CÁCH XỬ LÝ: Hãy COPY nội dung từ file PDF dán sang một file Word (.docx) rồi tải lên lại.]"
+            )
+            
+    return normalize_source_text("\n".join(result))
 
 def read_docx_ordered(source):
     result = []
