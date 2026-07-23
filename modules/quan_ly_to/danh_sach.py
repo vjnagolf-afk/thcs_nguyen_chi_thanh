@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 
@@ -5,7 +6,7 @@ def render_danh_sach():
     st.markdown("### 👥 Danh sách thành viên Tổ chuyên môn")
     st.success("📌 Dữ liệu thành viên được đồng bộ 1 chiều từ mã nguồn hệ thống.")
 
-    # 1. Khai báo danh sách giáo viên (Đã đổi key tiếng Việt để hiển thị lên bảng đẹp hơn)
+    # 1. Khai báo danh sách giáo viên
     ds_thanh_vien = [
         {"Họ và tên": "Lê Hồng Dưỡng", "Năm sinh": "1976", "Bằng cấp": "ĐH", "Chuyên môn": "KHTN (Lý) - CN", "Nhiệm vụ": "Tổ trưởng", "Email": "vjnagolf@gmail.com", "Điện thoại": "0984331178"},
         {"Họ và tên": "Nguyễn Thị Huyền Trang", "Năm sinh": "1983", "Bằng cấp": "Thạc sĩ", "Chuyên môn": "KHTN (Lý) - CN", "Nhiệm vụ": "Giáo viên", "Email": "nguyenvana@gmail.com", "Điện thoại": "0909123457"},
