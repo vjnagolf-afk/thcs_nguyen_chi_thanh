@@ -289,12 +289,16 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
 def read_pdf(uploaded_file, range_str=""):
     result = []
     try:
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
         content = uploaded_file.read()
+        if not content:
+            return "[LỖI ĐỌC PDF: Tệp tải lên bị rỗng]"
+            
         reader = PyPDF2.PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         start, end = 1, total_pages
         
-        # Xử lý thông minh phạm vi trang: Hỗ trợ cả khoảng (5-6) lẫn trang đơn (5)
         range_str = safe_text(range_str)
         if range_str:
             try:
@@ -303,7 +307,6 @@ def read_pdf(uploaded_file, range_str=""):
                     start = max(1, int(s.strip()))
                     end = min(total_pages, int(e.strip()))
                 else:
-                    # Trường hợp giáo viên gõ một số trang đơn lẻ
                     p = int(range_str)
                     start = max(1, min(total_pages, p))
                     end = start
@@ -319,7 +322,7 @@ def read_pdf(uploaded_file, range_str=""):
                 
         text_result = "\n".join(result)
         
-        # Phòng hờ nếu trích xuất trang chỉ định quá ít, tự động quét toàn bộ tài liệu để không bị chặn lỗi
+        # Nếu dải trang chỉ định đọc quá ít chữ, hệ thống tự động quét toàn bộ các trang còn lại của file PDF để lấy đủ nội dung SGK
         if len(text_result.strip()) < 200 and total_pages > 1:
             fallback_result = []
             for index, page in enumerate(reader.pages, start=1):
