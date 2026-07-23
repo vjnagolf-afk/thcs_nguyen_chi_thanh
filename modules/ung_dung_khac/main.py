@@ -3,7 +3,7 @@ import streamlit as st
 
 from .the_01_tao_prompt import render_the_01
 from .the_02_embed_hub import render_the_02
-from .the_03_xu_ly_video import render_the_03  # <-- Import Thẻ 3
+from .the_03_xu_ly_video import render_the_03
 
 def render_ung_dung_khac(ai_engine=None):
     st.markdown("## 🛠️ Phân hệ: Ứng dụng khác")
@@ -13,7 +13,7 @@ def render_ung_dung_khac(ai_engine=None):
     tab_titles = [
         "🎮 Tạo prompt trò chơi", 
         "🌐 Nhúng YouTube & Canva", 
-        "🎬 Xử lý Video & YouTube", # <-- Tên Thẻ 3
+        "🎬 Xử lý Video & YouTube",
         "Thẻ 4", "Thẻ 5", 
         "Thẻ 6", "Thẻ 7", "Thẻ 8", "Thẻ 9", "Thẻ 10"
     ]
