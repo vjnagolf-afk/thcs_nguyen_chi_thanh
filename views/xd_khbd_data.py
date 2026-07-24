@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TT18 & ĐỊNH TUYẾN ẢNH OCR)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -225,10 +225,9 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
     import tempfile, os, time
     try: 
         import google.generativeai as genai
-    except ImportError: 
-        return "❌ Lỗi: Thư viện google-generativeai chưa được cài."
+    except ImportError as e: 
+        return f"❌ Lỗi Máy chủ: Thư viện `google-generativeai` chưa được cài đặt hoặc bị xung đột phiên bản SDK. Chi tiết: {e}"
 
-    # Lấy key và tự động xóa khoảng trắng rác bằng .strip()
     api_key = st.session_state.get("user_api_key", "")
     if isinstance(api_key, str):
         api_key = api_key.strip()
@@ -321,8 +320,13 @@ def read_docx_ordered(source):
 def read_multiple_files(files, range_str="", is_pdf_target=False):
     result = []
     for f in files or []:
-        if getattr(f, 'name', '').lower().endswith('.pdf'):
+        file_name = getattr(f, 'name', '').lower()
+        if file_name.endswith('.pdf'):
             content = read_pdf(f)
+        elif file_name.endswith(('.png', '.jpg', '.jpeg', '.webp')):
+            # Nhận diện ảnh và đẩy thẳng vào luồng OCR, tránh lỗi nạp ảnh vào thư viện đọc docx
+            file_bytes = f.getvalue() if hasattr(f, "getvalue") else f.read()
+            content = extract_text_via_gemini_ocr(file_bytes, file_name)
         else:
             content = read_docx_ordered(f)
             
