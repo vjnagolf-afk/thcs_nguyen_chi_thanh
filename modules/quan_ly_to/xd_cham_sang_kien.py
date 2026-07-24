@@ -6,7 +6,7 @@ Mô tả:
     Module chấm và phân tích sáng kiến kinh nghiệm bằng AI.
 
 Tính năng:
-    - Đọc PDF
+    - Đọc PDF (Sử dụng PyMuPDF/fitz hiện đại, thay thế PyPDF2 cũ)
     - Đọc DOCX
     - Đọc ảnh JPG/JPEG/PNG bằng AI Engine trung tâm
     - Chấm theo Rubric 10 điểm
@@ -21,7 +21,7 @@ Tính năng:
 """
 
 import streamlit as st
-import PyPDF2
+import fitz  # PyMuPDF thay thế PyPDF2
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -68,23 +68,28 @@ def truncate_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
     return text[:max_length] + "\n\n[HỆ THỐNG: Nội dung đã được cắt bớt do vượt giới hạn xử lý.]"
 
 # ============================================================
-# 3. ĐỌC FILE PDF
+# 3. ĐỌC FILE PDF (ĐÃ NÂNG CẤP LÊN PyMuPDF / fitz)
 # ============================================================
 def extract_text_from_pdf(uploaded_file) -> str:
-    """Trích xuất văn bản từ file PDF."""
+    """Trích xuất văn bản từ file PDF sử dụng thư viện PyMuPDF (fitz) tốc độ cao."""
     text_parts = []
     try:
-        uploaded_file.seek(0)
-        reader = PyPDF2.PdfReader(uploaded_file)
-        for page_number, page in enumerate(reader.pages, start=1):
+        # Hỗ trợ đọc cả đối tượng file Streamlit
+        content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        doc = fitz.open(stream=content, filetype="pdf")
+        
+        for page_number in range(len(doc)):
             try:
-                page_text = page.extract_text() or ""
-                if page_text.strip():
-                    text_parts.append(f"\n--- TRANG {page_number} ---\n{page_text}")
+                page = doc[page_number]
+                page_text = safe_text(page.get_text("text"))
+                if page_text:
+                    text_parts.append(f"\n--- TRANG {page_number + 1} ---\n{page_text}")
             except Exception as page_error:
-                text_parts.append(f"\n--- TRANG {page_number} ---\n[Không thể đọc trang này: {page_error}]")
+                text_parts.append(f"\n--- TRANG {page_number + 1} ---\n[Không thể đọc trang này: {page_error}]")
+                
     except Exception as error:
         raise RuntimeError(f"Không thể đọc file PDF: {error}")
+        
     return normalize_text("\n".join(text_parts))
 
 # ============================================================
@@ -93,8 +98,9 @@ def extract_text_from_pdf(uploaded_file) -> str:
 def extract_text_from_docx(uploaded_file) -> str:
     """Trích xuất nội dung từ DOCX."""
     try:
-        uploaded_file.seek(0)
-        doc = Document(uploaded_file)
+        # Fix cho stream của Streamlit để Document đọc mượt mà
+        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        doc = Document(io.BytesIO(source))
         content_parts = []
         for paragraph in doc.paragraphs:
             text = paragraph.text.strip()
