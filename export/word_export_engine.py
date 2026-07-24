@@ -17,15 +17,32 @@ class WordExportEngine:
     def convert_markdown_to_docx_bytes(markdown_text, template_path=None):
         doc = Document()
         
-        # 1. Cấu hình Style Mặc định: Font Times New Roman 13, Căn đều 2 bên (Justify)
+        # ==========================================
+        # 1. CẤU HÌNH LỀ CHUẨN HÀNH CHÍNH
+        # Top/Bottom: 1.2 cm, Left: 2.0 cm, Right: 1.5 cm
+        # ==========================================
+        for section in doc.sections:
+            section.top_margin = Cm(1.2)
+            section.bottom_margin = Cm(1.2)
+            section.left_margin = Cm(2.0)
+            section.right_margin = Cm(1.5)
+        
+        # 2. Cấu hình Style Mặc định: Font Times New Roman 13, Căn đều 2 bên
         style = doc.styles['Normal']
         style.font.name = 'Times New Roman'
         style.font.size = Pt(13)
         style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         style.paragraph_format.space_after = Pt(6)
         
-        # 2. Tiền xử lý văn bản: Xóa các khoảng trắng thừa
-        markdown_text = markdown_text.replace("·", "") # Xóa các chấm đen sinh lỗi
+        # 3. Tiền xử lý văn bản: Chống gãy công thức Toán
+        markdown_text = markdown_text.replace("·", "") # Xóa chấm đen rác
+        markdown_text = markdown_text.replace("$", "") # Xóa ký hiệu rác LaTeX
+        markdown_text = markdown_text.replace("\\sqrt", "√") 
+        markdown_text = markdown_text.replace("\\Rightarrow", "⇒")
+        markdown_text = markdown_text.replace("\\Leftrightarrow", "⇔")
+        markdown_text = markdown_text.replace("\\ge", "≥")
+        markdown_text = markdown_text.replace("\\le", "≤")
+        
         lines = markdown_text.split('\n')
         
         for line in lines:
@@ -49,27 +66,42 @@ class WordExportEngine:
 
             # Xử lý Đoạn văn thường
             p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY # Bắt buộc căn đều 2 bên
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY # Căn đều 2 bên
             
-            # Xử lý thụt lề (Chỉ thụt 1.0 - 1.2cm theo chuẩn)
+            # Xử lý thụt lề đầu dòng
             if re.match(r'^[\-\*]\s+', line):
-                p.paragraph_format.left_indent = Cm(1.2) # Thụt lề toàn đoạn cho danh sách
+                p.paragraph_format.left_indent = Cm(1.0)
                 text = re.sub(r'^[\-\*]\s+', '- ', line)
             elif re.match(r'^\d+\.\s+', line):
-                p.paragraph_format.left_indent = Cm(1.2)
+                p.paragraph_format.left_indent = Cm(0.5)
+                text = line
+            elif re.match(r'^[a-zA-Z]\)\s+', line):
+                p.paragraph_format.left_indent = Cm(0.5)
                 text = line
             else:
-                p.paragraph_format.first_line_indent = Cm(1.2) # Thụt lề dòng đầu tiên 1.2cm
+                p.paragraph_format.first_line_indent = Cm(1.0)
                 text = line
             
-            # Xử lý Bôi đậm (**text**)
+            # 4. Thuật toán phân tách chữ Đậm và số Mũ (Superscript)
             parts = re.split(r'(\*\*.*?\*\*)', text)
             for part in parts:
                 if part.startswith('**') and part.endswith('**'):
                     run = p.add_run(part[2:-2])
                     run.bold = True
                 else:
-                    p.add_run(part)
+                    # Bóc tách và đẩy x^2 thành số mũ trên Word
+                    sub_parts = re.split(r'([A-Za-z0-9\(\)]+\^\d+)', part)
+                    for sp in sub_parts:
+                        if '^' in sp:
+                            try:
+                                base, sup = sp.split('^', 1)
+                                p.add_run(base)
+                                run_sup = p.add_run(sup)
+                                run_sup.font.superscript = True
+                            except:
+                                p.add_run(sp)
+                        else:
+                            p.add_run(sp)
         
         # Lưu ra luồng byte
         f = io.BytesIO()
