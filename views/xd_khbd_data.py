@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP TỰ ĐỘNG OCR VISION)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP OCR & FIX LỖI FORMAT)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -240,7 +240,7 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     chars = len(text)
     words = len(re.findall(r"\S+", text))
     if chars == 0:
-        return {"status": "empty", "message": f"Không đọc được nội dung chữ từ {source_name}. Nếu là PDF scan dạng ảnh, hệ thống tự động kích hoạt tính năng đọc bằng mắt AI (Vision OCR) để bảo toàn công thức Toán/Lý.", "chars": chars, "words": words}
+        return {"status": "empty", "message": f"Không đọc được nội dung chữ từ {source_name}. Hệ thống sẽ tự động kích hoạt tính năng đọc bằng mắt AI (Vision OCR) để bảo toàn công thức Toán/Lý.", "chars": chars, "words": words}
     if chars < MIN_SOURCE_CHARS:
         return {"status": "insufficient", "message": f"{source_name} quá ngắn, không đủ cơ sở để sinh giáo án dài.", "chars": chars, "words": words}
     return {"status": "valid", "message": f"{source_name} đủ dữ liệu.", "chars": chars, "words": words}
@@ -249,10 +249,6 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
 # CƠ CHẾ ĐỌC FILE TỰ ĐỘNG OCR BẰNG GEMINI 2.5 FLASH VISION
 # ============================================================
 def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
-    """
-    Sử dụng Gemini File API để đọc trực tiếp file PDF Scan / Ảnh,
-    giữ nguyên vẹn định dạng, công thức Toán học (LaTeX) và Bảng biểu (Markdown).
-    """
     import tempfile
     import os
     import time
@@ -261,7 +257,6 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
     except ImportError:
         return ""
 
-    # Lấy API key từ session state đã đăng nhập
     api_key = st.session_state.get("user_api_key")
     if not api_key:
         try:
@@ -284,7 +279,6 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
             
         media_file = genai.upload_file(path=tmp_path)
         
-        # Chờ xử lý file trên server của Google
         while media_file.state.name == "PROCESSING":
             time.sleep(2)
             media_file = genai.get_file(media_file.name)
@@ -298,12 +292,12 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
         Hãy đọc và trích xuất toàn bộ nội dung trong tệp đính kèm. 
         YÊU CẦU:
         1. Trích xuất chính xác 100% văn bản.
-        2. Các công thức Toán học, Hóa học, Vật lý BẮT BUỘC phải chuyển thành mã LaTeX (ví dụ: dùng $...$ cho inline, $$...$$ cho block).
-        3. Vẽ lại các bảng biểu thành dạng Markdown.
-        4. Bỏ qua các hình ảnh trang trí không chứa thông tin học thuật."""
+        2. CÁC CÔNG THỨC TOÁN HỌC (ĐẶC BIỆT LÀ CĂN BẬC HAI) PHẢI DÙNG LATEX. Bắt buộc dùng cú pháp \sqrt{...} (có ngoặc nhọn), KHÔNG DÙNG cú pháp √(A). Ví dụ đúng: \sqrt{x+1}, \sqrt{7}-3.
+        3. Dùng $...$ cho inline math và $$...$$ cho block math.
+        4. Vẽ lại các bảng biểu thành dạng Markdown.
+        """
         
         response = model.generate_content([ocr_prompt, media_file])
-        
         return response.text if response and hasattr(response, "text") else ""
         
     except Exception as e:
@@ -319,7 +313,6 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
                 os.remove(tmp_path)
             except Exception:
                 pass
-
 
 def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
@@ -345,7 +338,6 @@ def read_pdf(uploaded_file, range_str=""):
 
         extracted_text = ""
 
-        # 1. Thử dùng PyMuPDF (Nhanh, nhẹ, cho PDF chuẩn text)
         try:
             import fitz
             doc = fitz.open(stream=content, filetype="pdf")
@@ -360,7 +352,6 @@ def read_pdf(uploaded_file, range_str=""):
         except Exception:
             pass
 
-        # 2. Thử dùng pypdf làm phương án phụ cho text
         if len(extracted_text) < 100:
             try:
                 from pypdf import PdfReader
@@ -373,10 +364,9 @@ def read_pdf(uploaded_file, range_str=""):
                     
                     pages = [reader.pages[i - 1].extract_text().strip() for i in range(s_page, e_page + 1) if reader.pages[i - 1].extract_text()]
                     extracted_text = "\n\n".join(pages)
-            except Exception as e:
+            except Exception:
                 pass
         
-        # 3. KÍCH HOẠT FALLBACK AI VISION (NẾU PHÁT HIỆN LÀ PDF SCAN DẠNG ẢNH)
         if len(extracted_text) < 100:
             try:
                 st.toast("⚠️ Phát hiện PDF Scan! Đang kích hoạt luồng AI Vision để tự động đọc ảnh và bảo toàn công thức...", icon="👁️")
@@ -387,7 +377,6 @@ def read_pdf(uploaded_file, range_str=""):
         return safe_text(extracted_text)
     except Exception as e:
         return f"[LỖI ĐỌC PDF: {e}]"
-
 
 def read_docx_ordered(source):
     try:
@@ -434,8 +423,17 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI.")
     try:
+        system_instruction = """
+Bạn là một AI chuyên xuất bản Giáo án. Bạn phải tuân thủ TUYỆT ĐỐI các luật lệ định dạng sau:
+1. KHÔNG BAO GIỜ viết lời chào, lời mở đầu (như "Dưới đây là kế hoạch bài dạy..."). Đầu ra của bạn BẮT BUỘC phải bắt đầu bằng tiêu đề "# TÊN BÀI HỌC:".
+2. BẮT BUỘC chèn thông tin Môn học, Khối lớp, Số tiết ngay dưới tên bài học.
+3. TUYỆT ĐỐI KHÔNG dùng dấu chấm tròn (bullet points: -, *, •) đứng trước các chữ: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện. Hãy viết chúng như những đoạn văn bình thường hoặc in đậm.
+4. CÔNG THỨC TOÁN HỌC (đặc biệt là căn bậc hai) PHẢI dùng cú pháp LaTeX `\sqrt{A}`. TUYỆT ĐỐI KHÔNG DÙNG ký tự unicode `√(A)`. Dùng `$ \sqrt{x} $` cho inline và `$$ \sqrt{x} $$` cho block.
+        """
+        
         if hasattr(client, "generate_text"):
-            return client.generate_text(prompt, model_name=model_name, max_tokens=8192)
+            # Nếu API của thầy hỗ trợ system_instruction
+            return client.generate_text(prompt, model_name=model_name, max_tokens=8192, system_instruction=system_instruction)
         
         model_mapping = {
             "3.1 Flash-Lite": "gemini-2.5-flash-lite",
@@ -444,8 +442,16 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
             "Tư duy mở rộng": "gemini-2.5-pro"
         }
         api_model = model_mapping.get(model_name, "gemini-2.5-flash")
-        response = client.models.generate_content(model=api_model, contents=prompt)
-        return getattr(response, "text", "").strip()
+        
+        # Nếu thư viện gốc không hỗ trợ system_instruction trực tiếp, ta nhúng vào prompt
+        full_prompt = system_instruction + "\n\n" + prompt
+        response = client.models.generate_content(model=api_model, contents=full_prompt)
+        
+        text_out = getattr(response, "text", "").strip()
+        # Clean up fallback (Xóa lời dạo đầu nếu AI cứng đầu)
+        if "# TÊN BÀI HỌC" in text_out:
+            text_out = text_out[text_out.find("# TÊN BÀI HỌC"):]
+        return text_out
     except Exception as e:
         logger.error("Lỗi gọi AI: %s", e)
         raise RuntimeError(f"Lỗi kết nối AI: {e}")
@@ -458,54 +464,50 @@ def validate_khbd_result(text):
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:15000]
+    source = safe_text(noi_dung_chinh)[:20000] 
     
     if mode == "tu_dong":
         quality = diagnose_source_quality(source, "Tài liệu SGK")
-        # Không chặn ngang bằng Error mà chỉ dùng làm cảnh báo trong prompt nếu cần, 
-        # vì OCR Vision có thể trả về thông báo lỗi dạng string, vẫn pass được hàm này.
         if quality["status"] == "empty":
             raise ValueError("File PDF tải lên bị rỗng hoặc Hệ thống AI không thể nhận diện được chữ/ảnh từ file này.")
 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
     
-    hoa_nhap_block = f"BẮT BUỘC: Đề xuất phương pháp/công cụ hỗ trợ riêng cho nhóm học sinh khuyết tật có đặc điểm sau: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Không yêu cầu giáo dục hòa nhập đặc biệt."
-    ai_block = "BẮT BUỘC: Thiết kế ít nhất một hoạt động có ứng dụng Trí tuệ Nhân tạo (AI) cho GV hoặc HS." if tich_hop_ai else "Không bắt buộc dùng AI."
+    hoa_nhap_block = f"Đề xuất phương pháp/công cụ hỗ trợ riêng cho nhóm học sinh khuyết tật có đặc điểm sau: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Không yêu cầu giáo dục hòa nhập đặc biệt."
+    ai_block = "Thiết kế ít nhất một hoạt động có ứng dụng Trí tuệ Nhân tạo (AI) cho GV hoặc HS." if tich_hop_ai else "Không bắt buộc dùng AI."
 
     if mode == "chinh_sua":
         nhiem_vu = f"""
         NHIỆM VỤ CỦA BẠN: CHỈNH SỬA VÀ NÂNG CẤP KẾ HOẠCH BÀI DẠY (GIÁO ÁN) GỐC.
         1. Giữ nguyên ưu điểm của giáo án cũ, sửa các lỗi về kiến thức/sư phạm (nếu có).
-        2. Bổ sung làm phong phú các Hoạt động Khởi động, Khám phá, Luyện tập, Vận dụng sao cho không bị nhàm chán.
-        3. Tích hợp hữu cơ các yêu cầu chuyên biệt sau vào tiến trình:
-           - Yêu cầu Năng lực số: {nls_str}
-           - {ai_block}
-           - {hoa_nhap_block}
+        2. Bổ sung làm phong phú các Hoạt động Khởi động, Khám phá, Luyện tập, Vận dụng.
+        3. TẠO HẲN MỘT MỤC RIÊNG "III. TÍCH HỢP CHUYÊN SÂU" hoặc in đậm các nội dung này trong từng hoạt động:
+           - Tích hợp Năng lực số: {nls_str}
+           - Tích hợp AI: {ai_block}
+           - Dạy học hòa nhập: {hoa_nhap_block}
         4. Trình bày chuẩn hóa lại toàn bộ theo cấu trúc Phụ lục 4 Công văn 5512/BGDĐT.
         """
     else:
         nhiem_vu = f"""
         NHIỆM VỤ CỦA BẠN: SOẠN MỚI HOÀN TOÀN KẾ HOẠCH BÀI DẠY (GIÁO ÁN) DỰA TRÊN SGK.
-        1. Đọc thật kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức, bảng biểu, bài tập. Tuyệt đối KHÔNG BỊA ĐẶT kiến thức ngoài SGK.
-        2. Bài học này kéo dài {so_tiet} tiết. BẮT BUỘC phải phân bổ thời lượng, nội dung và ghi rõ (Ví dụ: ### TIẾT 1: Hoạt động 1, 2. ### TIẾT 2: Hoạt động 3, 4).
-        3. Chi tiết hóa từng Hoạt động gồm 4 bước: a) Mục tiêu; b) Nội dung; c) Sản phẩm; d) Tổ chức thực hiện (Rõ GV làm gì, HS làm gì). 
-           Đặc biệt ở phần "Nội dung" và "Sản phẩm", hãy tái hiện lại công thức, số liệu thực tế từ SGK vào thay vì chỉ ghi chung chung "Giáo viên yêu cầu học sinh đọc sách".
-        4. Tích hợp sâu sắc các yêu cầu sau vào thiết kế:
-           - Yêu cầu Năng lực số: {nls_str}
-           - {ai_block}
-           - {hoa_nhap_block}
+        1. Đọc thật kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức, bài tập.
+        2. Bài học kéo dài {so_tiet} tiết. Phân bổ rõ: ### TIẾT 1: Hoạt động 1, 2. ### TIẾT 2: Hoạt động 3, 4.
+        3. Chi tiết hóa từng Hoạt động gồm đúng 4 bước KHÔNG DÙNG BULLET POINT:
+           a) Mục tiêu: ...
+           b) Nội dung: ... (Phải có công thức toán/lý từ SGK)
+           c) Sản phẩm: ... (Phải có lời giải chi tiết cho các công thức đó)
+           d) Tổ chức thực hiện: ...
+        4. TẠO HẲN MỘT MỤC RIÊNG (Ví dụ nằm trong mục I hoặc làm 1 mục lớn) ĐỂ LÀM RÕ SỰ TÍCH HỢP:
+           - Mục tiêu Năng lực số: {nls_str}
+           - Hoạt động ứng dụng AI: {ai_block}
+           - Phương pháp Hỗ trợ HS khuyết tật: {hoa_nhap_block}
         5. Cấu trúc tuân thủ nghiêm ngặt Phụ lục 4 Công văn 5512/BGDĐT.
         """
 
     return (
-        f"BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHƯƠNG PHÁP DẠY HỌC THẾ KỶ 21.\n\n"
         f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n"
         f"--- NHIỆM VỤ CỐT LÕI ---\n{nhiem_vu}\n\n"
         f"--- NGUỒN KIẾN THỨC CỐT LÕI (SGK) ---\n{source}\n\n"
         f"{ga_block}\n"
-        f"--- RÀNG BUỘC KỸ THUẬT XUẤT BẢN ---\n"
-        f"1. Xuất file bằng định dạng Markdown siêu chuẩn.\n"
-        f"2. Công thức Toán học, Vật lí, Hóa học BẮT BUỘC dùng cú pháp LaTeX: dùng dấu $ cho inline (ví dụ: $x^2 + y^2 = r^2$) và $$ cho công thức đứng độc lập (block).\n"
-        f"3. Dùng Markdown Table (dấu |) để vẽ các bảng biểu so sánh, phiếu học tập nếu SGK có đề cập.\n"
-        f"4. Bắt đầu ngay kết quả bằng # TÊN BÀI HỌC (Không cần dạ vâng hay giải thích).\n"
+        f"GHI NHỚ QUAN TRỌNG: Không dùng ký tự √(x). Bắt buộc dùng LaTeX \sqrt{{x}}. Không dùng bullet cho a) b) c) d)."
     )
