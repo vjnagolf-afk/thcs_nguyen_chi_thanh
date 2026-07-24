@@ -1,155 +1,77 @@
 # -*- coding: utf-8 -*-
-
-from __future__ import annotations
-
-from typing import List
-
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Cm, Pt
+from .word_utils import clean_xml_forbidden_chars
+from .markdown_tokenizer import MarkdownTokenizer
+from .word_math import insert_math_to_paragraph
 
-from .word_styles import (
-    WordLayout,
-    XmlHelpers
-)
+def build_cell_border_xml(table):
+    """Cấu hình khung lưới viền (Grid Borders) mỏng nhẹ màu xám sang trọng chuẩn quốc tế."""
+    tblPr = table._tbl.tblPr
+    borders_node = OxmlElement('w:tblBorders')
+    for position in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+        b = OxmlElement(f'w:{position}')
+        b.set(qn('w:val'), 'single')
+        b.set(qn('w:sz'), '4')  # Độ dày mảnh tinh tế ~0.5pt
+        b.set(qn('w:space'), '0')
+        b.set(qn('w:color'), 'A0A0A0')  # Màu xám dịu mắt
+        borders_node.append(b)
+    tblPr.append(borders_node)
 
-
-class MarkdownTableParser:
-
-    @staticmethod
-    def parse(lines: List[str]):
-
-        rows = []
-
-        for line in lines:
-
-            line = line.strip()
-
-            if not line.startswith("|"):
-                continue
-
-            cells = [
-                cell.strip()
-                for cell in line.strip("|").split("|")
-            ]
-
-            # Bỏ dòng phân cách Markdown
-            if all(
-                set(cell.replace(":", "").strip()) <= {"-"}
-                for cell in cells
-            ):
-                continue
-
-            rows.append(cells)
-
-        return rows
-
-
-class WordTableRenderer:
-
-    @classmethod
-    def render(
-        cls,
-        doc,
-        rows,
-        text_renderer=None,
-        math_renderer=None
-    ):
-
-        if not rows:
-
-            return None
-
-        column_count = max(
-            len(row)
-            for row in rows
-        )
-
-        table = doc.add_table(
-            rows=len(rows),
-            cols=column_count
-        )
-
-        table.alignment = (
-            WD_TABLE_ALIGNMENT.CENTER
-        )
-
-        table.autofit = True
-
-        # Lặp qua từng ô
-        for row_index, row_data in enumerate(rows):
-
-            row = table.rows[row_index]
-
-            for col_index in range(column_count):
-
-                cell = row.cells[col_index]
-
-                text = (
-                    row_data[col_index]
-                    if col_index < len(row_data)
-                    else ""
-                )
-
-                paragraph = cell.paragraphs[0]
-
-                paragraph.alignment = (
-                    WD_ALIGN_PARAGRAPH.JUSTIFY
-                )
-
-                paragraph.paragraph_format.space_after = Pt(0)
-
-                if text_renderer:
-
-                    text_renderer.render_inline_tokens(
-                        paragraph,
-                        text_renderer.tokenize_inline(text),
-                        math_renderer
-                    )
-
-                else:
-
-                    run = paragraph.add_run(text)
-
-                    XmlHelpers.set_font_safely(
-                        run,
-                        WordLayout.FONT_NAME
-                    )
-
-                    run.font.size = WordLayout.FONT_SIZE
-
-                # Header
-                if row_index == 0:
-
-                    for run in paragraph.runs:
-
-                        run.bold = True
-
-        # Độ rộng tương đối
-        if column_count == 2:
-
-            widths = [
-                Cm(8.0),
-                Cm(8.0)
-            ]
-
-        else:
-
-            width = 16.0 / column_count
-
-            widths = [
-                Cm(width)
-                for _ in range(column_count)
-            ]
-
-        for row in table.rows:
-
-            for index, cell in enumerate(row.cells):
-
-                if index < len(widths):
-
-                    cell.width = widths[index]
-
-        doc.add_paragraph()
-
-        return table
+def process_and_draw_markdown_table(doc, raw_markdown_lines: list):
+    """Trích xuất mảng dữ liệu từ các dòng text Markdown và vẽ bảng biểu vào tệp Word."""
+    cleaned_rows = []
+    
+    for line in raw_markdown_lines:
+        current_line = line.strip().strip('|')
+        if not current_line or current_line.startswith('---') or current_line.startswith(':::'):
+            continue  # Loại bỏ dòng ngăn cách gạch ngang của chuẩn Markdown Table
+        
+        row_cells = [cell.strip() for cell in current_line.split('|')]
+        cleaned_rows.append(row_cells)
+        
+    if not cleaned_rows:
+        return
+        
+    total_rows = len(cleaned_rows)
+    total_cols = max(len(r) for r in cleaned_rows)
+    
+    word_table = doc.add_table(rows=total_rows, cols=total_cols)
+    word_table.autofit = True
+    build_cell_border_xml(word_table)
+    
+    for r_idx, cells_data in enumerate(cleaned_rows):
+        row_obj = word_table.rows[r_idx]
+        for c_idx, text_val in enumerate(cells_data):
+            if c_idx >= total_cols:
+                break
+            cell_obj = row_obj.cells[c_idx]
+            p_obj = cell_obj.paragraphs[0]
+            p_obj.paragraph_format.space_after = Pt(2)
+            
+            # Tô nền xám nhạt cho dòng tiêu đề đầu tiên (Header Row)
+            if r_idx == 0:
+                bg_shd = OxmlElement('w:shd')
+                bg_shd.set(qn('w:val'), 'clear')
+                bg_shd.set(qn('w:fill'), 'F0F4F8')  # Màu xanh xám nhạt chuyên nghiệp
+                cell_obj._tc.get_or_add_tcPr().append(bg_shd)
+                p_obj.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Xử lý text chứa công thức hoặc chữ thường lồng trong ô bằng Tokenizer
+            inline_toks = MarkdownTokenizer.tokenize_inline(text_val)
+            styled_toks = MarkdownTokenizer.parse_rich_styles(inline_toks)
+            
+            for tok in styled_toks:
+                if tok['type'] == 'text':
+                    r = p_obj.add_run(clean_xml_forbidden_chars(tok['content']))
+                    if r_idx == 0: r.bold = True
+                elif tok['type'] == 'bold':
+                    r = p_obj.add_run(clean_xml_forbidden_chars(tok['content']))
+                    r.bold = True
+                elif tok['type'] == 'italic':
+                    r = p_obj.add_run(clean_xml_forbidden_chars(tok['content']))
+                    r.italic = True
+                elif tok['type'] in ['math_inline', 'math_block']:
+                    insert_math_to_paragraph(p_obj, tok['content'], is_block=False)
