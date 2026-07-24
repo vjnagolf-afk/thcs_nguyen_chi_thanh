@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TỪ ĐIỂN TT18 & FIX OCR)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -56,9 +56,6 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
-# ============================================================
-# TỪ ĐIỂN KHUNG NĂNG LỰC SỐ FULL (Theo Thông tư 18/2026/TT-BGDĐT)
-# ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
@@ -113,7 +110,7 @@ KHUNG_NLS_GV = {
         "3.3. Khuyến khích sự tham gia tích cực của người học": {
             "Cơ bản": "Sáng tạo và điều phối tương tác số đơn giản để thu hút sự chú ý và khuyến khích người học tham gia vào hoạt động học tập. Tích hợp được công nghệ số trong dạy học nhằm trực quan hóa và tăng hiệu quả trình bày nội dung dạy học.",
             "Thành thạo": "Tích hợp được các yếu tố trò chơi hóa, tương tác và các công cụ sáng tạo nội dung để thúc đẩy người học chủ động, tích cực tham gia vào bài học. Thiết kế được hoạt động khuyến khích người học tự tạo ra nội dung số, chia sẻ kiến thức thông qua các nền tảng số, giải quyết vấn đề bằng mô phỏng, thí nghiệm ảo, thực tế ảo, thực tế ảo tăng cường.",
-            "Nâng cao": "Sử dụng được các công cụ thiết kế môi trường học tập số năng động, lấy người học làm trung tâm. Hướng dẫn được đồng nghiệp sáng tạo triển khai các hoạt động học tập tích cực bằng công nghệ số."
+            "Nâng cao": "Sử dụng được các công cụ để thiết kế môi trường học tập số năng động, lấy người học làm trung tâm. Hướng dẫn được đồng nghiệp sáng tạo triển khai các hoạt động học tập tích cực bằng công nghệ số."
         }
     },
     "4. KĨ NĂNG CÔNG NGHỆ SỐ": {
@@ -224,32 +221,29 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
         return {"status": "empty", "message": "Hệ thống đang gọi AI Vision để quét OCR..."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
-# ============================================================
-# CƠ CHẾ ĐỌC FILE TỰ ĐỘNG OCR (BẮT LỖI CHI TIẾT)
-# ============================================================
 def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
     import tempfile, os, time
     try: 
         import google.generativeai as genai
     except ImportError: 
-        return "❌ Lỗi Máy chủ: Thư viện `google-generativeai` chưa được cài đặt. Thầy vui lòng kiểm tra lại môi trường."
+        return "❌ Lỗi: Thư viện google-generativeai chưa được cài."
 
-    api_key = st.session_state.get("user_api_key")
+    # Lấy key và tự động xóa khoảng trắng rác bằng .strip()
+    api_key = st.session_state.get("user_api_key", "")
+    if isinstance(api_key, str):
+        api_key = api_key.strip()
+        
     if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        try:
-            api_key = st.secrets.get("GEMINI_API_KEY")
-        except:
-            pass
-            
+        try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
+        except: pass
+
     if not api_key: 
-        return "❌ Lỗi: Hệ thống chưa có API Key. Thầy vui lòng điền Gemini API Key cá nhân ở Menu bên trái để chạy tính năng OCR Ảnh."
+        return "❌ Lỗi: Cần nhập API Key ở menu trái."
     
     try:
         genai.configure(api_key=api_key)
     except Exception as e:
-        return f"❌ Lỗi cấu hình API Key: {str(e)}"
+        return f"❌ Lỗi cấu hình API: {str(e)}"
     
     ext = os.path.splitext(file_name)[1] or ".pdf"
     tmp_path = ""
@@ -267,24 +261,23 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
             media_file = genai.get_file(media_file.name)
             
         if media_file.state.name == "FAILED":
-            return "❌ Lỗi từ Google: Máy chủ Google từ chối phân tích file này (Có thể do file bị hỏng, cài mật khẩu, hoặc dung lượng quá lớn)."
+            return "❌ Lỗi: AI từ chối đọc file."
             
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         ocr_prompt = "Trích xuất toàn bộ chữ trong tài liệu. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng Unicode (ví dụ: √, ²). KHÔNG DÙNG ký tự $."
         response = model.generate_content([ocr_prompt, media_file])
         
         text = getattr(response, "text", "").strip()
-        if not text:
-            return "❌ Lỗi: Quá trình phân tích hoàn tất nhưng AI Vision không tìm thấy chữ nào trong ảnh."
+        if not text: return "❌ Lỗi: OCR không ra chữ."
         return text
         
     except Exception as e: 
         error_msg = str(e).lower()
         if "429" in error_msg or "quota" in error_msg:
-            return "❌ Lỗi 429: API Key của thầy đã HẾT LƯỢT SỬ DỤNG (Quota Exceeded). Thầy vui lòng đổi API Key khác ở thanh menu bên trái."
+            return "❌ Lỗi 429: API Key hết hạn ngạch. Vui lòng tạo key mới tại aistudio.google.com."
         elif "api key not valid" in error_msg or "400" in error_msg:
-            return "❌ Lỗi 400: API Key không hợp lệ hoặc bị sai ký tự. Thầy vui lòng kiểm tra lại."
-        return f"❌ Lỗi Nội bộ OCR: {str(e)}"
+            return "❌ Lỗi 400: API Key không hợp lệ hoặc bị sai ký tự khoảng trắng. Thầy vui lòng kiểm tra lại."
+        return f"❌ Lỗi OCR: {str(e)}"
     finally:
         if media_file: 
             try: genai.delete_file(media_file.name)
