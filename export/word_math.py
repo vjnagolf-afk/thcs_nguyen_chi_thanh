@@ -71,11 +71,11 @@ def latex_to_word_math_string(latex_str: str) -> str:
     s = s.replace('$', '').replace(r'\(', '').replace(r'\)', '').strip()
     
     # 1. Xử lý phân số \frac{a}{b} -> (a)/(b)
-    while '\\frac' in s:
-        match = re.search(r'\\frac\s*\{([^}]*)\}\s*\{([^}]*)\}', s)
+    while '\\sqrt' in s:
+        match = re.search(r'\\sqrt\s*\{([^}]*)\}', s)
         if match:
-            num, den = match.groups()
-            s = s.replace(match.group(0), f"({num})/({den})")
+            content = match.group(1).strip()
+            s = s.replace(match.group(0), f"√({content})")
         else:
             break
             
