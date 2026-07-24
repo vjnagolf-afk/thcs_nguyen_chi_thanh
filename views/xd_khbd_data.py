@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL 100% TT18 GV & HS, KHÓA CỨNG FORMAT)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (SIÊU CHI TIẾT 4 BƯỚC SƯ PHẠM)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -58,7 +58,7 @@ def set_mode(mode: str):
     st.session_state.khbd_mode = mode
 
 # ============================================================
-# KHUNG NĂNG LỰC SỐ GIÁO VIÊN (THÔNG TƯ 18 - ĐẦY ĐỦ 6 LĨNH VỰC)
+# KHUNG NĂNG LỰC SỐ GIÁO VIÊN & HỌC SINH (ĐẦY ĐỦ 100%)
 # ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
@@ -175,58 +175,35 @@ KHUNG_NLS_GV = {
     }
 }
 
-# ============================================================
-# KHUNG NĂNG LỰC SỐ HỌC SINH (HOÀN CHỈNH 5 LĨNH VỰC)
-# ============================================================
 KHUNG_NLS_HS = {
     "1. Sử dụng thông tin và dữ liệu số": {
         "1.1. Tìm kiếm và chọn lọc": {
             "Mức 1": "Biết sử dụng công cụ tìm kiếm cơ bản để thu thập thông tin học tập.",
-            "Mức 2": "Biết đánh giá độ tin cậy, tính chính xác và nguồn gốc của thông tin trên Internet."
-        },
-        "1.2. Quản lý và lưu trữ": {
-            "Mức 1": "Biết lưu trữ tệp tin đơn giản theo thư mục trên thiết bị cá nhân.",
-            "Mức 2": "Biết sắp xếp, quản lý và lưu trữ tài liệu học tập khoa học trên điện toán đám mây."
+            "Mức 2": "Biết đánh giá độ tin cậy và nguồn gốc thông tin trên Internet."
         }
     },
     "2. Giao tiếp và hợp tác trực tuyến": {
         "2.1. Tương tác qua môi trường số": {
-            "Mức 1": "Biết sử dụng email, chat để trao đổi học tập với giáo viên và bạn bè.",
-            "Mức 2": "Biết sử dụng hiệu quả các nền tảng học tập và làm việc nhóm trực tuyến (Padlet, Azota, Teams...)."
-        },
-        "2.2. Chia sẻ thông tin và ứng xử": {
-            "Mức 1": "Biết chia sẻ tài liệu học tập đơn giản qua mạng xã hội hoặc nhóm lớp.",
-            "Mức 2": "Biết tuân thủ quy tắc ứng xử, văn hóa giao tiếp và tôn trọng bản quyền khi chia sẻ trên không gian mạng."
+            "Mức 1": "Biết sử dụng email, chat để trao đổi học tập.",
+            "Mức 2": "Biết sử dụng hiệu quả các nền tảng học tập nhóm."
         }
     },
     "3. Sáng tạo nội dung số": {
         "3.1. Phát triển nội dung số": {
-            "Mức 1": "Biết soạn thảo văn bản hoặc tạo bài trình chiếu cơ bản.",
-            "Mức 2": "Biết thiết kế, chỉnh sửa hình ảnh hoặc tạo học liệu số đơn giản phục vụ học tập."
-        },
-        "3.2. Bản quyền và tôn trọng tác giả": {
-            "Mức 1": "Biết trích dẫn nguồn tài liệu đơn giản khi sử dụng lại thông tin.",
-            "Mức 2": "Hiểu và tuân thủ các quy định về quyền tác giả, giấy phép mở khi sử dụng sản phẩm số."
+            "Mức 1": "Biết soạn thảo văn bản và trình chiếu cơ bản.",
+            "Mức 2": "Biết thiết kế học liệu số đơn giản phục vụ học tập."
         }
     },
     "4. An toàn trong môi trường số": {
         "4.1. Bảo vệ thiết bị và dữ liệu cá nhân": {
-            "Mức 1": "Biết đặt mật khẩu mạnh và bảo vệ tài khoản học tập cá nhân cơ bản.",
-            "Mức 2": "Biết nhận diện các nguy cơ mất an toàn thông tin, lừa đảo trực tuyến và cách phòng tránh."
-        },
-        "4.2. Bảo vệ sức khỏe và môi trường": {
-            "Mức 1": "Biết điều chỉnh thời gian sử dụng thiết bị số hợp lý để bảo vệ thị lực và sức khỏe.",
-            "Mức 2": "Có ý thức phòng tránh các tác động tiêu cực của không gian mạng đối với sức khỏe thể chất, tinh thần."
+            "Mức 1": "Biết đặt mật khẩu mạnh và bảo vệ tài khoản.",
+            "Mức 2": "Biết nhận diện nguy cơ mất an toàn thông tin và lừa đảo trực tuyến."
         }
     },
     "5. Giải quyết vấn đề bằng công nghệ số": {
-        "5.1. Giải quyết vấn đề kỹ thuật": {
-            "Mức 1": "Biết xử lý các sự cố công nghệ đơn giản trên thiết bị học tập cá nhân.",
-            "Mức 2": "Biết tự tìm kiếm giải pháp hoặc nhờ hỗ trợ công nghệ khi gặp khó khăn phần mềm, phần cứng."
-        },
-        "5.2. Sáng tạo giải pháp học tập": {
-            "Mức 1": "Biết sử dụng công cụ số để giải quyết các nhiệm vụ học tập được phân công.",
-            "Mức 2": "Biết ứng dụng công nghệ số thực hiện các dự án học tập, giải quyết vấn đề thực tiễn."
+        "5.1. Sáng tạo giải pháp học tập": {
+            "Mức 1": "Biết sử dụng công cụ số giải quyết nhiệm vụ.",
+            "Mức 2": "Ứng dụng công nghệ giải quyết vấn đề thực tiễn."
         }
     }
 }
@@ -250,7 +227,7 @@ def add_nls():
 def format_nls():
     items = st.session_state.get("khbd_nls_list", [])
     if not items:
-        return "- Năng lực 1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ > 1.1. Dạy học và giáo dục trong môi trường số (Thành thạo): Xây dựng kế hoạch bài dạy theo tiếp cận công nghệ, lựa chọn công cụ số phù hợp."
+        return "- Năng lực 1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ > 1.1. Dạy học và giáo dục trong môi trường số (Thành thạo): Xây dựng kế hoạch bài dạy theo tiếp cận công nghệ."
     return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
 
 def safe_text(value):
@@ -311,15 +288,15 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
    PHỤ LỤC
    PHIẾU HỌC TẬP
 
-3. QUY TẮC CỨNG KHÔNG DÙNG DẤU **:
+3. QUY TẮC CỨNG CHỐNG "CỤT NGỦN", CHỐNG NÓI CHUNG CHUNG:
    - TUYỆT ĐỐI KHÔNG sử dụng ký tự `**` trước các mục a), b), c), d). Trình bày thuần túy dạng `a) Mục tiêu:`, `b) Nội dung:`, `c) Sản phẩm:`, `d) Tổ chức thực hiện:`.
    - Các tiểu mục a, b, c, d phải nằm trên các dòng riêng biệt.
-   - Các bài tập, ví dụ trong mục b) Nội dung và c) Sản phẩm PHẢI được ngắt dòng riêng biệt, tuyệt đối KHÔNG viết dồn thành một đoạn văn dài.
-   - Phần d) Tổ chức thực hiện bắt buộc dùng chính xác 4 dòng bắt đầu bằng dấu *:
-     *Chuyển giao nhiệm vụ học tập: ...
-     *Thực hiện nhiệm vụ học tập: ...
-     *Báo cáo kết quả và thảo luận: ...
-     *Kết luận: ...
+   - Các bài tập, ví dụ trong mục b) Nội dung và c) Sản phẩm PHẢI được ngắt dòng riêng biệt, trích xuất đầy đủ từng câu hỏi và lời giải chi tiết, tuyệt đối KHÔNG viết dồn thành một đoạn văn dài.
+   - Phần d) Tổ chức thực hiện BẮT BUỘC phải viết văn bản hướng dẫn sư phạm đầy đủ nội dung, cụ thể từng bước cho 4 gạch đầu dòng sau (CẤM viết chung chung kiểu "Giải quyết bài toán"):
+     *Chuyển giao nhiệm vụ học tập: [Giáo viên giao nhiệm vụ cụ thể gì, yêu cầu học sinh làm bài tập nào]
+     *Thực hiện nhiệm vụ học tập: [Học sinh thực hiện cá nhân/nhóm ra sao, tính toán thế nào]
+     *Báo cáo kết quả và thảo luận: [Học sinh lên bảng trình bày, gọi học sinh nhận xét]
+     *Kết luận: [Giáo viên đánh giá, chốt kiến thức trọng tâm và công thức cụ thể]
 
 4. TOÁN HỌC: Sử dụng chuẩn LaTeX `$\sqrt{x}$` cho mọi biểu thức toán.
     """
@@ -362,16 +339,10 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
     if "# TÊN BÀI HỌC:" in text_out:
         text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
         
-    # BỘ LỌC HẬU XỬ LÝ: XÓA SẠCH DẤU ** THỪA VÀ ÉP XUỐNG DÒNG
+    # BỘ LỌC HẬU XỬ LÝ: XÓA SẠCH DẤU ** VÀ ÉP XUỐNG DÒNG
     text_out = text_out.replace("**", "")
 
-    # Đảm bảo a), b), c), d) nằm độc lập trên dòng mới
     text_out = re.sub(r'([^\n])\s*([a-d]\)\s+)', r'\1\n\n\2', text_out)
-    
-    # Tách các bài tập hoặc ý dính chùm
-    text_out = re.sub(r'\s*\*\s*(\d+\.\d+\.)', r'\n\n- Bài \1', text_out)
-    
-    # Tách các bước tổ chức thực hiện
     text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao nhiệm vụ học tập|Thực hiện nhiệm vụ học tập|Báo cáo kết quả và thảo luận|Kết luận)[^:\n]*:)', r'\1\n\n\2', text_out)
     
     return text_out
@@ -410,13 +381,13 @@ III. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1
 **Hoạt động 1: MỞ ĐẦU**
 a) Mục tiêu: ...
-b) Nội dung: [Trích xuất cụ thể câu hỏi/bài toán từ tài liệu nguồn, ngắt dòng từng ý rõ ràng]
+b) Nội dung: [Trích xuất cụ thể câu hỏi/bài toán từ tài liệu nguồn]
 c) Sản phẩm: [Trích xuất cụ thể đáp án/lời giải chi tiết]
 d) Tổ chức thực hiện: 
-*Chuyển giao nhiệm vụ học tập: ...
-*Thực hiện nhiệm vụ học tập: ...
-*Báo cáo kết quả và thảo luận: ...
-*Kết luận: ...
+*Chuyển giao nhiệm vụ học tập: [Viết chi tiết nhiệm vụ giao cho HS]
+*Thực hiện nhiệm vụ học tập: [Viết chi tiết cách HS làm việc]
+*Báo cáo kết quả và thảo luận: [Viết chi tiết cách HS báo cáo và trao đổi]
+*Kết luận: [Viết chi tiết nội dung GV chốt kiến thức]
 
 PHỤ LỤC
 PHIẾU HỌC TẬP
