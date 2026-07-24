@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Module: export/export_word.py - Phần 1
-Nhiệm vụ: Khai báo thư viện và bộ cấu hình phân tách từ khóa Inline.
+Module: export/export_word.py - Đoạn 1
+Nhiệm vụ: Import thư viện và thiết lập Regex cho bộ phân tích Markdown.
 """
 
 import io
@@ -13,7 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# Import các công cụ xử lý công thức và bảng biểu đã tối ưu từ package mới
+# Tự động nạp bộ xử lý công thức và bảng biểu từ gói mới
 try:
     from .word_math import insert_math_to_paragraph
     from .word_tables import process_and_draw_markdown_table
@@ -26,11 +26,11 @@ except ImportError:
 # ==========================================
 class MarkdownTokenizer:
     _HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)')
-    _IMAGE_RE = re.compile(r'^!\[(.*?)\]\((.*?)\)')
+    _IMAGE_RE = re.compile(r'^!\[(.*?)\](.*?)')
     _BULLET_RE = re.compile(r'^(\s*)([\*\-])\s+(.*)')
     _NUMBER_RE = re.compile(r'^(\s*)(\d+\.)\s+(.*)')
     _CHECKBOX_RE = re.compile(r'^(\s*)([\*\-])\s+\[([ xX])\]\s+(.*)')
-    _HR_RE = re.compile(r'^\s*([-*_])\1{2,}\s*$')
+    _HR_RE = re.compile(r'^\s*([-*_])\1{2,}\s*\$')
     _CODE_BLOCK_START_RE = re.compile(r'^```(\w*)')
     _MATH_RE = re.compile(r'(\$.+?\$|\\\([\s\S]+?\\\))')
     _LINK_RE = re.compile(r'\[(.*?)\](.*?)')
@@ -40,7 +40,6 @@ class MarkdownTokenizer:
     _UNDERLINE_RE = re.compile(r'<u>(.*?)</u>', re.IGNORECASE)
     _STRIKE_RE = re.compile(r'~~(.*?)~~')
     _HIGHLIGHT_RE = re.compile(r'==(.*?)==')
-
     @classmethod
     def parse(cls, markdown_text: str) -> List[Dict[str, Any]]:
         forbidden = ("Chào bạn", "Với vai trò", "Tôi là", "Lưu ý về")
@@ -138,14 +137,10 @@ class MarkdownTokenizer:
         if e < len(text): 
             tokens.extend(cls._parse_rich_text_styles(text[e:]))
         return tokens
-# -*- coding: utf-8 -*-
-"""
-Module: export/export_word.py - Phần 2
-Nhiệm vụ: Cấu hình phong cách và định dạng Header tài liệu.
-"""
+
 
 # ==========================================
-# 2. KẾT XUẤT TÀI LIỆU WORD (ENGINE)
+# 2. KẾT XUẤT TÀI LIỆU WORD (ENGINE GỐC)
 # ==========================================
 class WordExportEngine:
     
@@ -205,17 +200,17 @@ class WordExportEngine:
                 border.set(qn('w:space'), '0')
                 border.set(qn('w:color'), 'auto')
                 tblBorders.append(border)
-            tblPr[0].append(tblBorders)
+            tblPr.append(tblBorders)
             
         c0 = table.cell(0, 0)
-        p0 = c0.paragraphs[0]
+        p0 = c0.paragraphs
         p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
         r0 = p0.add_run("TRƯỜNG: ....................................\nTỔ: ........................................")
         r0.bold = True
         cls._set_font(r0)
         
         c1 = table.cell(0, 1)
-        p1 = c1.paragraphs[0]
+        p1 = c1.paragraphs
         p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
         r1 = p1.add_run(f"HỌ VÀ TÊN GIÁO VIÊN: ..........................\nMÔN: {metadata.get('mon', '.......').upper()}\nLỚP: {metadata.get('lop', '.......')}")
         r1.bold = True
@@ -235,18 +230,13 @@ class WordExportEngine:
         r_time.font.italic = True
         cls._set_font(r_time)
         doc.add_paragraph()
-# -*- coding: utf-8 -*-
-"""
-Module: export/export_word.py - Phần 3 (Bản sửa lỗi thụt lề)
-Nhiệm vụ: Thiết lập cấu trúc lề trang, lắp ghép cây AST văn bản và xuất bản API.
-"""
 
     @classmethod
     def convert_markdown_to_docx_bytes(cls, markdown_text: str, metadata: dict = None) -> bytes:
         ast_nodes = MarkdownTokenizer.parse(markdown_text)
         doc = docx.Document()
         
-        # Thống nhất hệ thống lề chuẩn chính xác theo yêu cầu đề xuất (Top/Bottom/Right=1.5cm, Left=2.0cm)
+        # Thống nhất hệ thống lề chuẩn chính xác theo yêu cầu (Top/Bottom/Right=1.5cm, Left=2.0cm)
         for s in doc.sections:
             s.page_height, s.page_width = Inches(11.69), Inches(8.27)
             s.top_margin = Inches(0.59)     # 1.5 cm
@@ -323,7 +313,7 @@ Nhiệm vụ: Thiết lập cấu trúc lề trang, lắp ghép cây AST văn b�
         return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
 
 # ==========================================
-# 3. PUBLIC API CŨ (Đưa hẳn ra ngoài rìa class)
+# 3. PUBLIC API CŨ (ĐỊNH NGHĨA NGOÀI CLASS)
 # ==========================================
 def export_word(markdown_text: str) -> bytes:
     return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text)
