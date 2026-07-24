@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (ĐA TẦNG DỰ PHÒNG API & TEMPLATE)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL 100% NĂNG LỰC SỐ TT18 & TEMPLATE)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -57,6 +57,9 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
+# ============================================================
+# KHÔI PHỤC ĐẦY ĐỦ TRỌN VẸN FULL TỪ ĐIỂN KHUNG NĂNG LỰC SỐ (THÔNG TƯ 18)
+# ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
@@ -198,8 +201,9 @@ def add_nls():
     if item not in st.session_state.khbd_nls_list: st.session_state.khbd_nls_list.append(item)
 
 def format_nls():
-    items = st.session_state.khbd_nls_list
-    if not items: return "Không yêu cầu tích hợp Năng lực số chuyên biệt."
+    items = st.session_state.get("khbd_nls_list", [])
+    if not items:
+        return "- Năng lực 1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ > 1.1. Dạy học và giáo dục trong môi trường số (Thành thạo): Xây dựng được kế hoạch bài dạy theo tiếp cận công nghệ, lựa chọn và áp dụng các công cụ số phù hợp với mục tiêu dạy học."
     return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
 
 def safe_text(value):
@@ -211,7 +215,7 @@ def safe_text(value):
 def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     text = safe_text(text)
     if len(text) < MIN_SOURCE_CHARS:
-        return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ. Vui lòng cung cấp file Word hoặc PDF chuẩn Text."}
+        return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
 def read_pdf(uploaded_file, range_str=""):
@@ -244,13 +248,13 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
     system_instruction = """
 [KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
 1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-2. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CẤU TRÚC TEMPLATE SAU (Không được thiếu chữ nào):
+2. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CẤU TRÚC TEMPLATE SAU:
    I. MỤC TIÊU
    1. Kiến thức
    2. Năng lực
       a) Năng lực chung:
       b) Năng lực đặc thù:
-   3. Năng lực số và AI (Ghi toàn bộ nội dung Tích hợp TT18 và AI vào mục số 3 này)
+   3. Năng lực số và AI (Ghi đầy đủ chi tiết các năng lực số từ Thông tư 18/2026/TT-BGDĐT)
    4. Phẩm chất
    II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
    1. Giáo viên:
@@ -259,22 +263,16 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
    (Chia các HOẠT ĐỘNG: MỞ ĐẦU, HÌNH THÀNH KIẾN THỨC MỚI, LUYỆN TẬP, VẬN DỤNG)
    PHỤ LỤC
    PHIẾU HỌC TẬP
-3. QUY TẮC CỨNG Ở PHẦN "d) Tổ chức thực hiện": BẮT BUỘC dùng chính xác 4 gạch đầu dòng bắt đầu bằng dấu * như sau:
+3. QUY TẮC CỨNG Ở PHẦN "d) Tổ chức thực hiện": BẮT BUỘC dùng chính xác 4 gạch đầu dòng bắt đầu bằng dấu * và mỗi ý PHẢI NẰM TRÊN MỘT DÒNG RIÊNG BIỆT:
    *Chuyển giao nhiệm vụ học tập: ...
    *Thực hiện nhiệm vụ học tập: ...
    *Báo cáo kết quả và thảo luận: ...
-   *Kết luận (hoặc *Đánh giá kết quả): ...
-4. QUY TẮC CHỐNG LƯỜI BIẾNG: BẮT BUỘC CHÉP NGUYÊN VĂN ĐỀ BÀI, CÂU HỎI vào phần "b) Nội dung" và GIẢI CHI TIẾT TỪNG BƯỚC vào phần "c) Sản phẩm".
-5. QUY TẮC TOÁN HỌC (XUẤT WORD CHUẨN oMATH):
-   - BẮT BUỘC sử dụng chuẩn cú pháp LaTeX cho mọi công thức Toán, Vật lý, Hóa học.
-   - Công thức inline bọc trong dấu `$`. VD: `$\sqrt{x}$`. 
-   - Công thức block bọc trong dấu `$$`.
+   *Kết luận: ...
+4. TOÁN HỌC: Dùng chuẩn LaTeX `$\sqrt{x}$`.
     """
     full_prompt = system_instruction + "\n\n" + prompt
 
-    # ĐỊNH TUYẾN THÔNG MINH ĐA TẦNG DỰ PHÒNG
-    api_key = st.session_state.get("user_api_key", "")
-    if isinstance(api_key, str): api_key = api_key.strip()
+    api_key = st.session_state.get("user_api_key", "").strip()
     if not api_key:
         try: api_key = os.environ.get("GEMINI_API_KEY", "").strip()
         except: pass
@@ -283,66 +281,37 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         except: pass
 
     text_out = ""
-    
-    # TẦNG 1: Thử gọi trực tiếp client truyền vào nếu không phải Dummy
     try:
-        if client is not None and not isinstance(client, type(None)):
-            if hasattr(client, "generate_text") and "Dummy" not in type(client).__name__:
-                text_out = client.generate_text(full_prompt, model_name=model_name)
-            elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
-                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-                response = client.models.generate_content(model=api_model, contents=full_prompt)
-                text_out = getattr(response, "text", "").strip()
-    except Exception as e:
-        logger.warning(f"Client default generation failed: {e}")
-
-    # TẦNG 2: Nếu chưa có text và có API Key trực tiếp
-    if not text_out and api_key:
-        try:
-            if api_key.startswith("sk-") or "proj-" in api_key:
-                import openai
-                oai_client = openai.OpenAI(api_key=api_key)
-                gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
-                response = oai_client.chat.completions.create(
-                    model=gpt_model,
-                    messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=8192
-                )
-                text_out = response.choices[0].message.content.strip()
-            else:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-                model = genai.GenerativeModel(model_name=api_model)
-                response = model.generate_content(full_prompt)
-                text_out = getattr(response, "text", "").strip()
-        except Exception as ex:
-            logger.warning(f"Direct API call failed: {ex}")
-
-    # TẦNG 3: Nếu vẫn trống, thử ép gọi Google/OpenAI qua biến môi trường hoặc thư viện mặc định
-    if not text_out:
-        try:
+        if api_key.startswith("sk-") or "proj-" in api_key:
+            import openai
+            oai_client = openai.OpenAI(api_key=api_key)
+            gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
+            response = oai_client.chat.completions.create(
+                model=gpt_model,
+                messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}],
+                max_tokens=8192
+            )
+            text_out = response.choices[0].message.content.strip()
+        else:
             import google.generativeai as genai
-            # Thử tìm key ngầm trong môi trường
-            default_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
-            if default_key:
-                genai.configure(api_key=default_key)
-                model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                response = model.generate_content(full_prompt)
-                text_out = getattr(response, "text", "").strip()
-        except Exception as ex2:
-            logger.error(f"Fallback generation failed: {ex2}")
+            genai.configure(api_key=api_key or "AIzaSy_dummy")
+            api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+            model = genai.GenerativeModel(model_name=api_model)
+            response = model.generate_content(full_prompt)
+            text_out = getattr(response, "text", "").strip()
+    except Exception as e:
+        logger.error(f"AI Generation Error: {e}")
+        raise RuntimeError(f"Lỗi kết nối AI: {e}")
 
     if not text_out:
-        raise RuntimeError("Không thể kết nối AI. Vui lòng nhập API Key hợp lệ ở menu bên trái!")
+        raise RuntimeError("Không thể nhận phản hồi từ AI.")
 
     if "# TÊN BÀI HỌC:" in text_out:
         text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
         
     text_out = re.sub(r'(?<!\n)\s*([a-d]\))', r'\n\1', text_out)
+    text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao|Thực hiện|Báo cáo|Kết luận|Đánh giá)[^:\n]*:)', r'\1\n\n\2', text_out)
+    
     return text_out
 
 def validate_khbd_result(text):
@@ -352,14 +321,14 @@ def validate_khbd_result(text):
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
     source = safe_text(noi_dung_chinh)[:20000] 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
-    hoa_nhap_block = f"- Dạy học hòa nhập: Phương pháp cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
-    ai_block = f"- Tích hợp AI: Đề xuất hoạt động ứng dụng AI." if tich_hop_ai else ""
+    hoa_nhap_block = f"- Dạy học hòa nhập: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
+    ai_block = f"- Tích hợp AI: Đề xuất hoạt động." if tich_hop_ai else ""
 
     nhiem_vu = f"""
 NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY SIÊU CHI TIẾT TỪ NGUỒN CUNG CẤP.
-1. TRÍCH XUẤT NGUYÊN VĂN BÀI TẬP VÀ GIẢI CHI TIẾT. (DÙNG LATEX $...$ CHO TOÁN HỌC).
+1. TRÍCH XUẤT NGUYÊN VĂN BÀI TẬP VÀ GIẢI CHI TIẾT (DÙNG LATEX $...$).
 2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn.
-3. DÀN Ý BẮT BUỘC PHẢI KHỚP TUYỆT ĐỐI VỚI TEMPLATE DƯỚI ĐÂY:
+3. DÀN Ý BẮT BUỘC:
 # TÊN BÀI HỌC: ...
 I. MỤC TIÊU
 1. Kiến thức
@@ -367,26 +336,20 @@ I. MỤC TIÊU
    a) Năng lực chung:
    b) Năng lực đặc thù:
 3. Năng lực số và AI
-   [GHI NỘI DUNG TÍCH HỢP VÀO ĐÂY]: {nls_str} {ai_block} {hoa_nhap_block}
+   [Nội dung chuẩn Thông tư 18/2026/TT-BGDĐT]: {nls_str} 
+   {ai_block} 
+   {hoa_nhap_block}
 4. Phẩm chất
 II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
 1. Giáo viên:
 2. Học sinh:
 III. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1
-**Hoạt động 1: MỞ ĐẦU (Dự kiến: X phút)**
+**Hoạt động 1: MỞ ĐẦU**
 a) Mục tiêu: ...
-b) Nội dung: [CHÉP NGUYÊN VĂN CÂU HỎI VÀ DÙNG $\LaTeX$ CHO TOÁN]
-c) Sản phẩm: [CHÉP NGUYÊN VĂN ĐÁP ÁN VÀ DÙNG $\LaTeX$ CHO TOÁN]
+b) Nội dung: ...
+c) Sản phẩm: ...
 d) Tổ chức thực hiện: 
-*Chuyển giao nhiệm vụ học tập: GV giao nhiệm vụ...
-*Thực hiện nhiệm vụ học tập: HS thực hiện...
-*Báo cáo kết quả và thảo luận: ...
-*Đánh giá kết quả: ...
-
-**Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI (Dự kiến: X phút)**
-(Viết lặp lại đầy đủ a,b,c,d siêu chi tiết)
-d) Tổ chức thực hiện:
 *Chuyển giao nhiệm vụ học tập: ...
 *Thực hiện nhiệm vụ học tập: ...
 *Báo cáo kết quả và thảo luận: ...
