@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TRỊ DỨT ĐIỂM BỆNH LƯỜI & LỖI TOÁN)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TT18 & KHÓA CỨNG TEMPLATE)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -57,6 +57,9 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
+# ============================================================
+# KHÔI PHỤC FULL 100% TỪ ĐIỂN KHUNG NĂNG LỰC SỐ TT18
+# ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
@@ -193,31 +196,24 @@ def add_nls():
     muc_do = safe_text(st.session_state.get("khbd_nls_muc_do", ""))
     noi_dung = safe_text(st.session_state.get("khbd_nls_noi_dung", ""))
     if not noi_dung: return
-
     van_ban = NLS_GV_VAN_BAN_MAC_DINH if st.session_state.get("khbd_loai_khung_nls") == "Giáo viên (Thông tư 18)" else "Khung DigComp"
     item = {"van_ban": van_ban, "linh_vuc": linh_vuc, "thanh_phan": thanh_phan, "muc_do": muc_do, "noi_dung": noi_dung}
-    if item not in st.session_state.khbd_nls_list:
-        st.session_state.khbd_nls_list.append(item)
+    if item not in st.session_state.khbd_nls_list: st.session_state.khbd_nls_list.append(item)
 
 def format_nls():
     items = st.session_state.khbd_nls_list
     if not items: return "Không yêu cầu tích hợp Năng lực số chuyên biệt."
-    result = []
-    for index, item in enumerate(items, start=1):
-        result.append(f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}")
-    return "\n".join(result)
+    return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
 
 def safe_text(value):
     if value is None: return ""
     text = str(value).replace("\x00", "").replace("\ufeff", "").replace("\u200b", "")
     text = text.replace("\r", "").replace("\t", " ")
-    text = re.sub(r"[ ]{2,}", " ", text)
-    return text.strip()
+    return re.sub(r"[ ]{2,}", " ", text).strip()
 
 def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     text = safe_text(text)
-    chars = len(text)
-    if chars < MIN_SOURCE_CHARS:
+    if len(text) < MIN_SOURCE_CHARS:
         return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ. Vui lòng cung cấp file Word hoặc PDF chuẩn Text."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
@@ -225,20 +221,11 @@ def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
     content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
     extracted_text = ""
-    
     try:
         import fitz
         doc = fitz.open(stream=content, filetype="pdf")
         extracted_text = "\n\n".join([doc[i].get_text("text").strip() for i in range(len(doc))])
     except: pass
-
-    if len(extracted_text) < 100:
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(BytesIO(content))
-            extracted_text = "\n\n".join([p.extract_text().strip() for p in reader.pages if p.extract_text()])
-        except: pass
-        
     return safe_text(extracted_text)
 
 def read_docx_ordered(source):
@@ -256,38 +243,40 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
         if len(content) > 30: result.append(content)
     return safe_text("\n".join(result))
 
-# ============================================================
-# CƠ CHẾ GỌI AI THÔNG QUA LÕI HỆ THỐNG CŨ (AI ENGINE)
-# ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
-    """
-    Hàm gọi AI Engine, kèm theo logic gọt dũa Text Output nghiêm ngặt.
-    """
-    if client is None:
-        raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
-        
+    if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
     try:
         system_instruction = """
-[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC 5512 - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
-1. BẠN LÀ MỘT CHUYÊN GIA SOẠN GIÁO ÁN CHI TIẾT. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu bằng "# TÊN BÀI HỌC:".
-2. CẤU TRÚC PHẢI ĐỦ 4 PHẦN LỚN: I. MỤC TIÊU, II. THIẾT BỊ DẠY HỌC, III. TÍCH HỢP CHUYÊN SÂU, IV. TIẾN TRÌNH DẠY HỌC.
-3. QUY TẮC CHỐNG LƯỜI BIẾNG (QUAN TRỌNG NHẤT):
-   - MẪU VIẾT SAI (BỊ CẤM): b) Nội dung: "Giải bài tập Luyện tập 1 SGK", "Học sinh tìm hiểu khái niệm". (Cách viết này quá chung chung, sẽ bị phạt).
-   - MẪU VIẾT ĐÚNG (BẮT BUỘC): 
-     + Ở mục "b) Nội dung": BẮT BUỘC CHÉP NGUYÊN VĂN ĐỀ BÀI, CÂU HỎI, KHÁI NIỆM TỪ TÀI LIỆU. (Ví dụ: "Tính giá trị của √(25) và √(49)").
-     + Ở mục "c) Sản phẩm": BẮT BUỘC TRÌNH BÀY RÕ ĐÁP ÁN, LỜI GIẢI CHI TIẾT. (Ví dụ: "√(25) = 5 vì 5² = 25 và 5 > 0").
-     + Ở mục "d) Tổ chức thực hiện": Ghi cụ thể lời nói của GV (Giao nhiệm vụ gì?) và hành động của HS.
-4. QUY TẮC XUỐNG DÒNG VÀ ĐỊNH DẠNG:
-   - Các mục a), b), c), d) phải nằm trên các dòng riêng biệt. KHÔNG ĐƯỢC viết liền nhau trên cùng một dòng.
-   - KHÔNG SỬ DỤNG DẤU CHẤM ĐEN (•). Chỉ sử dụng dấu cộng (+) để liệt kê các Bước 1, 2, 3, 4.
-5. QUY TẮC TOÁN HỌC (LỖI DẤU CĂN CỤT):
-   - KHÔNG DÙNG LaTeX ($). Dùng Unicode: √, ², ³.
-   - TUYỆT ĐỐI KHÔNG để dấu căn đứng một mình hoặc không có ngoặc. 
-   - ĐÚNG: √(x + 3), √(25). SAI: √x + 3, √ 25. Bắt buộc dùng ngoặc đơn () bao quanh biểu thức ngay sau dấu căn.
+[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
+1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
+2. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CẤU TRÚC TEMPLATE SAU (Không được thiếu chữ nào):
+   I. MỤC TIÊU
+   1. Kiến thức
+   2. Năng lực
+      a) Năng lực chung:
+      b) Năng lực đặc thù:
+   3. Năng lực số và AI (Ghi toàn bộ nội dung Tích hợp TT18 và AI vào mục số 3 này)
+   4. Phẩm chất
+   II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
+   1. Giáo viên:
+   2. Học sinh:
+   III. TIẾN TRÌNH DẠY HỌC
+   (Chia các HOẠT ĐỘNG: MỞ ĐẦU, HÌNH THÀNH KIẾN THỨC MỚI, LUYỆN TẬP, VẬN DỤNG)
+   PHỤ LỤC
+   PHIẾU HỌC TẬP
+3. QUY TẮC CỨNG Ở PHẦN "d) Tổ chức thực hiện": BẮT BUỘC dùng chính xác 4 gạch đầu dòng bắt đầu bằng dấu * như sau:
+   *Chuyển giao nhiệm vụ học tập: ...
+   *Thực hiện nhiệm vụ học tập: ...
+   *Báo cáo kết quả và thảo luận: ...
+   *Kết luận (hoặc *Đánh giá kết quả): ...
+4. QUY TẮC CHỐNG LƯỜI BIẾNG: BẮT BUỘC CHÉP NGUYÊN VĂN ĐỀ BÀI, CÂU HỎI vào phần "b) Nội dung" và GIẢI CHI TIẾT TỪNG BƯỚC vào phần "c) Sản phẩm".
+5. QUY TẮC TOÁN HỌC (XUẤT WORD CHUẨN oMATH):
+   - BẮT BUỘC sử dụng chuẩn cú pháp LaTeX cho mọi công thức Toán, Vật lý, Hóa học.
+   - Công thức inline bọc trong dấu `$`. VD: `$\sqrt{x}$`. 
+   - Công thức block bọc trong dấu `$$`.
         """
         full_prompt = system_instruction + "\n\n" + prompt
         
-        # Gọi qua AI Engine của hệ thống
         if hasattr(client, "generate_text"):
             text_out = client.generate_text(full_prompt, model_name=model_name)
         elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
@@ -297,18 +286,11 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         else:
             raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
             
-        # ==========================================
-        # BỘ LỌC TỰ ĐỘNG LÀM SẠCH VĂN BẢN (POST-PROCESSING)
-        # ==========================================
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
-        # 1. Gọt sạch dấu chấm đen (•) và thay bằng dấu cộng (+)
-        text_out = text_out.replace("•", "+")
-        
-        # 2. Ép xuống dòng bắt buộc trước a), b), c), d) nếu AI cố tình viết liền
+        # Ép xuống dòng các mục a), b), c), d) nếu bị viết liền
         text_out = re.sub(r'(?<!\n)\s*([a-d]\))', r'\n\1', text_out)
-            
         return text_out
     except Exception as e:
         logger.error(f"Lỗi gọi AI: {str(e)}")
@@ -321,41 +303,47 @@ def validate_khbd_result(text):
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
     source = safe_text(noi_dung_chinh)[:20000] 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
-    
-    hoa_nhap_block = f"- Dạy học hòa nhập: Đề xuất phương pháp riêng cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
-    ai_block = "- Tích hợp AI: Đề xuất hoạt động ứng dụng Trí tuệ Nhân tạo." if tich_hop_ai else ""
+    hoa_nhap_block = f"- Dạy học hòa nhập: Phương pháp cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
+    ai_block = f"- Tích hợp AI: Đề xuất hoạt động ứng dụng AI." if tich_hop_ai else ""
 
     nhiem_vu = f"""
-NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY (GIÁO ÁN) SIÊU CHI TIẾT TỪ NGUỒN CUNG CẤP.
-1. ĐỌC KỸ NGUỒN KIẾN THỨC CỐT LÕI VÀ TRÍCH XUẤT NGUYÊN VĂN BÀI TẬP, LÝ THUYẾT VÀO GIÁO ÁN. TUYỆT ĐỐI KHÔNG TÓM TẮT CHUNG CHUNG.
-2. Bài học kéo dài {so_tiet} tiết. TRONG MỖI TIẾT, BẠN PHẢI TẠO RA ÍT NHẤT 2-3 HOẠT ĐỘNG (Ví dụ: Khởi động, Hình thành kiến thức, Luyện tập). KHÔNG ĐƯỢC GỘP CHUNG MỘT TIẾT THÀNH MỘT HOẠT ĐỘNG.
-3. DÀN Ý BẮT BUỘC PHẢI TUÂN THỦ (TRÌNH BÀY SIÊU CHI TIẾT THEO ĐÚNG FORMAT NÀY):
-
+NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY SIÊU CHI TIẾT TỪ NGUỒN CUNG CẤP.
+1. TRÍCH XUẤT NGUYÊN VĂN BÀI TẬP VÀ GIẢI CHI TIẾT. (DÙNG LATEX $...$ CHO TOÁN HỌC).
+2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn.
+3. DÀN Ý BẮT BUỘC PHẢI KHỚP TUYỆT ĐỐI VỚI TEMPLATE DƯỚI ĐÂY:
 # TÊN BÀI HỌC: ...
 I. MỤC TIÊU
 1. Kiến thức
 2. Năng lực
-3. Phẩm chất
+   a) Năng lực chung:
+   b) Năng lực đặc thù:
+3. Năng lực số và AI
+   [GHI NỘI DUNG TÍCH HỢP VÀO ĐÂY]: {nls_str} {ai_block} {hoa_nhap_block}
+4. Phẩm chất
 II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-III. TÍCH HỢP CHUYÊN SÂU
-{nls_str}
-{ai_block}
-{hoa_nhap_block}
-IV. TIẾN TRÌNH DẠY HỌC
+1. Giáo viên:
+2. Học sinh:
+III. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1
-**Hoạt động 1: Khởi động (Dự kiến: X phút)**
+**Hoạt động 1: MỞ ĐẦU (Dự kiến: X phút)**
 a) Mục tiêu: ...
-b) Nội dung: [CHÉP NGUYÊN VĂN CÂU HỎI TỪ TÀI LIỆU VÀO ĐÂY]
-c) Sản phẩm: [CHÉP NGUYÊN VĂN ĐÁP ÁN, KẾT QUẢ VÀO ĐÂY]
+b) Nội dung: [CHÉP NGUYÊN VĂN CÂU HỎI VÀ DÙNG $\LaTeX$ CHO TOÁN]
+c) Sản phẩm: [CHÉP NGUYÊN VĂN ĐÁP ÁN VÀ DÙNG $\LaTeX$ CHO TOÁN]
 d) Tổ chức thực hiện: 
-+ Bước 1: GV giao nhiệm vụ: "..."
-+ Bước 2: HS thực hiện: ...
-+ Bước 3: Báo cáo thảo luận: ...
-+ Bước 4: Kết luận nhận định: ...
+*Chuyển giao nhiệm vụ học tập: GV giao nhiệm vụ...
+*Thực hiện nhiệm vụ học tập: HS thực hiện...
+*Báo cáo kết quả và thảo luận: ...
+*Đánh giá kết quả: ...
 
-**Hoạt động 2: Hình thành kiến thức mới (Dự kiến: X phút)**
-(Viết lặp lại đầy đủ a,b,c,d siêu chi tiết và BÊ NGUYÊN VĂN LÝ THUYẾT/VÍ DỤ VÀO NHƯ TRÊN)
+**Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI (Dự kiến: X phút)**
+(Viết lặp lại đầy đủ a,b,c,d siêu chi tiết)
+d) Tổ chức thực hiện:
+*Chuyển giao nhiệm vụ học tập: ...
+*Thực hiện nhiệm vụ học tập: ...
+*Báo cáo kết quả và thảo luận: ...
+*Kết luận: ...
 
-### TIẾT 2 ... (Lặp lại logic trên)
+PHỤ LỤC
+PHIẾU HỌC TẬP
 """
     return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC ---\n{source}\n\n{ga_block}"
