@@ -4,7 +4,7 @@
 MODULE: export/export_word.py
 Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
 thành file Word (.docx) chuẩn 5512.
-Sử dụng MarkdownTokenizer duy nhất, kết nối word_math, word_tables, word_images.
+Có Auto-Fix Tự bọc dấu $ chống lỗi LaTeX trần.
 ============================================================
 """
 
@@ -29,53 +29,69 @@ logger = logging.getLogger(__name__)
 try:
     from .markdown_tokenizer import MarkdownTokenizer
 except ImportError as e1:
-    logger.warning(f"Không thể nạp tương đối markdown_tokenizer: {e1}. Đang thử nạp tuyệt đối...")
     try:
         from export.markdown_tokenizer import MarkdownTokenizer
     except ImportError as e2:
-        logger.error(f"LỖI NGHIÊM TRỌNG: Không thể nạp MarkdownTokenizer: {e2}")
         MarkdownTokenizer = None
 
 try:
     from .word_math import insert_math_to_paragraph
 except ImportError as e1:
-    logger.warning(f"Không thể nạp tương đối word_math: {e1}. Đang thử nạp tuyệt đối...")
     try:
         from export.word_math import insert_math_to_paragraph
     except ImportError as e2:
-        logger.error(f"LỖI NGHIÊM TRỌNG: Không thể nạp module word_math: {e2}")
         insert_math_to_paragraph = None
 
 try:
     from .word_tables import process_and_draw_markdown_table
 except ImportError as e1:
-    logger.warning(f"Không thể nạp tương đối word_tables: {e1}. Đang thử nạp tuyệt đối...")
     try:
         from export.word_tables import process_and_draw_markdown_table
     except ImportError as e2:
-        logger.error(f"LỖI NGHIÊM TRỌNG: Không thể nạp module word_tables: {e2}")
         process_and_draw_markdown_table = None
 
 try:
     from .word_images import insert_image_to_paragraph, insert_image_to_docx
 except ImportError as e1:
-    logger.warning(f"Không thể nạp tương đối word_images: {e1}. Đang thử nạp tuyệt đối...")
     try:
         from export.word_images import insert_image_to_paragraph, insert_image_to_docx
     except ImportError as e2:
-        logger.error(f"LỖI NGHIÊM TRỌNG: Không thể nạp module word_images: {e2}")
         insert_image_to_paragraph = None
         insert_image_to_docx = None
 
 
-# ============================================================
-# FALLBACK TOKENIZER CỦA ENGINE (CHỈ SỬ DỤNG KHI MO-DUL NGOÀI BỊ LỖI)
-# ============================================================
+def _auto_fix_missing_math_delimiters(text: str) -> str:
+    """Tự động bọc dấu $ cho các mã LaTeX phân số/căn thức bị AI quên."""
+    if not text: return ""
+    # Bọc \frac{a}{b}
+    text = re.sub(r'(?<!\$)(?<!\\)(\\frac\s*\{[^{}]*\}\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
+    # Bọc \sqrt{a}
+    text = re.sub(r'(?<!\$)(?<!\\)(\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
+    return text
+
+def _parse_inline_fallback(text: str) -> List[Dict[str, Any]]:
+    """Phân tách text có chứa Toán, Bold, Italic cho Fallback Tokenizer."""
+    tokens = []
+    pattern = re.compile(r'(\$\$(.*?)\$\$)|(\$([^$]+?)\$)|(\*\*([^*]+?)\*\*)|(\*([^*]+?)\*)')
+    last_idx = 0
+    for match in pattern.finditer(text):
+        if match.start() > last_idx:
+            tokens.append({"type": "text", "content": text[last_idx:match.start()]})
+        if match.group(1):
+            tokens.append({"type": "math_block", "content": match.group(2)})
+        elif match.group(3):
+            tokens.append({"type": "inline_math", "content": match.group(4)})
+        elif match.group(5):
+            tokens.append({"type": "bold", "content": match.group(6)})
+        elif match.group(7):
+            tokens.append({"type": "italic", "content": match.group(8)})
+        last_idx = match.end()
+    if last_idx < len(text):
+        tokens.append({"type": "text", "content": text[last_idx:]})
+    return tokens
+
 def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
-    """
-    Bộ phân tách Markdown dự phòng khẩn cấp khi MarkdownTokenizer bị lỗi import.
-    Đảm bảo quy trình không bao giờ bị đứt gãy.
-    """
+    """Bộ phân tách Markdown dự phòng khi MarkdownTokenizer bị lỗi import."""
     ast_nodes = []
     lines = (markdown_text or "").splitlines()
     table_buffer = []
@@ -91,7 +107,6 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
     for line in lines:
         s_line = line.strip()
 
-        # Code block
         if s_line.startswith("```"):
             if in_code:
                 in_code = False
@@ -107,7 +122,6 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
             code_buffer.append(line)
             continue
 
-        # Table
         if s_line.startswith("|"):
             table_buffer.append(s_line)
             continue
@@ -117,66 +131,56 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
         if not s_line:
             continue
 
-        # Block math
         if s_line.startswith("$$") and s_line.endswith("$$") and len(s_line) > 4:
             ast_nodes.append({"type": "block_math", "content": s_line[2:-2].strip()})
             continue
         elif s_line == "$$":
             continue
 
-        # Headings
         if s_line.startswith("#"):
             match = re.match(r'^(#{1,6})\s+(.*)', s_line)
             if match:
                 level = len(match.group(1))
                 text = match.group(2)
-                ast_nodes.append({"type": "heading", "level": level, "text": text, "tokens": [{"type": "text", "content": text}]})
+                ast_nodes.append({"type": "heading", "level": level, "text": text, "tokens": _parse_inline_fallback(text)})
                 continue
 
-        # Horizontal Rule
         if re.match(r'^\s*([-*_])\1{2,}\s*$', s_line):
             ast_nodes.append({"type": "hr"})
             continue
 
-        # List items / Checkboxes
         if s_line.startswith("- [ ]") or s_line.startswith("- [x]") or s_line.startswith("- [X]"):
             checked = "[x]" in s_line or "[X]" in s_line
             text = s_line[5:].strip()
-            ast_nodes.append({"type": "checkbox", "checked": checked, "level": 1, "tokens": [{"type": "text", "content": text}]})
+            ast_nodes.append({"type": "checkbox", "checked": checked, "level": 1, "tokens": _parse_inline_fallback(text)})
             continue
 
         if s_line.startswith("- ") or s_line.startswith("* "):
             text = s_line[2:].strip()
-            ast_nodes.append({"type": "list_item", "style": "bullet", "level": 1, "tokens": [{"type": "text", "content": text}]})
+            ast_nodes.append({"type": "list_item", "style": "bullet", "level": 1, "tokens": _parse_inline_fallback(text)})
             continue
 
         num_match = re.match(r'^\d+\.\s+(.*)', s_line)
         if num_match:
             text = num_match.group(1)
-            ast_nodes.append({"type": "list_item", "style": "number", "level": 1, "tokens": [{"type": "text", "content": text}]})
+            ast_nodes.append({"type": "list_item", "style": "number", "level": 1, "tokens": _parse_inline_fallback(text)})
             continue
 
-        # Image
         img_match = re.match(r'^!\[(.*?)\]\((.*?)\)', s_line)
         if img_match:
             ast_nodes.append({"type": "image", "alt": img_match.group(1), "url": img_match.group(2)})
             continue
 
-        # Paragraph
-        ast_nodes.append({"type": "paragraph", "text": s_line, "tokens": [{"type": "text", "content": s_line}]})
+        ast_nodes.append({"type": "paragraph", "text": s_line, "tokens": _parse_inline_fallback(s_line)})
 
     flush_table()
     return ast_nodes
 
 
-# ============================================================
-# LỚP ĐIỀU PHỐI KẾT XUẤT CHÍNH (WORD EXPORT ENGINE)
-# ============================================================
 class WordExportEngine:
 
     @staticmethod
     def _set_font(run, font_name="Times New Roman"):
-        """Đặt font chữ chuẩn Unicode cho Run trong Word."""
         try:
             rPr = run._element.get_or_add_rPr()
             rFonts = rPr.find(qn("w:rFonts"))
@@ -186,15 +190,11 @@ class WordExportEngine:
             rFonts.set(qn('w:ascii'), font_name)
             rFonts.set(qn('w:hAnsi'), font_name)
             rFonts.set(qn('w:cs'), font_name)
-        except Exception as e:
-            logger.error(f"Lỗi thiết lập font chữ: {e}")
+        except Exception:
+            pass
 
     @classmethod
     def _render_inline_tokens(cls, p, tokens: List[Dict[str, Any]], export_errors: List[Dict[str, Any]]):
-        """
-        Render các token nội dòng (Inline Tokens) vào Paragraph.
-        Xử lý: Bold, Italic, Underline, Strike, Inline Math, Image, Link, Code.
-        """
         if not tokens:
             return
 
@@ -208,21 +208,16 @@ class WordExportEngine:
                     cls._set_font(run, "Courier New" if ttype in ["inline_code", "code"] else "Times New Roman")
                     run.font.size = Pt(11) if ttype in ["inline_code", "code"] else Pt(13)
 
-                    if ttype == "bold":
-                        run.bold = True
-                    elif ttype == "italic":
-                        run.italic = True
-                    elif ttype == "underline":
-                        run.underline = True
-                    elif ttype == "strike":
-                        run.font.strike = True
-                    elif ttype == "highlight":
-                        run.font.color.rgb = RGBColor(199, 37, 78)
+                    if ttype == "bold": run.bold = True
+                    elif ttype == "italic": run.italic = True
+                    elif ttype == "underline": run.underline = True
+                    elif ttype == "strike": run.font.strike = True
+                    elif ttype == "highlight": run.font.color.rgb = RGBColor(199, 37, 78)
 
-                elif ttype in ["inline_math", "math_inline", "math"]:
+                elif ttype in ["inline_math", "math_inline", "math", "math_block", "block_math"]:
                     if insert_math_to_paragraph:
-                        # Gọi module word_math render OMML inline
-                        insert_math_to_paragraph(p, content, is_block=False)
+                        is_block = ttype in ["math_block", "block_math"]
+                        insert_math_to_paragraph(p, content, is_block=is_block)
                     else:
                         run = p.add_run(f" {content} ")
                         cls._set_font(run, "Cambria Math")
@@ -247,19 +242,14 @@ class WordExportEngine:
                     run.font.size = Pt(13)
 
             except Exception as e:
-                err_msg = f"Lỗi render inline token [{idx}] ({token}): {e}"
-                logger.error(err_msg)
                 export_errors.append({"type": "inline_token", "index": idx, "token": token, "error": str(e)})
-                # Fallback an toàn không làm mất văn bản
                 try:
-                    fallback_text = str(token.get("content") or token.get("text") or "")
-                    p.add_run(fallback_text)
+                    p.add_run(str(token.get("content") or token.get("text") or ""))
                 except Exception:
                     pass
 
     @classmethod
     def _render_khbd_header(cls, doc: Document, metadata: dict):
-        """Vẽ khung tiêu đề Kế hoạch bài dạy chuẩn quy định sư phạm 5512."""
         try:
             table = doc.add_table(rows=1, cols=2)
             tblPr = table._element.xpath('w:tblPr')
@@ -303,64 +293,53 @@ class WordExportEngine:
             r_time.font.italic = True
             cls._set_font(r_time)
             doc.add_paragraph()
-        except Exception as ex:
-            logger.error(f"Lỗi vẽ KHBD header: {ex}")
+        except Exception:
+            pass
 
     @classmethod
     def convert_markdown_to_docx_bytes(cls, markdown_text: str, metadata: dict = None) -> bytes:
-        """
-        API PUBLIC CHÍNH: Chuyển đổi mã Markdown / AI Generated Content sang File Word dạng Stream Bytes.
-        Sử dụng duy nhất MarkdownTokenizer chính thức và thu thập lỗi chi tiết.
-        """
         export_errors = []
-
-        # 1. Khởi tạo Document và thiết lập lề chuẩn 5512
         doc = Document()
+        
         try:
             for s in doc.sections:
-                s.page_height, s.page_width = Inches(11.69), Inches(8.27) # A4
-                s.top_margin = Inches(0.59)    # 1.5 cm
-                s.bottom_margin = Inches(0.59) # 1.5 cm
-                s.right_margin = Inches(0.59)  # 1.5 cm
-                s.left_margin = Inches(0.79)   # 2.0 cm
+                s.page_height, s.page_width = Inches(11.69), Inches(8.27) 
+                s.top_margin = Inches(0.59)    
+                s.bottom_margin = Inches(0.59) 
+                s.right_margin = Inches(0.59)  
+                s.left_margin = Inches(0.79)   
 
             ns = doc.styles['Normal']
             ns.font.name, ns.font.size = 'Times New Roman', Pt(13)
             ns.paragraph_format.space_after = Pt(4)
             ns.paragraph_format.line_spacing = 1.15
         except Exception as e:
-            logger.error(f"Lỗi thiết lập Style Document: {e}")
             export_errors.append({"type": "setup_styles", "error": str(e)})
 
-        # 2. Vẽ Header KHBD nếu có Metadata
         if metadata and isinstance(metadata, dict) and metadata.get("is_khbd"):
             cls._render_khbd_header(doc, metadata)
 
-        # 3. Phân tách Markdown thành cây AST Tokens bằng Tokenizer chính thức
+        # Kích hoạt Auto-Fix cho công thức
+        markdown_text = _auto_fix_missing_math_delimiters(markdown_text or "")
+
         ast_nodes = []
         if MarkdownTokenizer and hasattr(MarkdownTokenizer, 'parse'):
             try:
-                ast_nodes = MarkdownTokenizer.parse(markdown_text or "")
+                ast_nodes = MarkdownTokenizer.parse(markdown_text)
             except Exception as tok_err:
-                logger.error(f"Lỗi trong MarkdownTokenizer chính thức: {tok_err}. Đang dùng fallback parser...")
                 export_errors.append({"type": "tokenizer_error", "error": str(tok_err)})
                 ast_nodes = _fallback_parse_markdown(markdown_text)
         else:
-            logger.warning("Không có MarkdownTokenizer chính thức. Đang chuyển sang Fallback Tokenizer...")
             ast_nodes = _fallback_parse_markdown(markdown_text)
 
-        # 4. Duyệt cây AST và kết xuất các thành phần vào Document
         for node_idx, node in enumerate(ast_nodes):
             try:
                 ntype = node.get("type", "paragraph")
 
-                # --- A. PARAGRAPH ---
                 if ntype == "paragraph":
                     p = doc.add_paragraph()
                     p.paragraph_format.space_after = Pt(4)
-
                     raw_text = str(node.get("text", "")).strip()
-                    # Nhận diện tham chiếu hình ảnh dạng [IMAGE:id]
                     if raw_text.startswith("[IMAGE:") and raw_text.endswith("]"):
                         img_id = raw_text[7:-1].strip()
                         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -378,34 +357,26 @@ class WordExportEngine:
                         cls._set_font(r, "Times New Roman")
                         r.font.size = Pt(13)
 
-                # --- B. HEADING ---
                 elif ntype == "heading":
                     level = min(max(node.get("level", 1), 1), 6)
                     p = doc.add_paragraph()
                     p.paragraph_format.space_before = Pt(10)
                     p.paragraph_format.space_after = Pt(4)
                     p.paragraph_format.keep_with_next = True
-
-                    if level == 1:
-                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    else:
-                        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if level == 1 else WD_ALIGN_PARAGRAPH.LEFT
 
                     tokens = node.get("tokens", [])
                     if tokens:
                         cls._render_inline_tokens(p, tokens, export_errors)
                     else:
-                        htext = str(node.get("text") or "")
-                        r = p.add_run(htext)
+                        r = p.add_run(str(node.get("text") or ""))
                         cls._set_font(r, "Times New Roman")
 
-                    # Định dạng font in đậm và kích thước cho Heading
                     for r in p.runs:
                         r.bold = True
                         cls._set_font(r, "Times New Roman")
                         r.font.size = Pt(16 if level == 1 else (14 if level == 2 else 13))
 
-                # --- C. BLOCK MATH ---
                 elif ntype in ["block_math", "math_block"]:
                     math_content = node.get("content") or node.get("text") or ""
                     p = doc.add_paragraph()
@@ -413,7 +384,6 @@ class WordExportEngine:
                     p.paragraph_format.space_after = Pt(6)
 
                     if insert_math_to_paragraph:
-                        # Ép kiểu Block Math nổi bật căn giữa dòng
                         insert_math_to_paragraph(p, math_content, is_block=True)
                     else:
                         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -421,7 +391,6 @@ class WordExportEngine:
                         cls._set_font(r, "Cambria Math")
                         r.italic = True
 
-                # --- D. LIST ITEMS ---
                 elif ntype in ["list_item", "bullet_list", "numbered_list"]:
                     is_num = (node.get("style") == "number" or ntype == "numbered_list")
                     style_name = 'List Number' if is_num else 'List Bullet'
@@ -439,7 +408,6 @@ class WordExportEngine:
                         r = p.add_run(str(node.get("text") or ""))
                         cls._set_font(r, "Times New Roman")
 
-                # --- E. CHECKBOX ---
                 elif ntype == "checkbox":
                     level = node.get("level", 1)
                     p = doc.add_paragraph()
@@ -458,21 +426,18 @@ class WordExportEngine:
                         r = p.add_run(str(node.get("text") or ""))
                         cls._set_font(r, "Times New Roman")
 
-                # --- F. IMAGE ---
                 elif ntype == "image":
                     p = doc.add_paragraph()
                     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     p.paragraph_format.space_before = Pt(6)
                     p.paragraph_format.space_after = Pt(6)
 
-                    # Bảo toàn Metadata ảnh nếu có
                     img_source = node if ("base64" in node or "path" in node or "caption" in node) else (node.get("url") or node.get("path") or node.get("alt") or "")
                     if insert_image_to_paragraph:
                         insert_image_to_paragraph(p, img_source)
                     else:
                         p.add_run(f"[Hình ảnh: {img_source}]").italic = True
 
-                # --- G. TABLE ---
                 elif ntype in ["table", "table_raw_lines"]:
                     lines = node.get("lines", [])
                     if process_and_draw_markdown_table and lines:
@@ -482,13 +447,11 @@ class WordExportEngine:
                             p = doc.add_paragraph()
                             p.add_run(str(line))
 
-                # --- H. CODE BLOCK ---
                 elif ntype in ["code", "code_block"]:
                     p = doc.add_paragraph()
                     p.paragraph_format.left_indent = Inches(0.4)
                     p.paragraph_format.space_before = Pt(4)
                     p.paragraph_format.space_after = Pt(4)
-
                     try:
                         pPr = p._element.get_or_add_pPr()
                         shd = OxmlElement('w:shd')
@@ -498,13 +461,11 @@ class WordExportEngine:
                         pPr.append(shd)
                     except Exception:
                         pass
-
                     code_text = node.get("text", "")
                     r = p.add_run(code_text)
                     cls._set_font(r, "Courier New")
                     r.font.size = Pt(10.5)
 
-                # --- I. HORIZONTAL RULE ---
                 elif ntype in ["hr", "horizontal_rule"]:
                     p = doc.add_paragraph()
                     pPr = p._element.get_or_add_pPr()
@@ -516,26 +477,17 @@ class WordExportEngine:
                     pb.append(bottom)
                     pPr.append(pb)
 
-                # --- J. PAGE BREAK ---
                 elif ntype == "page_break":
                     doc.add_page_break()
 
             except Exception as node_err:
-                err_msg = f"Lỗi render AST node [{node_idx}] (loại: {node.get('type')}): {node_err}"
-                logger.error(err_msg)
                 export_errors.append({"type": "ast_node", "node_index": node_idx, "node": node, "error": str(node_err)})
-                # Tạo đoạn văn phục hồi không để mất dấu nội dung
                 try:
                     p_err = doc.add_paragraph()
-                    p_err.add_run(f"[Nội dung bị lỗi kết xuất: {node.get('type')}]").italic = True
+                    p_err.add_run(f"[Lỗi kết xuất nội dung: {node.get('type')}]").italic = True
                 except Exception:
                     pass
 
-        # 5. Ghi nhận cảnh báo nếu có sự cố
-        if export_errors:
-            logger.warning(f"Quá trình kết xuất Word hoàn tất với {len(export_errors)} lỗi/cảnh báo: {export_errors}")
-
-        # 6. Đóng gói BytesIO stream
         output_stream = io.BytesIO()
         doc.save(output_stream)
         output_stream.seek(0)
@@ -543,21 +495,13 @@ class WordExportEngine:
 
     @classmethod
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
-        """API Public Bổ trợ: Nhận cache từ Session State của Streamlit và xuất Word."""
         if not isinstance(data_cache, dict):
             return cls.convert_markdown_to_docx_bytes(str(data_cache))
         markdown_content = data_cache.get("ai_generated_content", "")
         return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
 
 
-# ============================================================
-# PUBLIC API TƯƠNG THÍCH HOÀN HẢO VỚI TẤT CẢ VIEWS DỰ ÁN
-# ============================================================
 def export_word(markdown_text_or_cache) -> bytes:
-    """
-    API Public chính thức duy nhất dùng cho toàn bộ dự án.
-    Tự động phân biệt chuỗi Markdown thuần túy hay Cache Dictionary từ Streamlit.
-    """
     try:
         if isinstance(markdown_text_or_cache, dict):
             return WordExportEngine.export_to_word(markdown_text_or_cache)
@@ -566,11 +510,9 @@ def export_word(markdown_text_or_cache) -> bytes:
         else:
             return WordExportEngine.convert_markdown_to_docx_bytes(str(markdown_text_or_cache), metadata=None)
     except Exception as fatal_err:
-        logger.critical(f"Lỗi nghiêm trọng trong export_word: {fatal_err}")
-        # Fallback tuyệt đối an toàn để Streamlit luôn nhận được bytes
         fallback_doc = Document()
         fallback_doc.add_paragraph("KẾ HOẠCH BÀI DẠY (BẢN PHỤC HỒI)")
-        fallback_doc.add_paragraph(f"Đã xảy ra lỗi kết xuất: {fatal_err}")
+        fallback_doc.add_paragraph(f"Lỗi: {fatal_err}")
         if isinstance(markdown_text_or_cache, dict):
             fallback_doc.add_paragraph(str(markdown_text_or_cache.get("ai_generated_content", "")))
         else:
