@@ -9,6 +9,7 @@ FILE: export/word_export_engine.py
 import io
 import re
 import logging
+import os
 from docx import Document
 from docx.shared import Cm, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -64,12 +65,11 @@ class WordExportEngine:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                 
-                # Làm sạch dấu ** thừa nếu AI sinh sót lại
+                # Làm sạch dấu ** thừa nếu còn sót lại
                 line_clean = line_clean.replace('**', '')
 
                 # Xử lý thụt lề thông minh theo từng loại dòng
                 if line_clean.startswith('*'):
-                    # Các bước tổ chức thực hiện (*Chuyển giao, *Thực hiện...)
                     p.paragraph_format.left_indent = Cm(0.5)
                     parts = line_clean.lstrip('* ').split(':', 1)
                     if len(parts) == 2:
@@ -79,11 +79,9 @@ class WordExportEngine:
                     else:
                         p.add_run(line_clean)
                 elif re.match(r'^[a-zA-Z]\)\s+', line_clean) or re.match(r'^\d+\.\s+', line_clean) or line_clean.startswith('-'):
-                    # Các mục a), b), c), d) hoặc danh sách gạch đầu dòng
                     p.paragraph_format.left_indent = Cm(0.3)
                     p.add_run(line_clean)
                 else:
-                    # Đoạn văn bản thông thường (thụt dòng đầu dòng 1cm)
                     p.paragraph_format.first_line_indent = Cm(1.0)
                     
                     # --- Inline Tokenizer (Tách LaTeX Math & Text thường) ---
@@ -100,14 +98,13 @@ class WordExportEngine:
                         else:
                             p.add_run(token)
 
-            # 5. LƯU THÀNH BYTES AN TOÀN (Đảm bảo nút tải không bao giờ bị khóa)
+            # 5. LƯU THÀNH BYTES AN TOÀN TRÁNH KHÓA NÚT TẢI
             f = io.BytesIO()
             doc.save(f)
             return f.getvalue()
             
         except Exception as e:
             logger.error(f"Lỗi xuất bản file Word: {str(e)}")
-            # Tạo một file Word chứa thông báo lỗi để Streamlit không bị treo nút tải
             err_doc = Document()
             err_doc.add_paragraph(f"Đã xảy ra lỗi khi tạo file Word: {str(e)}")
             f = io.BytesIO()
