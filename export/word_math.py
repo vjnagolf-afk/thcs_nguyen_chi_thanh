@@ -4,7 +4,7 @@
 MODULE: export/word_math.py
 Nhiệm vụ: Chuyển đổi mã LaTeX thành Office MathML (OMML) native.
 Sử dụng Trình biên dịch Cú pháp (Parser) an toàn tuyệt đối.
-Không dùng placeholder, chống lỗi XML, hỗ trợ đầy đủ Toán-Lý-Hóa.
+Hỗ trợ đầy đủ Lượng giác, Phân số, Mũ, Căn.
 ============================================================
 """
 
@@ -13,11 +13,7 @@ from docx.oxml import parse_xml
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
-# ============================================================
-# BỘ KÝ HIỆU & HÀM ESCAPE XML AN TOÀN
-# ============================================================
 def escape_xml(text: str) -> str:
-    """Bảo vệ an toàn mọi ký tự nhạy cảm khi nhúng vào cấu trúc XML của Word."""
     if not text: 
         return ""
     text = str(text)
@@ -28,6 +24,7 @@ def escape_xml(text: str) -> str:
     text = text.replace("'", "&apos;")
     return text
 
+# Đã bổ sung các hàm Toán Lượng Giác & Logarit
 SYMBOLS = {
     'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'epsilon': 'ε',
     'zeta': 'ζ', 'eta': 'η', 'theta': 'θ', 'iota': 'ι', 'kappa': 'κ',
@@ -45,12 +42,13 @@ SYMBOLS = {
     'sum': '∑', 'prod': '∏', 'int': '∫', 'perp': '⊥', 'angle': '∠',
     'triangle': '△', 'rightarrow': '→', 'Rightarrow': '⇒',
     'leftrightarrow': '↔', 'Leftrightarrow': '⇔',
+    'sin': 'sin', 'cos': 'cos', 'tan': 'tan', 'cot': 'cot',
+    'arcsin': 'arcsin', 'arccos': 'arccos', 'arctan': 'arctan',
+    'log': 'log', 'ln': 'ln', 'lim': 'lim',
+    'max': 'max', 'min': 'min',
     'quad': '    ', 'qquad': '        ', ',': ' ', ';': ' ', ':': ' '
 }
 
-# ============================================================
-# TRÌNH BIÊN DỊCH CÚ PHÁP LATEX (RECURSIVE DESCENT PARSER)
-# ============================================================
 class LatexParser:
     def __init__(self, s: str):
         self.s = s
@@ -83,7 +81,7 @@ class LatexParser:
                         nodes.append(('frac', num, den))
                     elif cmd == 'sqrt':
                         if self.peek() == '[':
-                            self.get() # Bỏ qua '['
+                            self.get()
                             deg = self.parse_until(']')
                             expr = self.parse_group()
                             nodes.append(('root', deg, expr))
@@ -114,7 +112,7 @@ class LatexParser:
                 nodes.append(('group', self.parse_group_content()))
                 
             elif c == '}':
-                break # An toàn chống kẹt vòng lặp nếu ngoặc bị lỗi
+                break
                 
             elif c == '^':
                 self.get()
@@ -152,7 +150,6 @@ class LatexParser:
         return self.combine_text_nodes(nodes)
 
     def parse_group(self) -> list:
-        # Bỏ qua khoảng trắng khi lấy tham số
         while self.peek() in ' \t\n\r':
             self.get()
             
@@ -190,7 +187,7 @@ class LatexParser:
             return [('text', self.get())]
 
     def parse_group_content(self) -> list:
-        self.get() # Bỏ qua '{'
+        self.get()
         start_pos = self.pos
         depth = 1
         while self.pos < self.n:
@@ -229,9 +226,6 @@ class LatexParser:
             res.append(('text', cur_text))
         return res
 
-# ============================================================
-# TRÌNH KẾT XUẤT CÂY AST THÀNH XML NATIVE (OMML)
-# ============================================================
 def render_omml(nodes: list) -> str:
     if not nodes:
         return ""
@@ -239,7 +233,6 @@ def render_omml(nodes: list) -> str:
     for n in nodes:
         t = n[0]
         if t == 'text':
-            # Preserve space đảm bảo Vật lý "F = m a" hay văn bản được giữ chuẩn
             xml += f'<m:r><m:t xml:space="preserve">{escape_xml(n[1])}</m:t></m:r>'
         elif t == 'group':
             xml += render_omml(n[1])
@@ -270,11 +263,9 @@ def render_omml(nodes: list) -> str:
     return xml
 
 def latex_to_omml_xml(latex_str: str) -> str:
-    """API public: Chuyển đổi mã lệnh LaTeX sang XML OMML chuẩn của Word."""
     if not latex_str or not latex_str.strip():
-        return '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t></m:t></m:r></m:oMath>'
+        return '<m:oMath xmlns:m="[http://schemas.openxmlformats.org/officeDocument/2006/math](http://schemas.openxmlformats.org/officeDocument/2006/math)"><m:r><m:t></m:t></m:r></m:oMath>'
     
-    # Dọn dẹp delimiter thừa của Markdown (nếu có lọt vào)
     s = latex_str.strip()
     if s.startswith('$') and s.endswith('$'):
         s = s[1:-1]
@@ -289,21 +280,14 @@ def latex_to_omml_xml(latex_str: str) -> str:
         if not omml_body:
             omml_body = '<m:r><m:t></m:t></m:r>'
             
-        return f'<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{omml_body}</m:oMath>'
+        return f'<m:oMath xmlns:m="[http://schemas.openxmlformats.org/officeDocument/2006/math](http://schemas.openxmlformats.org/officeDocument/2006/math)">{omml_body}</m:oMath>'
         
     except Exception:
-        # Fallback khẩn cấp tuyệt đối an toàn nếu parser bị bất ngờ
         safe_text = escape_xml(s)
-        return f'<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t xml:space="preserve">{safe_text}</m:t></m:r></m:oMath>'
+        return f'<m:oMath xmlns:m="[http://schemas.openxmlformats.org/officeDocument/2006/math](http://schemas.openxmlformats.org/officeDocument/2006/math)"><m:r><m:t xml:space="preserve">{safe_text}</m:t></m:r></m:oMath>'
 
-# ============================================================
-# API GIAO TIẾP VỚI MODULE ĐIỀU PHỐI (export_word.py)
-# ============================================================
+
 def insert_math_to_paragraph(paragraph, latex_content: str, is_block: bool = False):
-    """
-    API public: Nhúng OMML XML vào Paragraph của thư viện python-docx.
-    Đã được bọc an toàn. Không làm crash file Word nếu có lỗi.
-    """
     if not latex_content or not latex_content.strip():
         return
         
@@ -316,7 +300,6 @@ def insert_math_to_paragraph(paragraph, latex_content: str, is_block: bool = Fal
         paragraph._p.append(omml_element)
         
     except Exception:
-        # Cơ chế cứu trợ (Fallback) khi có ký tự lạ không thể biến đổi thành XML
         run = paragraph.add_run(f" {latex_content} ")
         run.font.name = 'Cambria Math'
         run.italic = True
