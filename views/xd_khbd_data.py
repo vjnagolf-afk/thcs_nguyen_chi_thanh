@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP OCR & FIX LỖI FORMAT)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -88,7 +88,7 @@ def format_nls():
     if not items: return "Không yêu cầu tích hợp Năng lực số chuyên biệt."
     result = []
     for index, item in enumerate(items, start=1):
-        result.append(f"- Yêu cầu NLS: {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}")
+        result.append(f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}")
     return "\n".join(result)
 
 def safe_text(value):
@@ -128,7 +128,7 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
             media_file = genai.get_file(media_file.name)
             
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-        ocr_prompt = "Trích xuất toàn bộ chữ. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng LaTeX \sqrt{...} KHÔNG DÙNG ký tự √."
+        ocr_prompt = "Trích xuất toàn bộ chữ. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng Unicode (ví dụ: √, ²). KHÔNG DÙNG ký tự $."
         response = model.generate_content([ocr_prompt, media_file])
         return getattr(response, "text", "")
     except Exception as e: return ""
@@ -169,26 +169,23 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     try:
-        # Nhúng thẳng lệnh hệ thống vào prompt để dập tắt lỗi Phương án A
         system_instruction = """
 [QUY TẮC ĐỊNH DẠNG BẮT BUỘC - KHÔNG ĐƯỢC VI PHẠM]:
-1. CẤM VIẾT LỜI CHÀO, LỜI MỞ ĐẦU HOẶC KẾT LUẬN. Kế hoạch phải bắt đầu bằng đúng chữ "# TÊN BÀI HỌC:".
-2. CẤM DÙNG KÝ TỰ CĂN UNICODE `√`. Mọi công thức Toán học PHẢI dùng mã LaTeX `\sqrt{A}` đặt trong dấu `$`. (Ví dụ ĐÚNG: $\sqrt{x-3}$).
-3. XUỐNG DÒNG RÕ RÀNG: Giữa các đoạn văn, đề mục phải có khoảng trắng bằng cách ấn Enter 2 lần (\n\n).
-4. CẤM DÙNG DẤU CHẤM ĐEN (BULLET) trước các đề mục nhỏ như: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
-5. BẮT BUỘC chèn đủ Tiêu đề, Môn học, Khối lớp, Số tiết ở ngay đầu giáo án.
+1. CẤM VIẾT LỜI CHÀO, LỜI MỞ ĐẦU HOẶC KẾT LUẬN. Kế hoạch phải bắt đầu bằng "# TÊN BÀI HỌC:".
+2. TRONG PHẦN "I. MỤC TIÊU": Bắt buộc phải có 3 mục nhỏ: 1. Kiến thức, 2. Năng lực, 3. Phẩm chất (Chăm chỉ, Trung thực, Trách nhiệm...).
+3. CÔNG THỨC TOÁN HỌC: Dùng ký tự Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng cú pháp LaTeX (như $ \sqrt{} $) vì file Word không hỗ trợ biên dịch mã.
+4. CẤM DÙNG DẤU CHẤM ĐEN (BULLET) trước các đề mục nhỏ: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
+5. CẤM TỰ BỊA NỘI DUNG TÍCH HỢP: Nếu giáo viên yêu cầu tích hợp Năng lực số (TT18), PHẢI chép y nguyên nội dung GV cung cấp, cấm bịa thêm LMS/Zoom nếu GV không chọn.
         """
         full_prompt = system_instruction + "\n\n" + prompt
         
         api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
         if hasattr(client, "generate_text"):
-            # Gọi phương thức generate_text đã bỏ system_instruction kwarg
             text_out = client.generate_text(full_prompt, model_name=model_name)
         else:
             response = client.models.generate_content(model=api_model, contents=full_prompt)
             text_out = getattr(response, "text", "").strip()
             
-        # Tiền xử lý: Cắt bỏ rác nếu AI vẫn cố tình chào hỏi
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
@@ -205,19 +202,19 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
     source = safe_text(noi_dung_chinh)[:20000] 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
     
-    hoa_nhap_block = f"- Dạy học hòa nhập: Đề xuất công cụ/phương pháp hỗ trợ riêng cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
-    ai_block = "- Tích hợp AI: Thiết kế hoạt động ứng dụng AI cho GV/HS." if tich_hop_ai else ""
+    hoa_nhap_block = f"- Dạy học hòa nhập: Đề xuất phương pháp riêng cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
+    ai_block = "- Tích hợp AI: Đề xuất hoạt động ứng dụng Trí tuệ Nhân tạo." if tich_hop_ai else ""
 
     nhiem_vu = f"""
 NHIỆM VỤ CỦA BẠN: {'CHỈNH SỬA GIÁO ÁN GỐC' if mode == 'chinh_sua' else 'SOẠN MỚI GIÁO ÁN TỪ SGK'}.
 1. Đọc kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức.
 2. Bài học kéo dài {so_tiet} tiết. Phân bổ rõ: ### TIẾT 1, ### TIẾT 2...
-3. Chi tiết hóa từng Hoạt động gồm đúng 4 bước KHÔNG DÙNG BULLET POINT:
+3. Chi tiết hóa từng Hoạt động gồm đúng 4 bước (CẤM DÙNG BULLET - * trước a,b,c,d):
    a) Mục tiêu: ...
    b) Nội dung: ...
-   c) Sản phẩm: ... (Ghi rõ lời giải/đáp án của các phương trình/công thức có trong nội dung)
+   c) Sản phẩm: ... 
    d) Tổ chức thực hiện: ...
-4. TẠO HẲN MỘT MỤC RIÊNG "III. TÍCH HỢP CHUYÊN SÂU" Ở ĐẦU BÀI VÀ TRÌNH BÀY:
+4. TẠO HẲN MỘT MỤC RIÊNG "III. TÍCH HỢP CHUYÊN SÂU" Ở ĐẦU BÀI VÀ CHÉP CHÍNH XÁC NỘI DUNG SAU VÀO (Không tự bịa thêm):
    {nls_str}
    {ai_block}
    {hoa_nhap_block}
