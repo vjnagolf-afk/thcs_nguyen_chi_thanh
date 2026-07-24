@@ -237,7 +237,7 @@ class WordExportEngine:
         doc.add_paragraph()
 # -*- coding: utf-8 -*-
 """
-Module: export/export_word.py - Phần 3
+Module: export/export_word.py - Phần 3 (Bản sửa lỗi thụt lề)
 Nhiệm vụ: Thiết lập cấu trúc lề trang, lắp ghép cây AST văn bản và xuất bản API.
 """
 
@@ -323,7 +323,7 @@ Nhiệm vụ: Thiết lập cấu trúc lề trang, lắp ghép cây AST văn b�
         return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
 
 # ==========================================
-# 3. PUBLIC API CŨ
+# 3. PUBLIC API CŨ (Đưa hẳn ra ngoài rìa class)
 # ==========================================
 def export_word(markdown_text: str) -> bytes:
     return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text)
