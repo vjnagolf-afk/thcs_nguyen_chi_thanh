@@ -184,6 +184,14 @@ st.sidebar.markdown(
 db_instance = st.session_state.get("db")
 ai_instance = st.session_state.get("ai_engine")
 
+# --- VƯỢT RÀO CHẶN GIAO DIỆN KHI CHƯA NHẬP KEY ---
+if ai_instance is None:
+    class DummyAIEngine:
+        def generate_text(self, prompt, model_name=""):
+            raise RuntimeError("Vui lòng nhập API Key hợp lệ ở menu bên trái để sử dụng tính năng này.")
+    ai_instance = DummyAIEngine()
+# --------------------------------------------------
+
 # ------------------------------------------------------------
 # 1. PHÂN HỆ HỖ TRỢ GIÁO VIÊN
 # ------------------------------------------------------------
