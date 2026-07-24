@@ -142,7 +142,6 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
 # II, III, IV. BỘ ĐỌC TÀI LIỆU NGUỒN CÓ CẤU TRÚC (PDF & DOCX)
 # ============================================================
 def parse_pdf_structured(uploaded_file, range_str=""):
-    """Trích xuất tài liệu PDF thành cấu trúc chuẩn bao gồm văn bản, hình ảnh, bảng và số trang."""
     if uploaded_file is None:
         return {"source_name": "unknown", "pages": []}
     
@@ -227,7 +226,6 @@ def parse_pdf_structured(uploaded_file, range_str=""):
     return {"source_name": file_name, "pages": pages_data}
 
 def parse_docx_structured(uploaded_file):
-    """Trích xuất tài liệu Word thành cấu trúc tương đương chuẩn."""
     if uploaded_file is None:
         return {"source_name": "unknown", "pages": []}
     
@@ -250,7 +248,6 @@ def parse_docx_structured(uploaded_file):
         
         for p in doc.paragraphs:
             if p.text.strip():
-                # Đã loại bỏ lỗi paragraphs_text.strip() gây crash list
                 paragraphs_text.append(p.text.strip())
                 
         for t_idx, table in enumerate(doc.tables):
@@ -352,20 +349,18 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
 4. QUY TẮC BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
    - a) Mục tiêu: Nêu cụ thể kiến thức, kỹ năng, năng lực đặc thù cần đạt.
    - b) Nội dung: Trích xuất chính xác câu hỏi, bài tập, biểu thức, bảng dữ liệu hoặc hình ảnh từ nguồn.
-   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể, quan sát hoặc đánh giá được (VD: "Phiếu học tập số 1 đã hoàn thành lời giải 3 bài toán", "Bảng số liệu đo đạc", "Kết quả tính toán biểu thức").
-   - d) Tổ chức thực hiện PHẢI ĐỦ 4 BƯỚC VÀ GẮN LIỀN NỘI DUNG NGUỒN:
-     *Chuyển giao nhiệm vụ học tập: Nêu rõ Giáo viên giao nhiệm vụ gì, quan sát hình ảnh/bảng nào, trả lời câu hỏi cụ thể nào.
-     *Thực hiện nhiệm vụ học tập: Nêu rõ Học sinh làm việc thế nào, thực hiện phép tính/thí nghiệm cụ thể nào.
-     *Báo cáo kết quả và thảo luận: Nêu rõ Học sinh báo cáo sản phẩm cụ thể nào, trình bày nội dung gì trên bảng.
-     *Kết luận: Chốt kiến thức chuyên môn cụ thể được suy ra từ SGK, kết quả thí nghiệm hoặc tính toán.
+   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể, quan sát hoặc đánh giá được.
+   - d) Tổ chức thực hiện PHẢI ĐỦ 4 BƯỚC VÀ GẮN LIỀN NỘI DUNG NGUỒN (Chuyển giao, Thực hiện, Báo cáo, Kết luận).
 
 5. KỶ LUẬT THÉP VỀ ĐỊNH DẠNG TOÁN/LÝ/HÓA HỌC:
-   - TUYỆT ĐỐI KHÔNG ĐƯỢC để mã LaTeX trần (Ví dụ LỖI SAI BỊ NGHIÊM CẤM: Chiết suất n21 = \frac{\sin i}{\sin r}, hay c = 3 \times 108 m/s).
-   - BẮT BUỘC BỌC MỌI BIẾN SỐ, CÔNG THỨC TRONG DẤU $...$ (inline) hoặc $$...$$ (block).
-   - ĐÚNG CHUẨN: Chiết suất $n_{21} = \frac{\sin i}{\sin r}$, vận tốc $c = 3 \times 10^8 \text{ m/s}$.
-   - Chỉ số dưới dùng dấu _ (VD: $n_{21}$, $H_2O$). Số mũ dùng dấu ^ (VD: $x^2$, $10^8$).
-   - Dùng đúng các hàm chuẩn (VD: \sin, \cos, \lim).
-   - Nếu có hình ảnh/bảng, tham chiếu đúng ID (VD: [TABLE - ID: TAB_P1_1]).
+   - BẠN ĐANG BỊ PHẠM LỖI RẤT NẶNG LÀ KHÔNG BỌC DẤU $ CHO CÔNG THỨC VÀ BIẾN SỐ.
+   - CẤM TUYỆT ĐỐI viết mã LaTeX trần mà không bọc trong dấu $...$.
+   - LỖI SAI BỊ CẤM: Chiết suất n21 = \frac{\sin i}{\sin r}
+   - BẮT BUỘC SỬA THÀNH: Chiết suất $n_{21} = \frac{\sin i}{\sin r}$
+   - LỖI SAI BỊ CẤM: 3 \times 108 m/s
+   - BẮT BUỘC SỬA THÀNH: $3 \times 10^8$ m/s
+   - TẤT CẢ các biến số đơn lẻ (i, r, I, S, n), công thức, phép toán đều phải BỌC TRONG DẤU $.
+   - Chỉ số dưới dùng dấu _ (VD: $H_2O$). Số mũ dùng dấu ^ (VD: $x^2$).
     """
     full_prompt = system_instruction + "\n\n" + prompt
 
@@ -407,6 +402,11 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
         
     text_out = text_out.replace("**", "")
+    
+    # Màng lọc Auto-Fix cứu hộ các công thức bị AI quên bọc dấu $
+    text_out = re.sub(r'(?<!\$)(?<!\\)(\\frac\s*\{[^{}]*\}\s*\{[^{}]*\})(?!\$)', r'$\1$', text_out)
+    text_out = re.sub(r'(?<!\$)(?<!\\)(\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}]*\})(?!\$)', r'$\1$', text_out)
+    
     text_out = re.sub(r'([^\n])\s*([a-d]\)\s+)', r'\1\n\n\2', text_out)
     text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao nhiệm vụ học tập|Thực hiện nhiệm vụ học tập|Báo cáo kết quả và thảo luận|Kết luận)[^:\n]*:)', r'\1\n\n\2', text_out)
     
@@ -414,7 +414,6 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
 
 
 def validate_khbd_result(text):
-    """Kiểm tra khắt khe chất lượng đầu ra của giáo án do AI sinh."""
     if not text or len(text) < 500:
         return False, "Nội dung giáo án quá ngắn hoặc trống."
         
@@ -454,8 +453,8 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
 
     nhiem_vu = f"""
 NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY SIÊU CHI TIẾT TỪ NGUỒN KIẾN THỨC CÓ CẤU TRÚC.
-1. BẮT BUỘC SỬ DỤNG DỮ LIỆU CỤ THỂ TỪ NGUỒN ([TEXT], [TABLE], [IMAGE], [FIGURE], [CHART]) DƯỚI ĐÂY. Tuyệt đối không tự bịa đặt hoặc dùng từ ngữ chung chung.
-2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn qua các hoạt động (Khởi động, Hình thành kiến thức mới, Luyện tập, Vận dụng).
+1. BẮT BUỘC SỬ DỤNG DỮ LIỆU CỤ THỂ TỪ NGUỒN DƯỚI ĐÂY. Tuyệt đối không tự bịa đặt hoặc dùng từ ngữ chung chung.
+2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn qua các hoạt động.
 3. DÀN Ý BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
 
 # TÊN BÀI HỌC: ...
@@ -476,10 +475,10 @@ III. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1 (hoặc các tiết tiếp theo)
 **Hoạt động 1: MỞ ĐẦU (hoặc HÌNH THÀNH KIẾN THỨC, LUYỆN TẬP, VẬN DỤNG)**
 a) Mục tiêu: ...
-b) Nội dung: [Trích xuất nguyên văn câu hỏi, ví dụ, bài toán hoặc tham chiếu bảng/hình ID từ nguồn]
-c) Sản phẩm: [Nêu rõ tên sản phẩm cụ thể: Phiếu học tập đã hoàn thành, bảng số liệu, kết quả tính toán, sơ đồ...]
+b) Nội dung: [Trích xuất nguyên văn câu hỏi, bài toán hoặc tham chiếu bảng/hình ID từ nguồn]
+c) Sản phẩm: [Nêu rõ tên sản phẩm cụ thể: Phiếu học tập đã hoàn thành, bảng số liệu, kết quả tính toán...]
 d) Tổ chức thực hiện: 
-*Chuyển giao nhiệm vụ học tập: [Mô tả chi tiết việc giao nhiệm vụ cụ thể, chỉ rõ câu hỏi hoặc ID đối tượng]
+*Chuyển giao nhiệm vụ học tập: [Mô tả chi tiết việc giao nhiệm vụ, chỉ rõ câu hỏi hoặc ID đối tượng]
 *Thực hiện nhiệm vụ học tập: [Mô tả chi tiết việc học sinh thực hiện, tính toán, đọc tài liệu]
 *Báo cáo kết quả và thảo luận: [Mô tả chi tiết việc báo cáo sản phẩm và tiêu chí nhận xét]
 *Kết luận: [Mô tả chi tiết nội dung kiến thức chuyên môn chốt lại bám sát nguồn]
