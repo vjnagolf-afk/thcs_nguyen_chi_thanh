@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHỐNG LƯỜI, ÉP XUỐNG DÒNG, FIX LỖI IMPORT)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TRỊ DỨT ĐIỂM BỆNH LƯỜI & LỖI TOÁN)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -11,6 +11,7 @@ import os
 import re
 import json
 import logging
+import base64
 import pandas as pd
 from docx import Document
 from pathlib import Path
@@ -213,7 +214,6 @@ def safe_text(value):
     text = re.sub(r"[ ]{2,}", " ", text)
     return text.strip()
 
-# ĐÃ KHÔI PHỤC LẠI HÀM KIỂM TRA CHẤT LƯỢNG FILE Ở ĐÂY
 def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     text = safe_text(text)
     chars = len(text)
@@ -225,11 +225,20 @@ def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
     content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
     extracted_text = ""
+    
     try:
         import fitz
         doc = fitz.open(stream=content, filetype="pdf")
         extracted_text = "\n\n".join([doc[i].get_text("text").strip() for i in range(len(doc))])
     except: pass
+
+    if len(extracted_text) < 100:
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(content))
+            extracted_text = "\n\n".join([p.extract_text().strip() for p in reader.pages if p.extract_text()])
+        except: pass
+        
     return safe_text(extracted_text)
 
 def read_docx_ordered(source):
@@ -247,28 +256,38 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
         if len(content) > 30: result.append(content)
     return safe_text("\n".join(result))
 
+# ============================================================
+# CƠ CHẾ GỌI AI THÔNG QUA LÕI HỆ THỐNG CŨ (AI ENGINE)
+# ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
-    if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI.")
+    """
+    Hàm gọi AI Engine, kèm theo logic gọt dũa Text Output nghiêm ngặt.
+    """
+    if client is None:
+        raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
         
     try:
         system_instruction = """
-[KỶ LUẬT ĐỊNH DẠNG VÀ CẤU TRÚC 5512 BẮT BUỘC - LÀM SAI SẼ BỊ PHẠT]:
-1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu bằng "# TÊN BÀI HỌC:".
-2. BẮT BUỘC ÉP XUỐNG DÒNG: Các mục a, b, c, d tuyệt đối không được viết liền nhau trên 1 dòng. Sau mỗi dấu hai chấm (:) hoặc hết một ý, phải XUỐNG DÒNG.
-Mẫu trình bày ĐÚNG:
-a) Mục tiêu: ...
-b) Nội dung: ...
-c) Sản phẩm: ...
-d) Tổ chức thực hiện: 
-3. TRONG MỤC TỔ CHỨC THỰC HIỆN: CẤM SỬ DỤNG DẤU CHẤM ĐEN (•). Chỉ được phép sử dụng dấu cộng (+) để bắt đầu:
-+ Bước 1: GV giao nhiệm vụ...
-+ Bước 2: HS thực hiện...
-+ Bước 3: Báo cáo thảo luận...
-+ Bước 4: Kết luận nhận định...
-4. CÔNG THỨC TOÁN HỌC: Giữ nguyên định dạng, tuyệt đối không được viết gãy (Ví dụ: phải viết đầy đủ là √(x+2) thay vì √).
+[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC 5512 - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
+1. BẠN LÀ MỘT CHUYÊN GIA SOẠN GIÁO ÁN CHI TIẾT. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu bằng "# TÊN BÀI HỌC:".
+2. CẤU TRÚC PHẢI ĐỦ 4 PHẦN LỚN: I. MỤC TIÊU, II. THIẾT BỊ DẠY HỌC, III. TÍCH HỢP CHUYÊN SÂU, IV. TIẾN TRÌNH DẠY HỌC.
+3. QUY TẮC CHỐNG LƯỜI BIẾNG (QUAN TRỌNG NHẤT):
+   - MẪU VIẾT SAI (BỊ CẤM): b) Nội dung: "Giải bài tập Luyện tập 1 SGK", "Học sinh tìm hiểu khái niệm". (Cách viết này quá chung chung, sẽ bị phạt).
+   - MẪU VIẾT ĐÚNG (BẮT BUỘC): 
+     + Ở mục "b) Nội dung": BẮT BUỘC CHÉP NGUYÊN VĂN ĐỀ BÀI, CÂU HỎI, KHÁI NIỆM TỪ TÀI LIỆU. (Ví dụ: "Tính giá trị của √(25) và √(49)").
+     + Ở mục "c) Sản phẩm": BẮT BUỘC TRÌNH BÀY RÕ ĐÁP ÁN, LỜI GIẢI CHI TIẾT. (Ví dụ: "√(25) = 5 vì 5² = 25 và 5 > 0").
+     + Ở mục "d) Tổ chức thực hiện": Ghi cụ thể lời nói của GV (Giao nhiệm vụ gì?) và hành động của HS.
+4. QUY TẮC XUỐNG DÒNG VÀ ĐỊNH DẠNG:
+   - Các mục a), b), c), d) phải nằm trên các dòng riêng biệt. KHÔNG ĐƯỢC viết liền nhau trên cùng một dòng.
+   - KHÔNG SỬ DỤNG DẤU CHẤM ĐEN (•). Chỉ sử dụng dấu cộng (+) để liệt kê các Bước 1, 2, 3, 4.
+5. QUY TẮC TOÁN HỌC (LỖI DẤU CĂN CỤT):
+   - KHÔNG DÙNG LaTeX ($). Dùng Unicode: √, ², ³.
+   - TUYỆT ĐỐI KHÔNG để dấu căn đứng một mình hoặc không có ngoặc. 
+   - ĐÚNG: √(x + 3), √(25). SAI: √x + 3, √ 25. Bắt buộc dùng ngoặc đơn () bao quanh biểu thức ngay sau dấu căn.
         """
         full_prompt = system_instruction + "\n\n" + prompt
         
+        # Gọi qua AI Engine của hệ thống
         if hasattr(client, "generate_text"):
             text_out = client.generate_text(full_prompt, model_name=model_name)
         elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
@@ -276,17 +295,24 @@ d) Tổ chức thực hiện:
             response = client.models.generate_content(model=api_model, contents=full_prompt)
             text_out = getattr(response, "text", "").strip()
         else:
-            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn.")
+            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
             
+        # ==========================================
+        # BỘ LỌC TỰ ĐỘNG LÀM SẠCH VĂN BẢN (POST-PROCESSING)
+        # ==========================================
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
-        # Xóa nốt dấu chấm đen nếu AI vẫn cứng đầu
+        # 1. Gọt sạch dấu chấm đen (•) và thay bằng dấu cộng (+)
         text_out = text_out.replace("•", "+")
+        
+        # 2. Ép xuống dòng bắt buộc trước a), b), c), d) nếu AI cố tình viết liền
+        text_out = re.sub(r'(?<!\n)\s*([a-d]\))', r'\n\1', text_out)
+            
         return text_out
     except Exception as e:
         logger.error(f"Lỗi gọi AI: {str(e)}")
-        raise RuntimeError(f"Lỗi kết nối AI: {str(e)}")
+        raise RuntimeError(f"Lỗi kết nối AI qua lõi hệ thống: {str(e)}")
 
 def validate_khbd_result(text):
     if len(text) < 500: return False, "Nội dung quá ngắn."
@@ -296,17 +322,20 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
     source = safe_text(noi_dung_chinh)[:20000] 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
     
-    hoa_nhap_block = f"- Dạy học hòa nhập: HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
-    ai_block = "- Tích hợp AI: Đề xuất hoạt động." if tich_hop_ai else ""
+    hoa_nhap_block = f"- Dạy học hòa nhập: Đề xuất phương pháp riêng cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
+    ai_block = "- Tích hợp AI: Đề xuất hoạt động ứng dụng Trí tuệ Nhân tạo." if tich_hop_ai else ""
 
     nhiem_vu = f"""
 NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY (GIÁO ÁN) SIÊU CHI TIẾT TỪ NGUỒN CUNG CẤP.
-- Bài học có {so_tiet} tiết. Phân bổ rải đều.
-- Trích xuất ĐẦY ĐỦ đề bài, công thức, ví dụ từ SGK. KHÔNG TÓM TẮT CHUNG CHUNG.
-- DÀN Ý BẮT BUỘC:
+1. ĐỌC KỸ NGUỒN KIẾN THỨC CỐT LÕI VÀ TRÍCH XUẤT NGUYÊN VĂN BÀI TẬP, LÝ THUYẾT VÀO GIÁO ÁN. TUYỆT ĐỐI KHÔNG TÓM TẮT CHUNG CHUNG.
+2. Bài học kéo dài {so_tiet} tiết. TRONG MỖI TIẾT, BẠN PHẢI TẠO RA ÍT NHẤT 2-3 HOẠT ĐỘNG (Ví dụ: Khởi động, Hình thành kiến thức, Luyện tập). KHÔNG ĐƯỢC GỘP CHUNG MỘT TIẾT THÀNH MỘT HOẠT ĐỘNG.
+3. DÀN Ý BẮT BUỘC PHẢI TUÂN THỦ (TRÌNH BÀY SIÊU CHI TIẾT THEO ĐÚNG FORMAT NÀY):
 
 # TÊN BÀI HỌC: ...
-I. MỤC TIÊU (1. Kiến thức, 2. Năng lực, 3. Phẩm chất)
+I. MỤC TIÊU
+1. Kiến thức
+2. Năng lực
+3. Phẩm chất
 II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
 III. TÍCH HỢP CHUYÊN SÂU
 {nls_str}
@@ -314,16 +343,19 @@ III. TÍCH HỢP CHUYÊN SÂU
 {hoa_nhap_block}
 IV. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1
-**Hoạt động 1: Khởi động (X phút)**
+**Hoạt động 1: Khởi động (Dự kiến: X phút)**
 a) Mục tiêu: ...
-b) Nội dung: ... (Ghi chi tiết câu hỏi)
-c) Sản phẩm: ... (Ghi chi tiết đáp án)
+b) Nội dung: [CHÉP NGUYÊN VĂN CÂU HỎI TỪ TÀI LIỆU VÀO ĐÂY]
+c) Sản phẩm: [CHÉP NGUYÊN VĂN ĐÁP ÁN, KẾT QUẢ VÀO ĐÂY]
 d) Tổ chức thực hiện: 
-+ Bước 1: GV giao nhiệm vụ...
-+ Bước 2: HS thực hiện...
-+ Bước 3: Báo cáo thảo luận...
-+ Bước 4: Kết luận nhận định...
++ Bước 1: GV giao nhiệm vụ: "..."
++ Bước 2: HS thực hiện: ...
++ Bước 3: Báo cáo thảo luận: ...
++ Bước 4: Kết luận nhận định: ...
 
-(Làm tương tự cho Hoạt động Hình thành kiến thức, Luyện tập, Vận dụng cho toàn bộ các tiết).
+**Hoạt động 2: Hình thành kiến thức mới (Dự kiến: X phút)**
+(Viết lặp lại đầy đủ a,b,c,d siêu chi tiết và BÊ NGUYÊN VĂN LÝ THUYẾT/VÍ DỤ VÀO NHƯ TRÊN)
+
+### TIẾT 2 ... (Lặp lại logic trên)
 """
     return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC ---\n{source}\n\n{ga_block}"
