@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẬP NHẬT TT18 & HÒA NHẬP)
+VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP OCR & TT18)
 FILE: views/xd_khbd_view.py
 ============================================================
 """
@@ -20,7 +20,8 @@ try:
         format_nls,
         build_prompt,
         generate_ai,
-        validate_khbd_result
+        validate_khbd_result,
+        diagnose_source_quality
     )
 except Exception as e:
     st.error(f"❌ Không thể nạp module logic: {e}")
@@ -30,13 +31,6 @@ try:
     from export.word_export_engine import WordExportEngine
 except Exception:
     WordExportEngine = None
-
-def _show_source_quality(text, title="Tài liệu SGK"):
-    chars = len(text)
-    if chars < 100:
-        st.error(f"❌ Lỗi: {title} không có chữ (Có thể là PDF scan ảnh). Thầy vui lòng dùng công cụ OCR để lấy chữ trước khi tải lên, hoặc tải file Word.")
-    else:
-        st.success(f"✅ Đã trích xuất thành công {chars:,} ký tự từ tài liệu tải lên.")
 
 def render_xd_khbd(ai_engine_client=None):
     init_session_state()
@@ -95,7 +89,6 @@ def render_xd_khbd(ai_engine_client=None):
                 ["Vận động", "Nghe", "Nói", "Nhìn", "Trí tuệ", "Tự kỷ / Tăng động (ADHD)", "Khác"], 
                 default=["Nhìn"]
             )
-            st.caption("AI sẽ tự động chèn thêm các hướng dẫn điều chỉnh dụng cụ, phương pháp riêng cho nhóm học sinh này trong Tiến trình.")
 
     tich_hop_nls = st.checkbox("💻 Tích hợp Năng lực số (Theo Thông tư 18)")
     if tich_hop_nls:
@@ -142,15 +135,22 @@ def render_xd_khbd(ai_engine_client=None):
             st.warning("⚠️ Vui lòng tải SGK / Tài liệu kiến thức lên (Chế độ Soạn mới).")
             st.stop()
 
-        with st.spinner("⏳ Siêu Trợ lý AI đang đọc tài liệu và phân bổ tiến trình sư phạm. Vui lòng chờ 30s - 1 phút..."):
+        with st.spinner("⏳ Đang quét tài liệu... (Nếu là ảnh Scan, AI Vision sẽ tự động nhận diện chữ, vui lòng đợi thêm 30s)"):
             try:
                 noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if file_sgk else ""
                 noi_dung_ga = read_multiple_files(file_ga) if mode == "chinh_sua" and file_ga else ""
                 
+                # Logic kiểm tra lỗi mới (đã gỡ bỏ hàm kiểm tra chặn lỗi cũ)
                 if mode == "tu_dong":
-                    _show_source_quality(noi_dung_chinh, "Tài liệu SGK")
+                    if "❌" in noi_dung_chinh:
+                        st.error(noi_dung_chinh)
+                        st.stop()
+                        
                     if len(noi_dung_chinh.strip()) < 100:
-                        st.stop() 
+                        st.error("❌ Hệ thống không thể đọc được nội dung chữ từ file này, và quá trình tự động quét ảnh OCR cũng thất bại (có thể do API Key chưa được nhập hoặc hết Quota). Thầy vui lòng nhập API Key cá nhân ở thanh bên trái để AI có thể đọc ảnh.")
+                        st.stop()
+                    else:
+                        st.success(f"✅ Đã trích xuất và bảo toàn thành công {len(noi_dung_chinh):,} ký tự từ tài liệu tải lên.")
 
                 thong_tin = f"- Khối: {khoi_lop}\n- Môn: {mon_hoc}\n- Tên bài: {ten_bai}\n- Số tiết: {so_tiet} tiết"
                 nls_str = format_nls() if tich_hop_nls else "Không yêu cầu."
@@ -206,7 +206,6 @@ def render_xd_khbd(ai_engine_client=None):
             if WordExportEngine:
                 with st.spinner("Đang render công thức Toán/Bảng biểu và xuất ra file Word chuẩn..."):
                     try:
-                        # Đã loại bỏ tham số template_path gây lỗi
                         if hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
                             word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'])
                     except Exception as e:
