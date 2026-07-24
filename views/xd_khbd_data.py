@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TT18 & KHÓA CỨNG TEMPLATE)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (ĐA TẦNG DỰ PHÒNG API & TEMPLATE)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -57,9 +57,6 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
-# ============================================================
-# KHÔI PHỤC FULL 100% TỪ ĐIỂN KHUNG NĂNG LỰC SỐ TT18
-# ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
@@ -244,9 +241,7 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
     return safe_text("\n".join(result))
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
-    if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
-    try:
-        system_instruction = """
+    system_instruction = """
 [KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
 1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
 2. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CẤU TRÚC TEMPLATE SAU (Không được thiếu chữ nào):
@@ -274,27 +269,81 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
    - BẮT BUỘC sử dụng chuẩn cú pháp LaTeX cho mọi công thức Toán, Vật lý, Hóa học.
    - Công thức inline bọc trong dấu `$`. VD: `$\sqrt{x}$`. 
    - Công thức block bọc trong dấu `$$`.
-        """
-        full_prompt = system_instruction + "\n\n" + prompt
-        
-        if hasattr(client, "generate_text"):
-            text_out = client.generate_text(full_prompt, model_name=model_name)
-        elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
-            api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-            response = client.models.generate_content(model=api_model, contents=full_prompt)
-            text_out = getattr(response, "text", "").strip()
-        else:
-            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
-            
-        if "# TÊN BÀI HỌC:" in text_out:
-            text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
-            
-        # Ép xuống dòng các mục a), b), c), d) nếu bị viết liền
-        text_out = re.sub(r'(?<!\n)\s*([a-d]\))', r'\n\1', text_out)
-        return text_out
+    """
+    full_prompt = system_instruction + "\n\n" + prompt
+
+    # ĐỊNH TUYẾN THÔNG MINH ĐA TẦNG DỰ PHÒNG
+    api_key = st.session_state.get("user_api_key", "")
+    if isinstance(api_key, str): api_key = api_key.strip()
+    if not api_key:
+        try: api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        except: pass
+    if not api_key:
+        try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
+        except: pass
+
+    text_out = ""
+    
+    # TẦNG 1: Thử gọi trực tiếp client truyền vào nếu không phải Dummy
+    try:
+        if client is not None and not isinstance(client, type(None)):
+            if hasattr(client, "generate_text") and "Dummy" not in type(client).__name__:
+                text_out = client.generate_text(full_prompt, model_name=model_name)
+            elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
+                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+                response = client.models.generate_content(model=api_model, contents=full_prompt)
+                text_out = getattr(response, "text", "").strip()
     except Exception as e:
-        logger.error(f"Lỗi gọi AI: {str(e)}")
-        raise RuntimeError(f"Lỗi kết nối AI qua lõi hệ thống: {str(e)}")
+        logger.warning(f"Client default generation failed: {e}")
+
+    # TẦNG 2: Nếu chưa có text và có API Key trực tiếp
+    if not text_out and api_key:
+        try:
+            if api_key.startswith("sk-") or "proj-" in api_key:
+                import openai
+                oai_client = openai.OpenAI(api_key=api_key)
+                gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
+                response = oai_client.chat.completions.create(
+                    model=gpt_model,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=8192
+                )
+                text_out = response.choices[0].message.content.strip()
+            else:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+                model = genai.GenerativeModel(model_name=api_model)
+                response = model.generate_content(full_prompt)
+                text_out = getattr(response, "text", "").strip()
+        except Exception as ex:
+            logger.warning(f"Direct API call failed: {ex}")
+
+    # TẦNG 3: Nếu vẫn trống, thử ép gọi Google/OpenAI qua biến môi trường hoặc thư viện mặc định
+    if not text_out:
+        try:
+            import google.generativeai as genai
+            # Thử tìm key ngầm trong môi trường
+            default_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
+            if default_key:
+                genai.configure(api_key=default_key)
+                model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                response = model.generate_content(full_prompt)
+                text_out = getattr(response, "text", "").strip()
+        except Exception as ex2:
+            logger.error(f"Fallback generation failed: {ex2}")
+
+    if not text_out:
+        raise RuntimeError("Không thể kết nối AI. Vui lòng nhập API Key hợp lệ ở menu bên trái!")
+
+    if "# TÊN BÀI HỌC:" in text_out:
+        text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
+        
+    text_out = re.sub(r'(?<!\n)\s*([a-d]\))', r'\n\1', text_out)
+    return text_out
 
 def validate_khbd_result(text):
     if len(text) < 500: return False, "Nội dung quá ngắn."
