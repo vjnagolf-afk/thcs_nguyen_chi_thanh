@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TRẢ VỀ LÕI AI ENGINE CỦA HỆ THỐNG)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TRẢ VỀ LÕI AI ENGINE 
+CỦA HỆ THỐNG)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
-
 import streamlit as st
 import os
 import re
@@ -16,18 +16,19 @@ from docx import Document
 from pathlib import Path
 from io import BytesIO
 
+# Khởi tạo bộ ghi log của hệ thống
 logger = logging.getLogger(__name__)
 
+# Hằng số cấu hình hệ thống
 NLS_GV_VAN_BAN_MAC_DINH = "Thông tư 18/2026/TT-BGDĐT"
-
 MODE_LABELS = {
     "chinh_sua": "Chỉnh sửa và nâng cấp giáo án gốc",
     "tu_dong": "Tự động soạn từ SGK",
 }
-
 MIN_SOURCE_CHARS = 100
 
 def init_session_state():
+    """Khởi tạo trạng thái phiên làm việc mặc định cho Streamlit nếu chưa tồn tại"""
     defaults = {
         "khbd_mode": "tu_dong",
         "khbd_result": None,
@@ -41,9 +42,11 @@ def init_session_state():
             st.session_state[key] = value
 
 def reset_ket_qua():
+    """Xóa kết quả giáo án hiện tại"""
     st.session_state["khbd_result"] = None
 
 def reset_toan_bo_khbd():
+    """Khôi phục toàn bộ trạng thái cấu hình về mặc định ban đầu"""
     st.session_state["khbd_result"] = None
     st.session_state["khbd_nls_list"] = []
     st.session_state["khbd_hoat_dong_list"] = []
@@ -52,10 +55,10 @@ def reset_toan_bo_khbd():
     st.session_state["khbd_processing"] = False
 
 def set_mode(mode: str):
+    """Đặt chế độ soạn thảo (Tự động hoặc Chỉnh sửa)"""
     if mode not in MODE_LABELS:
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
-
 # ============================================================
 # TỪ ĐIỂN KHUNG NĂNG LỰC SỐ FULL (Theo Thông tư 18/2026/TT-BGDĐT)
 # ============================================================
@@ -182,20 +185,28 @@ KHUNG_NLS_HS = {
         "2.1. Tương tác qua môi trường số": {"Mức 1": "Biết sử dụng email, chat để trao đổi học tập.", "Mức 2": "Biết sử dụng nền tảng làm việc nhóm (Padlet, Azota...)."}
     }
 }
+def get_nls_framework(loai_khung): 
+    return KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
 
-def get_nls_framework(loai_khung): return KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
-def get_nls_domains(loai_khung): return list(get_nls_framework(loai_khung).keys())
-def get_nls_components(loai_khung, linh_vuc): return list(get_nls_framework(loai_khung).get(linh_vuc, {}).keys())
-def get_nls_levels(loai_khung, linh_vuc, thanh_phan): return list(get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).keys())
-def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do): return get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).get(muc_do, "")
+def get_nls_domains(loai_khung): 
+    return list(get_nls_framework(loai_khung).keys())
+
+def get_nls_components(loai_khung, linh_vuc): 
+    return list(get_nls_framework(loai_khung).get(linh_vuc, {}).keys())
+
+def get_nls_levels(loai_khung, linh_vuc, thanh_phan): 
+    return list(get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).keys())
+
+def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do): 
+    return get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).get(muc_do, "")
 
 def add_nls():
     linh_vuc = safe_text(st.session_state.get("khbd_nls_linh_vuc", ""))
     thanh_phan = safe_text(st.session_state.get("khbd_nls_thanh_phan", ""))
     muc_do = safe_text(st.session_state.get("khbd_nls_muc_do", ""))
     noi_dung = safe_text(st.session_state.get("khbd_nls_noi_dung", ""))
-    if not noi_dung: return
-
+    if not noi_dung: 
+        return
     van_ban = NLS_GV_VAN_BAN_MAC_DINH if st.session_state.get("khbd_loai_khung_nls") == "Giáo viên (Thông tư 18)" else "Khung DigComp"
     item = {"van_ban": van_ban, "linh_vuc": linh_vuc, "thanh_phan": thanh_phan, "muc_do": muc_do, "noi_dung": noi_dung}
     if item not in st.session_state.khbd_nls_list:
@@ -203,14 +214,16 @@ def add_nls():
 
 def format_nls():
     items = st.session_state.khbd_nls_list
-    if not items: return "Không yêu cầu tích hợp Năng lực số chuyên biệt."
+    if not items: 
+        return "Không yêu cầu tích hợp Năng lực số chuyên biệt."
     result = []
     for index, item in enumerate(items, start=1):
         result.append(f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}")
     return "\n".join(result)
-
 def safe_text(value):
-    if value is None: return ""
+    """Chuẩn hóa chuỗi văn bản, xóa các ký tự đặc biệt vô hình gây lỗi file Word"""
+    if value is None: 
+        return ""
     text = str(value).replace("\x00", "").replace("\ufeff", "").replace("\u200b", "")
     text = text.replace("\r", "").replace("\t", " ")
     text = re.sub(r"[ ]{2,}", " ", text)
@@ -218,6 +231,7 @@ def safe_text(value):
     return text.strip()
 
 def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
+    """Đánh giá chất lượng nội dung chữ thô đầu vào"""
     text = safe_text(text)
     chars = len(text)
     if chars < MIN_SOURCE_CHARS:
@@ -225,7 +239,9 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
 def read_pdf(uploaded_file, range_str=""):
-    if uploaded_file is None: return ""
+    """Đọc dữ liệu văn bản từ tập tin PDF với cơ chế dự phòng an toàn"""
+    if uploaded_file is None: 
+        return ""
     content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
     extracted_text = ""
     
@@ -233,24 +249,30 @@ def read_pdf(uploaded_file, range_str=""):
         import fitz
         doc = fitz.open(stream=content, filetype="pdf")
         extracted_text = "\n\n".join([doc[i].get_text("text").strip() for i in range(len(doc))])
-    except: pass
-
+    except Exception as e:
+        logger.warning(f"Không thể đọc PDF bằng PyMuPDF (fitz): {str(e)}. Thử chuyển sang pypdf...")
+        
     if len(extracted_text) < 100:
         try:
             from pypdf import PdfReader
             reader = PdfReader(BytesIO(content))
             extracted_text = "\n\n".join([p.extract_text().strip() for p in reader.pages if p.extract_text()])
-        except: pass
-        
+        except Exception as e:
+            logger.error(f"Thất bại hoàn toàn khi đọc PDF bằng cả 2 thư viện: {str(e)}")
+            
     return safe_text(extracted_text)
 
 def read_docx_ordered(source):
+    """Trích xuất tuần tự văn bản từ file Word (.docx)"""
     try:
         doc = Document(BytesIO(source.getvalue())) if hasattr(source, "getvalue") else Document(source)
         return safe_text("\n".join([p.text for p in doc.paragraphs]))
-    except: return ""
+    except Exception as e:
+        logger.error(f"Lỗi khi xử lý đọc dữ liệu file DOCX: {str(e)}")
+        return ""
 
 def read_multiple_files(files, range_str="", is_pdf_target=False):
+    """Hợp nhất nội dung văn bản thô từ danh sách nhiều file khác nhau"""
     result = []
     for f in files or []:
         file_name = getattr(f, 'name', '').lower()
@@ -258,22 +280,21 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
             content = read_pdf(f)
         else:
             content = read_docx_ordered(f)
-            
+        
         if len(content) > 30: 
             result.append(content)
     return safe_text("\n".join(result))
-
 # ============================================================
 # CƠ CHẾ GỌI AI THÔNG QUA LÕI HỆ THỐNG CŨ (AI ENGINE)
 # ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     """
-    Hàm này được thiết kế trả lại hoàn toàn quyền kiểm soát API Key và Request mạng 
-    cho file `utils/ai_engine.py` của hệ thống để đảm bảo không xảy ra xung đột.
+    Hàm giao tiếp với AI Core. Chuyển quyền quản lý mạng và API Key
+    cho file `utils/ai_engine.py` của hệ thống để tránh xung đột cấu hình.
     """
     if client is None:
         raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
-        
+    
     try:
         system_instruction = """
 [QUY TẮC ĐỊNH DẠNG BẮT BUỘC - KHÔNG ĐƯỢC VI PHẠM]:
@@ -282,10 +303,10 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
 3. CÔNG THỨC TOÁN HỌC: Dùng ký tự Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng cú pháp LaTeX (như $ \sqrt{} $) vì file Word không hỗ trợ biên dịch mã.
 4. CẤM DÙNG DẤU CHẤM ĐEN (BULLET) trước các đề mục nhỏ: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
 5. CẤM TỰ BỊA NỘI DUNG TÍCH HỢP: Nếu giáo viên yêu cầu tích hợp Năng lực số (TT18), PHẢI chép y nguyên nội dung GV cung cấp.
-        """
+"""
         full_prompt = system_instruction + "\n\n" + prompt
         
-        # CHỈ GỌI THÔNG QUA OBJECT CLIENT ĐƯỢC APP.PY TRUYỀN VÀO
+        # Kiểm tra phương thức khả dụng trên Object Client được truyền vào
         if hasattr(client, "generate_text"):
             text_out = client.generate_text(full_prompt, model_name=model_name)
         elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
@@ -293,8 +314,8 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
             response = client.models.generate_content(model=api_model, contents=full_prompt)
             text_out = getattr(response, "text", "").strip()
         else:
-            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
-            
+            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn định dạng lõi của hệ thống.")
+        
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
@@ -304,28 +325,31 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         raise RuntimeError(f"Lỗi kết nối AI qua lõi hệ thống: {str(e)}")
 
 def validate_khbd_result(text):
-    if len(text) < 500: return False, "Nội dung quá ngắn."
+    """Kiểm tra độ dài hợp lệ tối thiểu của giáo án trả về từ AI"""
+    if len(text) < 500: 
+        return False, "Nội dung quá ngắn."
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:20000] 
-    ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
+    """Cấu trúc hóa toàn bộ văn cảnh (Context) và Nhiệm vụ thành Prompt gửi đi"""
+    source = safe_text(noi_dung_chinh)[:35000] # Hạn mức ký tự ngữ cảnh tối ưu cho các dòng LLM thế hệ mới
+    ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:15000]}\n" if mode == "chinh_sua" else ""
     
     hoa_nhap_block = f"- Dạy học hòa nhập: Đề xuất phương pháp riêng cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
     ai_block = "- Tích hợp AI: Đề xuất hoạt động ứng dụng Trí tuệ Nhân tạo." if tich_hop_ai else ""
-
+    
     nhiem_vu = f"""
 NHIỆM VỤ CỦA BẠN: {'CHỈNH SỬA GIÁO ÁN GỐC' if mode == 'chinh_sua' else 'SOẠN MỚI GIÁO ÁN TỪ SGK'}.
 1. Đọc kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức.
 2. Bài học kéo dài {so_tiet} tiết. Phân bổ rõ: ### TIẾT 1, ### TIẾT 2...
 3. Chi tiết hóa từng Hoạt động gồm đúng 4 bước (CẤM DÙNG BULLET - * trước a,b,c,d):
-   a) Mục tiêu: ...
-   b) Nội dung: ...
-   c) Sản phẩm: ... 
-   d) Tổ chức thực hiện: ...
+ a) Mục tiêu: ...
+ b) Nội dung: ...
+ c) Sản phẩm: ... 
+ d) Tổ chức thực hiện: ...
 4. TẠO HẲN MỘT MỤC RIÊNG "III. TÍCH HỢP CHUYÊN SÂU" Ở ĐẦU BÀI VÀ CHÉP CHÍNH XÁC NỘI DUNG SAU VÀO (Không tự bịa thêm):
-   {nls_str}
-   {ai_block}
-   {hoa_nhap_block}
+ {nls_str}
+ {ai_block}
+ {hoa_nhap_block}
 """
     return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC ---\n{source}\n\n{ga_block}"
