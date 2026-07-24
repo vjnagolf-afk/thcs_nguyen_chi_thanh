@@ -1,37 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Module: export/word_math.py
-Nhiệm vụ: 
-- Chuyển đổi công thức Toán, Lý, Hóa (LaTeX) sang định dạng XML Office Math (OMML).
-- Đảm bảo không vỡ font chữ, hiển thị phân số dạng đứng chuyên nghiệp.
-- Tích hợp cơ chế dự phòng an toàn chống sập ứng dụng (Crash-safe Fallback).
+Module: export/word_math.py - Đoạn 1/2
+Nhiệm vụ: Cấu hình bộ chuẩn hóa ký hiệu khoa học bằng Unicode, không import thư viện ngoài ở đầu file.
 """
 
-import logging
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# Khởi tạo logger để theo dõi trạng thái hệ thống
-logger = logging.getLogger("WordMath")
-
-# Kiểm tra động môi trường để nạp bộ dịch mã toán học
-try:
-    import latex2mathml.converter
-    HAS_LATEX_CONVERTER = True
-except ImportError:
-    logger.warning(
-        "🚨 CẢNH BÁO: Thư viện 'latex2mathml' chưa được cài đặt trong môi trường hiện tại! "
-        "Hệ thống tự động kích hoạt chế độ render Text khoa học dự phòng (Safe Fallback)."
-    )
-    HAS_LATEX_CONVERTER = False
-
-
 class ScienceNormalizer:
-    """
-    Bộ chuẩn hóa và dịch dịch biểu thức khoa học.
-    Hỗ trợ xử lý các ký tự, phương trình phản ứng hóa học đặc trưng của chương trình Phổ thông mới.
-    """
-    
+    """Bộ chuẩn hóa và dịch nhanh ký hiệu khoa học Phổ thông mới sang Unicode."""
     MAP = {
         r'\perp': '⊥', r'\circ': '°', r'\neq': '≠', r'\ne': '≠', 
         r'\leq': '≤', r'\le': '≤', r'\geq': '≥', r'\ge': '≥', 
@@ -44,12 +21,13 @@ class ScienceNormalizer:
 
     @classmethod
     def clean_and_replace_symbols(cls, latex_str: str) -> str:
-        """
-        Dọn dẹp ký tự thừa và ánh xạ nhanh các ký hiệu khoa học phổ thông 
-        giúp hiển thị rõ ràng trên môi trường văn bản Word.
-        """
         if not latex_str:
             return ""
+        cleaned = latex_str.replace('$', '').replace(r'\(', '').replace(r'\)', '').strip()
+        for pattern, symbol in cls.MAP.items():
+            cleaned = cleaned.replace(pattern, symbol)
+        return cleaned
+
         
         # Loại bỏ các cặp dấu đô-la hoặc ngoặc bao bọc toán học inline
         cleaned = latex_str.replace('$', '').replace(r'\(', '').replace(r'\)', '').strip()
