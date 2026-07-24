@@ -154,7 +154,6 @@ def parse_pdf_structured(uploaded_file, range_str=""):
         import fitz  # PyMuPDF
         doc = fitz.open(stream=content, filetype="pdf")
         
-        # Xử lý dải trang nếu có (VD: "45-48")
         target_pages = set()
         if range_str.strip():
             for part in range_str.split(','):
@@ -177,7 +176,6 @@ def parse_pdf_structured(uploaded_file, range_str=""):
             page = doc[i]
             page_text = safe_text(page.get_text("text"))
             
-            # Trích xuất hình ảnh nhúng
             page_images = []
             image_list = page.get_images(full=True)
             for img_idx, img in enumerate(image_list):
@@ -187,7 +185,6 @@ def parse_pdf_structured(uploaded_file, range_str=""):
                     image_bytes = base_image["image"]
                     image_ext = base_image["ext"]
                     image_id = f"IMG_P{i+1}_{img_idx+1}"
-                    # Lưu base64 để module xuất Word hoặc hiển thị có thể sử dụng
                     b64_str = base64.b64encode(image_bytes).decode("utf-8")
                     page_images.append({
                         "id": image_id,
@@ -198,7 +195,6 @@ def parse_pdf_structured(uploaded_file, range_str=""):
                 except:
                     pass
                     
-            # Trích xuất bảng (Sử dụng tính năng tìm bảng của PyMuPDF nếu hỗ trợ, hoặc phân tích cơ bản)
             page_tables = []
             try:
                 tabs = page.find_tables()
@@ -279,7 +275,6 @@ def parse_docx_structured(uploaded_file):
 # V. XÂY DỰNG NGUỒN KIẾN THỨC TRUNG GIAN CHO AI
 # ============================================================
 def build_intermediate_knowledge_source(structured_data):
-    """Tổng hợp dữ liệu cấu trúc thành nguồn kiến thức định dạng chuẩn [TEXT], [TABLE], [IMAGE], [FIGURE], [CHART]."""
     if not structured_data or not structured_data.get("pages"):
         return "Không có dữ liệu nguồn."
         
@@ -287,27 +282,18 @@ def build_intermediate_knowledge_source(structured_data):
     for page in structured_data["pages"]:
         p_num = page["page_number"]
         source_lines.append(f"=== TRANG {p_num} ===")
-        
-        # Văn bản
         if page["text"]:
             source_lines.append(f"[TEXT - Trang {p_num}]\n{page['text']}")
-            
-        # Bảng
         for tab in page.get("tables", []):
             tab_id = tab["id"]
             headers_str = " | ".join(tab["headers"])
             rows_str = "\n".join([" | ".join(r) for r in tab["rows"]])
             source_lines.append(f"[TABLE - ID: {tab_id} - Trang {p_num}]\nHeaders: {headers_str}\nRows:\n{rows_str}")
-            
-        # Hình ảnh
         for img in page.get("images", []):
             img_id = img["id"]
             source_lines.append(f"[IMAGE - ID: {img_id} - Trang {p_num} (Hình ảnh nhúng tài liệu)]")
-            
-        # Hình vẽ / Đồ thị
         for fig in page.get("figures", []):
             source_lines.append(f"[FIGURE - ID: {fig.get('id')} - Trang {p_num}]: {fig.get('description', '')}")
-            
         for chart in page.get("charts", []):
             source_lines.append(f"[CHART - ID: {chart.get('id')} - Trang {p_num}]: {chart.get('description', '')}")
             
@@ -356,14 +342,21 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
    - "Câu trả lời của học sinh."
 4. QUY TẮC BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
    - a) Mục tiêu: Nêu cụ thể kiến thức, kỹ năng, năng lực đặc thù cần đạt.
-   - b) Nội dung: Trích xuất chính xác câu hỏi, bài tập, biểu thức, bảng dữ liệu hoặc hình ảnh từ nguồn kiến thức.
-   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể, quan sát hoặc đánh giá được (Ví dụ: "Phiếu học tập số 1 đã hoàn thành lời giải 3 bài toán căn thức", "Bảng số liệu đo đạc thí nghiệm vật lý", "Sơ đồ tư duy phân loại hợp chất vô cơ", "Kết quả tính toán biểu thức đại số").
+   - b) Nội dung: Trích xuất chính xác câu hỏi, bài tập, biểu thức, bảng dữ liệu hoặc hình ảnh từ nguồn.
+   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể, quan sát hoặc đánh giá được (VD: "Phiếu học tập số 1 đã hoàn thành lời giải 3 bài toán", "Bảng số liệu đo đạc", "Kết quả tính toán biểu thức").
    - d) Tổ chức thực hiện PHẢI ĐỦ 4 BƯỚC VÀ GẮN LIỀN NỘI DUNG NGUỒN:
-     *Chuyển giao nhiệm vụ học tập: Nêu rõ Giáo viên giao nhiệm vụ gì, yêu cầu học sinh đọc phần nào, quan sát hình ảnh/bảng [ID] nào, trả lời câu hỏi cụ thể nào.
-     *Thực hiện nhiệm vụ học tập: Nêu rõ Học sinh làm việc cá nhân hay nhóm, đọc tài liệu trang mấy, thực hiện phép tính/thao tác/thí nghiệm cụ thể nào.
-     *Báo cáo kết quả và thảo luận: Nêu rõ Học sinh/đại diện nhóm báo cáo sản phẩm cụ thể nào, trình bày nội dung gì trên bảng, các nhóm khác nhận xét theo tiêu chí cụ thể nào.
-     *Kết luận: Chốt kiến thức chuyên môn cụ thể được suy ra từ nội dung SGK, kết quả thí nghiệm hoặc tính toán, tuyệt đối không viết kết luận chung chung.
-5. ĐỊNH DẠNG TOÁN HỌC & HÓA HỌC: Sử dụng chuẩn LaTeX chính xác (ví dụ: $\sqrt{x+1}$, $\frac{a}{b}$, $x^2$, $H_2O$). Nếu hoạt động sử dụng bảng hoặc hình ảnh từ nguồn, bắt buộc phải tham chiếu đúng ID (VD: [TABLE - ID: TAB_P1_1] hoặc [IMAGE - ID: IMG_P2_1]).
+     *Chuyển giao nhiệm vụ học tập: Nêu rõ Giáo viên giao nhiệm vụ gì, quan sát hình ảnh/bảng nào, trả lời câu hỏi cụ thể nào.
+     *Thực hiện nhiệm vụ học tập: Nêu rõ Học sinh làm việc thế nào, thực hiện phép tính/thí nghiệm cụ thể nào.
+     *Báo cáo kết quả và thảo luận: Nêu rõ Học sinh báo cáo sản phẩm cụ thể nào, trình bày nội dung gì trên bảng.
+     *Kết luận: Chốt kiến thức chuyên môn cụ thể được suy ra từ SGK, kết quả thí nghiệm hoặc tính toán.
+
+5. KỶ LUẬT THÉP VỀ ĐỊNH DẠNG TOÁN/LÝ/HÓA HỌC:
+   - TUYỆT ĐỐI KHÔNG ĐƯỢC để mã LaTeX trần (Ví dụ LỖI SAI BỊ NGHIÊM CẤM: Chiết suất n21 = \frac{\sin i}{\sin r}, hay c = 3 \times 108 m/s).
+   - BẮT BUỘC BỌC MỌI BIẾN SỐ, CÔNG THỨC TRONG DẤU $...$ (inline) hoặc $$...$$ (block).
+   - ĐÚNG CHUẨN: Chiết suất $n_{21} = \frac{\sin i}{\sin r}$, vận tốc $c = 3 \times 10^8 \text{ m/s}$.
+   - Chỉ số dưới dùng dấu _ (VD: $n_{21}$, $H_2O$). Số mũ dùng dấu ^ (VD: $x^2$, $10^8$).
+   - Dùng đúng các hàm chuẩn (VD: \sin, \cos, \lim).
+   - Nếu có hình ảnh/bảng, tham chiếu đúng ID (VD: [TABLE - ID: TAB_P1_1]).
     """
     full_prompt = system_instruction + "\n\n" + prompt
 
@@ -411,21 +404,15 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
     return text_out
 
 
-# ============================================================
-# VII. NÂNG CẤP BỘ KIỂM TRA ĐẦU RA (VALIDATE KHBD RESULT)
-# ============================================================
 def validate_khbd_result(text):
     """Kiểm tra khắt khe chất lượng đầu ra của giáo án do AI sinh."""
     if not text or len(text) < 500:
         return False, "Nội dung giáo án quá ngắn hoặc trống."
         
     text_lower = text.lower()
-    
-    # 1. Kiểm tra sự hiện diện của mục c) Sản phẩm
     if "c) sản phẩm:" not in text_lower and "sản phẩm:" not in text_lower:
         return False, "Thiếu mục c) Sản phẩm trong các hoạt động dạy học."
         
-    # 2. Kiểm tra từ ngữ chung chung bị cấm
     forbidden_phrases = [
         "học sinh thực hiện nhiệm vụ học tập theo hướng dẫn",
         "học sinh thảo luận và trình bày kết quả",
@@ -437,7 +424,6 @@ def validate_khbd_result(text):
         if phrase in text_lower:
             return False, f"Giáo án chứa câu văn chung chung bị cấm: '{phrase}'."
             
-    # 3. Kiểm tra 4 bước tổ chức thực hiện
     required_steps = [
         "chuyển giao nhiệm vụ học tập",
         "thực hiện nhiệm vụ học tập",
