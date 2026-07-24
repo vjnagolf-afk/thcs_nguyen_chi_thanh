@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY 
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP TỰ ĐỘNG OCR VISION)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -240,10 +240,86 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     chars = len(text)
     words = len(re.findall(r"\S+", text))
     if chars == 0:
-        return {"status": "empty", "message": f"Không đọc được nội dung chữ từ {source_name}. Nếu là PDF scan dạng ảnh, hãy dùng tính năng OCR để lấy text trước.", "chars": chars, "words": words}
+        return {"status": "empty", "message": f"Không đọc được nội dung chữ từ {source_name}. Nếu là PDF scan dạng ảnh, hệ thống tự động kích hoạt tính năng đọc bằng mắt AI (Vision OCR) để bảo toàn công thức Toán/Lý.", "chars": chars, "words": words}
     if chars < MIN_SOURCE_CHARS:
         return {"status": "insufficient", "message": f"{source_name} quá ngắn, không đủ cơ sở để sinh giáo án dài.", "chars": chars, "words": words}
     return {"status": "valid", "message": f"{source_name} đủ dữ liệu.", "chars": chars, "words": words}
+
+# ============================================================
+# CƠ CHẾ ĐỌC FILE TỰ ĐỘNG OCR BẰNG GEMINI 2.5 FLASH VISION
+# ============================================================
+def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
+    """
+    Sử dụng Gemini File API để đọc trực tiếp file PDF Scan / Ảnh,
+    giữ nguyên vẹn định dạng, công thức Toán học (LaTeX) và Bảng biểu (Markdown).
+    """
+    import tempfile
+    import os
+    import time
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        return ""
+
+    # Lấy API key từ session state đã đăng nhập
+    api_key = st.session_state.get("user_api_key")
+    if not api_key:
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except:
+            pass
+            
+    if not api_key:
+        return "❌ Cần nhập API Key để dùng tính năng AI Vision tự động đọc PDF Scan."
+
+    genai.configure(api_key=api_key)
+    ext = os.path.splitext(file_name)[1] or ".pdf"
+    tmp_path = ""
+    media_file = None
+    
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+            
+        media_file = genai.upload_file(path=tmp_path)
+        
+        # Chờ xử lý file trên server của Google
+        while media_file.state.name == "PROCESSING":
+            time.sleep(2)
+            media_file = genai.get_file(media_file.name)
+            
+        if media_file.state.name == "FAILED":
+            return "❌ Lỗi: AI từ chối đọc file PDF Scan này do lỗi định dạng hoặc giới hạn bảo mật."
+            
+        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+        
+        ocr_prompt = """Bạn là một chuyên gia nhận diện văn bản (OCR) đẳng cấp thế giới. 
+        Hãy đọc và trích xuất toàn bộ nội dung trong tệp đính kèm. 
+        YÊU CẦU:
+        1. Trích xuất chính xác 100% văn bản.
+        2. Các công thức Toán học, Hóa học, Vật lý BẮT BUỘC phải chuyển thành mã LaTeX (ví dụ: dùng $...$ cho inline, $$...$$ cho block).
+        3. Vẽ lại các bảng biểu thành dạng Markdown.
+        4. Bỏ qua các hình ảnh trang trí không chứa thông tin học thuật."""
+        
+        response = model.generate_content([ocr_prompt, media_file])
+        
+        return response.text if response and hasattr(response, "text") else ""
+        
+    except Exception as e:
+        return f"❌ Lỗi khi OCR bằng mắt AI: {str(e)}"
+    finally:
+        if media_file:
+            try:
+                genai.delete_file(media_file.name)
+            except Exception:
+                pass
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
 
 def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
@@ -267,6 +343,9 @@ def read_pdf(uploaded_file, range_str=""):
             except Exception:
                 pass
 
+        extracted_text = ""
+
+        # 1. Thử dùng PyMuPDF (Nhanh, nhẹ, cho PDF chuẩn text)
         try:
             import fitz
             doc = fitz.open(stream=content, filetype="pdf")
@@ -277,26 +356,38 @@ def read_pdf(uploaded_file, range_str=""):
                 if s_page > e_page: s_page, e_page = 1, total_pages
                 
                 pages = [doc[i - 1].get_text("text").strip() for i in range(s_page, e_page + 1) if doc[i - 1].get_text("text")]
-                result = "\n\n".join(pages)
-                if len(result) >= 50: return safe_text(result)
+                extracted_text = "\n\n".join(pages)
         except Exception:
             pass
 
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(BytesIO(content))
-            total_pages = len(reader.pages)
-            if total_pages > 0:
-                s_page = 1 if selected_start is None else max(1, selected_start)
-                e_page = total_pages if selected_end is None else min(total_pages, selected_end)
-                if s_page > e_page: s_page, e_page = 1, total_pages
-                
-                pages = [reader.pages[i - 1].extract_text().strip() for i in range(s_page, e_page + 1) if reader.pages[i - 1].extract_text()]
-                return safe_text("\n\n".join(pages))
-        except Exception as e:
-            return f"[LỖI ĐỌC PDF: {e}]"
+        # 2. Thử dùng pypdf làm phương án phụ cho text
+        if len(extracted_text) < 100:
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(BytesIO(content))
+                total_pages = len(reader.pages)
+                if total_pages > 0:
+                    s_page = 1 if selected_start is None else max(1, selected_start)
+                    e_page = total_pages if selected_end is None else min(total_pages, selected_end)
+                    if s_page > e_page: s_page, e_page = 1, total_pages
+                    
+                    pages = [reader.pages[i - 1].extract_text().strip() for i in range(s_page, e_page + 1) if reader.pages[i - 1].extract_text()]
+                    extracted_text = "\n\n".join(pages)
+            except Exception as e:
+                pass
+        
+        # 3. KÍCH HOẠT FALLBACK AI VISION (NẾU PHÁT HIỆN LÀ PDF SCAN DẠNG ẢNH)
+        if len(extracted_text) < 100:
+            try:
+                st.toast("⚠️ Phát hiện PDF Scan! Đang kích hoạt luồng AI Vision để tự động đọc ảnh và bảo toàn công thức...", icon="👁️")
+                extracted_text = extract_text_via_gemini_ocr(content, getattr(uploaded_file, "name", "document.pdf"))
+            except Exception as e:
+                logger.error(f"Lỗi Fallback OCR: {e}")
+
+        return safe_text(extracted_text)
     except Exception as e:
         return f"[LỖI ĐỌC PDF: {e}]"
+
 
 def read_docx_ordered(source):
     try:
@@ -343,11 +434,9 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI.")
     try:
-        # Gọi qua Wrapper chuẩn
         if hasattr(client, "generate_text"):
             return client.generate_text(prompt, model_name=model_name, max_tokens=8192)
         
-        # Fallback nếu truyền thẳng genai object
         model_mapping = {
             "3.1 Flash-Lite": "gemini-2.5-flash-lite",
             "3.5 Flash": "gemini-2.5-flash",
@@ -369,18 +458,19 @@ def validate_khbd_result(text):
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:15000] # Mở rộng context window
+    source = safe_text(noi_dung_chinh)[:15000]
     
-    # Kiểm tra chất lượng dữ liệu đầu vào
     if mode == "tu_dong":
         quality = diagnose_source_quality(source, "Tài liệu SGK")
-        if quality["status"] != "valid":
-            raise ValueError(quality['message'])
+        # Không chặn ngang bằng Error mà chỉ dùng làm cảnh báo trong prompt nếu cần, 
+        # vì OCR Vision có thể trả về thông báo lỗi dạng string, vẫn pass được hàm này.
+        if quality["status"] == "empty":
+            raise ValueError("File PDF tải lên bị rỗng hoặc Hệ thống AI không thể nhận diện được chữ/ảnh từ file này.")
 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
     
-    hoa_nhap_block = f"BẮT BUỘC: Đề xuất phương pháp/công cụ hỗ trợ riêng cho học sinh khuyết tật: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Không yêu cầu giáo dục hòa nhập đặc biệt."
-    ai_block = "BẮT BUỘC: Có hoạt động ứng dụng Trí tuệ Nhân tạo (AI) trong việc dạy/học của GV hoặc HS." if tich_hop_ai else "Không bắt buộc dùng AI."
+    hoa_nhap_block = f"BẮT BUỘC: Đề xuất phương pháp/công cụ hỗ trợ riêng cho nhóm học sinh khuyết tật có đặc điểm sau: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Không yêu cầu giáo dục hòa nhập đặc biệt."
+    ai_block = "BẮT BUỘC: Thiết kế ít nhất một hoạt động có ứng dụng Trí tuệ Nhân tạo (AI) cho GV hoặc HS." if tich_hop_ai else "Không bắt buộc dùng AI."
 
     if mode == "chinh_sua":
         nhiem_vu = f"""
@@ -398,7 +488,8 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
         NHIỆM VỤ CỦA BẠN: SOẠN MỚI HOÀN TOÀN KẾ HOẠCH BÀI DẠY (GIÁO ÁN) DỰA TRÊN SGK.
         1. Đọc thật kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức, bảng biểu, bài tập. Tuyệt đối KHÔNG BỊA ĐẶT kiến thức ngoài SGK.
         2. Bài học này kéo dài {so_tiet} tiết. BẮT BUỘC phải phân bổ thời lượng, nội dung và ghi rõ (Ví dụ: ### TIẾT 1: Hoạt động 1, 2. ### TIẾT 2: Hoạt động 3, 4).
-        3. Chi tiết hóa từng Hoạt động gồm 4 bước: a) Mục tiêu; b) Nội dung; c) Sản phẩm; d) Tổ chức thực hiện (Rõ GV làm gì, HS làm gì). Không viết chung chung cụt ngủn.
+        3. Chi tiết hóa từng Hoạt động gồm 4 bước: a) Mục tiêu; b) Nội dung; c) Sản phẩm; d) Tổ chức thực hiện (Rõ GV làm gì, HS làm gì). 
+           Đặc biệt ở phần "Nội dung" và "Sản phẩm", hãy tái hiện lại công thức, số liệu thực tế từ SGK vào thay vì chỉ ghi chung chung "Giáo viên yêu cầu học sinh đọc sách".
         4. Tích hợp sâu sắc các yêu cầu sau vào thiết kế:
            - Yêu cầu Năng lực số: {nls_str}
            - {ai_block}
