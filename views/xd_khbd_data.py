@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP OCR & FIX LỖI FORMAT)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP TỰ ĐỘNG OCR VISION & FIX LỖI FORMAT)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -240,7 +240,7 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     chars = len(text)
     words = len(re.findall(r"\S+", text))
     if chars == 0:
-        return {"status": "empty", "message": f"Không đọc được nội dung chữ từ {source_name}. Hệ thống sẽ tự động kích hoạt tính năng đọc bằng mắt AI (Vision OCR) để bảo toàn công thức Toán/Lý.", "chars": chars, "words": words}
+        return {"status": "empty", "message": f"Không đọc được nội dung chữ từ {source_name}. Nếu là PDF scan dạng ảnh, hệ thống tự động kích hoạt tính năng đọc bằng mắt AI (Vision OCR) để bảo toàn công thức Toán/Lý.", "chars": chars, "words": words}
     if chars < MIN_SOURCE_CHARS:
         return {"status": "insufficient", "message": f"{source_name} quá ngắn, không đủ cơ sở để sinh giáo án dài.", "chars": chars, "words": words}
     return {"status": "valid", "message": f"{source_name} đủ dữ liệu.", "chars": chars, "words": words}
@@ -292,12 +292,12 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
         Hãy đọc và trích xuất toàn bộ nội dung trong tệp đính kèm. 
         YÊU CẦU:
         1. Trích xuất chính xác 100% văn bản.
-        2. CÁC CÔNG THỨC TOÁN HỌC (ĐẶC BIỆT LÀ CĂN BẬC HAI) PHẢI DÙNG LATEX. Bắt buộc dùng cú pháp \sqrt{...} (có ngoặc nhọn), KHÔNG DÙNG cú pháp √(A). Ví dụ đúng: \sqrt{x+1}, \sqrt{7}-3.
-        3. Dùng $...$ cho inline math và $$...$$ cho block math.
-        4. Vẽ lại các bảng biểu thành dạng Markdown.
-        """
+        2. Các công thức Toán học, Hóa học, Vật lý BẮT BUỘC phải chuyển thành mã LaTeX (ví dụ: dùng $...$ cho inline, $$...$$ cho block). TUYỆT ĐỐI KHÔNG dùng ký tự Unicode như √.
+        3. Vẽ lại các bảng biểu thành dạng Markdown.
+        4. Bỏ qua các hình ảnh trang trí không chứa thông tin học thuật."""
         
         response = model.generate_content([ocr_prompt, media_file])
+        
         return response.text if response and hasattr(response, "text") else ""
         
     except Exception as e:
@@ -313,6 +313,7 @@ def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
                 os.remove(tmp_path)
             except Exception:
                 pass
+
 
 def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
@@ -364,7 +365,7 @@ def read_pdf(uploaded_file, range_str=""):
                     
                     pages = [reader.pages[i - 1].extract_text().strip() for i in range(s_page, e_page + 1) if reader.pages[i - 1].extract_text()]
                     extracted_text = "\n\n".join(pages)
-            except Exception:
+            except Exception as e:
                 pass
         
         if len(extracted_text) < 100:
@@ -377,6 +378,7 @@ def read_pdf(uploaded_file, range_str=""):
         return safe_text(extracted_text)
     except Exception as e:
         return f"[LỖI ĐỌC PDF: {e}]"
+
 
 def read_docx_ordered(source):
     try:
@@ -420,38 +422,46 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
             result.append(f"\n--- TÀI LIỆU: {getattr(f, 'name', 'Tài liệu')} ---\n{content}")
     return safe_text("\n".join(result))
 
+# ============================================================
+# BỘ LỌC CƯỠNG CHẾ FORMAT (POST-PROCESSING)
+# ============================================================
+def clean_ai_response(text):
+    """
+    Dọn dẹp các lỗi 'ảo giác' định dạng phổ biến của AI.
+    """
+    # Xóa block code markdown nếu có
+    text = re.sub(r"^```(markdown)?\n?", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"```$", "", text)
+    
+    # Ép cắt bỏ mọi lời dẫn (chào hỏi) trước tiêu đề # KẾ HOẠCH BÀI DẠY
+    match = re.search(r"(# KẾ HOẠCH BÀI DẠY.*)", text, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        text = match.group(1)
+        
+    # Xóa dấu chấm tròn, gạch đầu dòng vô duyên trước các tiểu mục a), b), c), d)
+    # Ví dụ AI hay viết: "· a) Mục tiêu:" -> sửa thành "a) Mục tiêu:"
+    text = re.sub(r"^[ \t]*[-*·oO][ \t]+([a-d]\))", r"\1", text, flags=re.MULTILINE)
+    
+    return text.strip()
+
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     if client is None: raise RuntimeError("Chưa truyền đối tượng Client AI.")
     try:
-        system_instruction = """
-Bạn là một AI chuyên xuất bản Giáo án. Bạn phải tuân thủ TUYỆT ĐỐI các luật lệ định dạng sau:
-1. KHÔNG BAO GIỜ viết lời chào, lời mở đầu (như "Dưới đây là kế hoạch bài dạy..."). Đầu ra của bạn BẮT BUỘC phải bắt đầu bằng tiêu đề "# TÊN BÀI HỌC:".
-2. BẮT BUỘC chèn thông tin Môn học, Khối lớp, Số tiết ngay dưới tên bài học.
-3. TUYỆT ĐỐI KHÔNG dùng dấu chấm tròn (bullet points: -, *, •) đứng trước các chữ: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện. Hãy viết chúng như những đoạn văn bình thường hoặc in đậm.
-4. CÔNG THỨC TOÁN HỌC (đặc biệt là căn bậc hai) PHẢI dùng cú pháp LaTeX `\sqrt{A}`. TUYỆT ĐỐI KHÔNG DÙNG ký tự unicode `√(A)`. Dùng `$ \sqrt{x} $` cho inline và `$$ \sqrt{x} $$` cho block.
-        """
-        
+        raw_output = ""
         if hasattr(client, "generate_text"):
-            # Nếu API của thầy hỗ trợ system_instruction
-            return client.generate_text(prompt, model_name=model_name, max_tokens=8192, system_instruction=system_instruction)
-        
-        model_mapping = {
-            "3.1 Flash-Lite": "gemini-2.5-flash-lite",
-            "3.5 Flash": "gemini-2.5-flash",
-            "3.1 Pro": "gemini-2.5-pro",
-            "Tư duy mở rộng": "gemini-2.5-pro"
-        }
-        api_model = model_mapping.get(model_name, "gemini-2.5-flash")
-        
-        # Nếu thư viện gốc không hỗ trợ system_instruction trực tiếp, ta nhúng vào prompt
-        full_prompt = system_instruction + "\n\n" + prompt
-        response = client.models.generate_content(model=api_model, contents=full_prompt)
-        
-        text_out = getattr(response, "text", "").strip()
-        # Clean up fallback (Xóa lời dạo đầu nếu AI cứng đầu)
-        if "# TÊN BÀI HỌC" in text_out:
-            text_out = text_out[text_out.find("# TÊN BÀI HỌC"):]
-        return text_out
+            raw_output = client.generate_text(prompt, model_name=model_name, max_tokens=8192)
+        else:
+            model_mapping = {
+                "3.1 Flash-Lite": "gemini-2.5-flash-lite",
+                "3.5 Flash": "gemini-2.5-flash",
+                "3.1 Pro": "gemini-2.5-pro",
+                "Tư duy mở rộng": "gemini-2.5-pro"
+            }
+            api_model = model_mapping.get(model_name, "gemini-2.5-flash")
+            response = client.models.generate_content(model=api_model, contents=prompt)
+            raw_output = getattr(response, "text", "").strip()
+            
+        return clean_ai_response(raw_output)
     except Exception as e:
         logger.error("Lỗi gọi AI: %s", e)
         raise RuntimeError(f"Lỗi kết nối AI: {e}")
@@ -464,7 +474,13 @@ def validate_khbd_result(text):
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:20000] 
+    # Tách thông tin để đắp vào Header
+    info_lines = thong_tin.split('\n')
+    khoi_lop_val = info_lines[0].replace("- Khối: ", "") if len(info_lines) > 0 else ""
+    mon_hoc_val = info_lines[1].replace("- Môn: ", "") if len(info_lines) > 1 else ""
+    ten_bai_val = info_lines[2].replace("- Tên bài: ", "") if len(info_lines) > 2 else ""
+
+    source = safe_text(noi_dung_chinh)[:15000]
     
     if mode == "tu_dong":
         quality = diagnose_source_quality(source, "Tài liệu SGK")
@@ -473,41 +489,39 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
     
-    hoa_nhap_block = f"Đề xuất phương pháp/công cụ hỗ trợ riêng cho nhóm học sinh khuyết tật có đặc điểm sau: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Không yêu cầu giáo dục hòa nhập đặc biệt."
-    ai_block = "Thiết kế ít nhất một hoạt động có ứng dụng Trí tuệ Nhân tạo (AI) cho GV hoặc HS." if tich_hop_ai else "Không bắt buộc dùng AI."
+    hoa_nhap_block = f"BẮT BUỘC: Đề xuất phương pháp/công cụ hỗ trợ riêng cho nhóm học sinh khuyết tật có đặc điểm sau: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else "Không yêu cầu giáo dục hòa nhập đặc biệt."
+    ai_block = "BẮT BUỘC: Thiết kế ít nhất một hoạt động có ứng dụng Trí tuệ Nhân tạo (AI) cho GV hoặc HS." if tich_hop_ai else "Không bắt buộc dùng AI."
 
     if mode == "chinh_sua":
         nhiem_vu = f"""
         NHIỆM VỤ CỦA BẠN: CHỈNH SỬA VÀ NÂNG CẤP KẾ HOẠCH BÀI DẠY (GIÁO ÁN) GỐC.
         1. Giữ nguyên ưu điểm của giáo án cũ, sửa các lỗi về kiến thức/sư phạm (nếu có).
-        2. Bổ sung làm phong phú các Hoạt động Khởi động, Khám phá, Luyện tập, Vận dụng.
-        3. TẠO HẲN MỘT MỤC RIÊNG "III. TÍCH HỢP CHUYÊN SÂU" hoặc in đậm các nội dung này trong từng hoạt động:
-           - Tích hợp Năng lực số: {nls_str}
-           - Tích hợp AI: {ai_block}
-           - Dạy học hòa nhập: {hoa_nhap_block}
+        2. Bổ sung làm phong phú các Hoạt động Khởi động, Khám phá, Luyện tập, Vận dụng sao cho không bị nhàm chán.
+        3. Tích hợp hữu cơ các yêu cầu chuyên biệt vào tiến trình.
         4. Trình bày chuẩn hóa lại toàn bộ theo cấu trúc Phụ lục 4 Công văn 5512/BGDĐT.
         """
     else:
         nhiem_vu = f"""
         NHIỆM VỤ CỦA BẠN: SOẠN MỚI HOÀN TOÀN KẾ HOẠCH BÀI DẠY (GIÁO ÁN) DỰA TRÊN SGK.
-        1. Đọc thật kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức, bài tập.
-        2. Bài học kéo dài {so_tiet} tiết. Phân bổ rõ: ### TIẾT 1: Hoạt động 1, 2. ### TIẾT 2: Hoạt động 3, 4.
-        3. Chi tiết hóa từng Hoạt động gồm đúng 4 bước KHÔNG DÙNG BULLET POINT:
-           a) Mục tiêu: ...
-           b) Nội dung: ... (Phải có công thức toán/lý từ SGK)
-           c) Sản phẩm: ... (Phải có lời giải chi tiết cho các công thức đó)
-           d) Tổ chức thực hiện: ...
-        4. TẠO HẲN MỘT MỤC RIÊNG (Ví dụ nằm trong mục I hoặc làm 1 mục lớn) ĐỂ LÀM RÕ SỰ TÍCH HỢP:
-           - Mục tiêu Năng lực số: {nls_str}
-           - Hoạt động ứng dụng AI: {ai_block}
-           - Phương pháp Hỗ trợ HS khuyết tật: {hoa_nhap_block}
-        5. Cấu trúc tuân thủ nghiêm ngặt Phụ lục 4 Công văn 5512/BGDĐT.
+        1. Đọc thật kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức, bảng biểu, bài tập. Tuyệt đối KHÔNG BỊA ĐẶT kiến thức ngoài SGK.
+        2. Bài học này kéo dài {so_tiet} tiết. BẮT BUỘC phải phân bổ thời lượng, nội dung và ghi rõ (Ví dụ: ### TIẾT 1: Hoạt động 1, 2. ### TIẾT 2: Hoạt động 3, 4).
+        3. Chi tiết hóa từng Hoạt động gồm 4 bước: a) Mục tiêu; b) Nội dung; c) Sản phẩm; d) Tổ chức thực hiện (Rõ GV làm gì, HS làm gì). 
+        4. Cấu trúc tuân thủ nghiêm ngặt Phụ lục 4 Công văn 5512/BGDĐT.
         """
 
     return (
-        f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n"
+        f"BẠN LÀ CHUYÊN GIA SƯ PHẠM VÀ PHƯƠNG PHÁP DẠY HỌC THẾ KỶ 21.\n\n"
         f"--- NHIỆM VỤ CỐT LÕI ---\n{nhiem_vu}\n\n"
         f"--- NGUỒN KIẾN THỨC CỐT LÕI (SGK) ---\n{source}\n\n"
         f"{ga_block}\n"
-        f"GHI NHỚ QUAN TRỌNG: Không dùng ký tự √(x). Bắt buộc dùng LaTeX \sqrt{{x}}. Không dùng bullet cho a) b) c) d)."
+        f"--- RÀNG BUỘC KỸ THUẬT VÀ ĐỊNH DẠNG (BẮT BUỘC TUÂN THỦ 100%) ---\n"
+        f"1. KHÔNG ĐƯỢC CÓ LỜI CHÀO, LỜI MỞ ĐẦU hay LƯU Ý. Bắt đầu ngay kết quả bằng cụm từ sau:\n"
+        f"# KẾ HOẠCH BÀI DẠY: {ten_bai_val.upper()}\n"
+        f"**Môn học:** {mon_hoc_val} | **Lớp:** {khoi_lop_val} | **Thời lượng:** {so_tiet} tiết\n\n"
+        f"2. Trong Phần I. MỤC TIÊU, BẮT BUỘC phải tạo thêm mục '3. Năng lực chuyên biệt / Tích hợp'. Tại đây hãy trình bày chi tiết:\n"
+        f"   - Năng lực số: {nls_str}\n"
+        f"   - Tích hợp AI: {ai_block}\n"
+        f"3. Trong Phần III. TIẾN TRÌNH DẠY HỌC, BẮT BUỘC chèn thêm các hướng dẫn cụ thể về việc {hoa_nhap_block} vào mục d) Tổ chức thực hiện của các hoạt động phù hợp.\n"
+        f"4. TRÌNH BÀY: TUYỆT ĐỐI KHÔNG dùng dấu chấm tròn (bullet point) hoặc gạch ngang (-) trước các tiểu mục: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện. Phải viết chúng liền ngay ở đầu dòng.\n"
+        f"5. CÔNG THỨC TOÁN, LÝ, HÓA: TUYỆT ĐỐI KHÔNG SỬ DỤNG KÝ TỰ UNICODE (như √, ², ³). BẮT BUỘC dùng mã LaTeX chuẩn kẹp trong dấu $ (cho inline) hoặc $$ (cho block). Ví dụ: Không viết √x, hãy viết $\sqrt{{x}}$. Không viết x^2, hãy viết $x^2$.\n"
     )
