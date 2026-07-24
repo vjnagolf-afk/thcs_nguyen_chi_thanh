@@ -1,142 +1,47 @@
 # -*- coding: utf-8 -*-
-
-from __future__ import annotations
-
 import os
-import logging
-
-from typing import Dict, Any, Optional
-
-import docx
-
-
-logger = logging.getLogger(
-    "TemplateLoader"
-)
-
+from docx import Document
+from .word_utils import clean_xml_forbidden_chars
 
 class TemplateLoader:
-
-    @staticmethod
-    def validate_template(
-        template_path: Optional[str]
-    ) -> bool:
-
-        return bool(
-            template_path
-            and os.path.isfile(template_path)
-            and template_path.lower().endswith(".docx")
-        )
+    """Bộ nạp và trích xuất dữ liệu biến số động trên tệp biểu mẫu (.docx)."""
+    
+    @classmethod
+    def load(cls, template_path: str = None) -> Document:
+        """Đọc tệp tin mẫu từ đường dẫn lưu trữ, nếu trống sẽ tạo văn bản sạch."""
+        if template_path and os.path.exists(template_path) and template_path.lower().endswith('.docx'):
+            return Document(template_path)
+        return Document()
 
     @classmethod
-    def load(
-        cls,
-        template_path: Optional[str] = None
-    ) -> docx.Document:
-
-        if cls.validate_template(template_path):
-
-            return docx.Document(
-                template_path
-            )
-
-        logger.warning(
-            "Không có template hợp lệ. "
-            "Tạo tài liệu Word mới."
-        )
-
-        return docx.Document()
-
-    @staticmethod
-    def replace_variables(
-        doc,
-        variables: Dict[str, Any]
-    ):
-
-        if not variables:
-
+    def inject_variables(cls, doc: Document, context_vars: dict):
+        """Thay thế hàng loạt các biến nhãn dán dạng {{tên_biến}} xuất hiện trong văn bản."""
+        if not context_vars:
             return doc
+            
+        def replace_text_in_paragraph(p):
+            for run in p.runs:
+                for key, val in context_vars.items():
+                    placeholder = f"{{{{{key}}}}}"
+                    if placeholder in run.text:
+                        run.text = run.text.replace(placeholder, clean_xml_forbidden_chars(str(val)))
 
-        def replace_paragraph(paragraph):
-
-            if not paragraph.runs:
-
-                return
-
-            full_text = "".join(
-                run.text or ""
-                for run in paragraph.runs
-            )
-
-            new_text = full_text
-
-            for key, value in variables.items():
-
-                value = "" if value is None else str(value)
-
-                patterns = [
-                    "{{ " + str(key) + " }}",
-                    "{{" + str(key) + "}}",
-                    "{{" + str(key) + " }}",
-                    "{{ " + str(key) + "}}",
-                ]
-
-                for pattern in patterns:
-
-                    new_text = new_text.replace(
-                        pattern,
-                        value
-                    )
-
-            if new_text == full_text:
-
-                return
-
-            # Giữ format của run đầu tiên
-            paragraph.runs[0].text = new_text
-
-            for run in paragraph.runs[1:]:
-
-                run.text = ""
-
+        # Quét và thay đổi trên hệ thống Paragraph chính
         for paragraph in doc.paragraphs:
-
-            replace_paragraph(paragraph)
-
+            replace_text_in_paragraph(paragraph)
+            
+        # Quét dọn nội dung bên trong các bảng hiện hữu trên Template
         for table in doc.tables:
-
             for row in table.rows:
-
                 for cell in row.cells:
-
                     for paragraph in cell.paragraphs:
-
-                        replace_paragraph(paragraph)
-
+                        replace_text_in_paragraph(paragraph)
+                        
+        # Quét dọn thông tin trên tiêu đề trang (Header/Footer)
         for section in doc.sections:
-
             for paragraph in section.header.paragraphs:
-
-                replace_paragraph(paragraph)
-
+                replace_text_in_paragraph(paragraph)
             for paragraph in section.footer.paragraphs:
-
-                replace_paragraph(paragraph)
-
+                replace_text_in_paragraph(paragraph)
+                
         return doc
-
-    @staticmethod
-    def save(
-        doc,
-        output_path: str
-    ):
-
-        os.makedirs(
-            os.path.dirname(output_path)
-            or ".",
-            exist_ok=True
-        )
-
-        doc.save(output_path)
-
-        return output_path
