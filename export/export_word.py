@@ -4,7 +4,7 @@
 MODULE: export/export_word.py
 Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
 thành file Word (.docx) chuẩn 5512.
-Tách và xử lý chính xác công thức toán học bọc trong dấu $.
+Có Auto-Fix gom trọn vẹn biểu thức toán học và kiểm tra token an toàn.
 ============================================================
 """
 
@@ -60,35 +60,96 @@ except ImportError:
         insert_image_to_docx = None
 
 
+# ============================================================
+# TẦNG 2 — HÀM AUTO-FIX GOM TRỌN BIỂU THỨC TOÁN HỌC
+# ============================================================
 def _fix_missing_math_dollars(text: str) -> str:
-    """Tự động bọc dấu $ cho các ký hiệu LaTeX đi lạc."""
+    """
+    Sửa LaTeX bị thiếu dấu $ nhưng không phá vỡ công thức đã có.
+    Gom toàn bộ biểu thức toán học liên tiếp vào cùng một cặp $...$.
+    """
     if not text:
         return ""
-    text = re.sub(r'(?<!\$)(?<!\\)(\\frac\s*\{[^{}]*\}\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
-    text = re.sub(r'(?<!\$)(?<!\\)(\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
-    text = re.sub(r'(?<!\$)(?<!\\)(\\widehat\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
+
+    # 1. Bảo vệ các khối toán đã có dấu $
+    protected = []
+
+    def protect_math(match):
+        protected.append(match.group(0))
+        return f"@@MATH_PROTECTED_{len(protected) - 1}@@"
+
+    text = re.sub(r"\$\$[\s\S]*?\$\$", protect_math, text)
+    text = re.sub(r"\$(?!\$)[^$\n]+?\$(?!\$)", protect_math, text)
+
+    # 2. Chuẩn hóa các công thức LaTeX trần dạng n21 = \frac...
+    formula_pattern = re.compile(
+        r"""
+        (?<![\w$])
+        (
+            [A-Za-z]
+            (?:_\{[^{}\n]+\}|_\d+|\d+)
+            \s*=\s*
+            (?:
+                \\frac\s*
+                \{[^{}\n]+\}
+                \s*
+                \{[^{}\n]+\}
+            )
+            |
+            [A-Za-z]
+            (?:_\{[^{}\n]+\}|_\d+|\d+)?
+            \s*=\s*
+            [^.,;:\n]+?
+            (?=
+                [.,;:]?
+                (?:\s|$)
+            )
+        )
+        (?![\w$])
+        """,
+        re.VERBOSE
+    )
+
+    def wrap_formula(match):
+        formula = match.group(1).strip()
+        formula = re.sub(r"\b([A-Za-z])(\d{1,3})\b", r"\1_{\2}", formula)
+        return f"${formula}$"
+
+    text = formula_pattern.sub(wrap_formula, text)
+
+    # 3. Bọc các lệnh LaTeX đơn lẻ còn sót
+    text = re.sub(r"(?<![$\\])(\\frac\s*\{[^{}\n]*\}\s*\{[^{}\n]*\})(?![$])", r"$\1$", text)
+    text = re.sub(r"(?<![$\\])(\\sqrt(?:\[[^\]]*\])?\s*\{[^{}\n]*\})(?![$])", r"$\1$", text)
+    text = re.sub(r"(?<![$\\])(\\(?:sin|cos|tan|cot|log|ln)\s+[A-Za-z0-9]+)(?![$])", r"$\1$", text)
+
+    # 4. Chuẩn hóa biến có chỉ số đơn lẻ
+    text = re.sub(r"(?<![$\w])([A-Za-z]_\d+)(?![$\w])", r"$\1$", text)
+    text = re.sub(r"(?<![$\w])([A-Za-z]_\{[^{}\n]+\})(?![$\w])", r"$\1$", text)
+
+    # 5. Khôi phục các khối toán đã bảo vệ
+    for idx, original in enumerate(protected):
+        text = text.replace(f"@@MATH_PROTECTED_{idx}@@", original)
+
     return text
 
 
 def _parse_inline_with_math(text: str) -> List[Dict[str, Any]]:
-    """Phân tách văn bản nội dòng, tách bạch rõ ràng phần toán học $...$ và văn bản thường."""
+    """Phân tách văn bản nội dòng thành các token text và math."""
     tokens = []
-    # Regex nhận diện toán học inline $...$ hoặc block $$...$$pattern = re.compile(r'(\$\$(.*?)\$\$)\vert{}(\$([^$]+?)\$)|(\*\*([^*]+?)\*\*)|(\*([^*]+?)\*)')
+    pattern = re.compile(r'(\$\$(.*?)\$\$)|(\$([^$]+?)\$)|(\*\*([^*]+?)\*\*)|(\*([^*]+?)\*)')
     last_idx = 0
-    
     for match in pattern.finditer(text):
         if match.start() > last_idx:
             tokens.append({"type": "text", "content": text[last_idx:match.start()]})
-        if match.group(1): # Block math $$...$$
+        if match.group(1):
             tokens.append({"type": "block_math", "content": match.group(2)})
-        elif match.group(3): # Inline math $...$
+        elif match.group(3):
             tokens.append({"type": "inline_math", "content": match.group(4)})
-        elif match.group(5): # Bold
+        elif match.group(5):
             tokens.append({"type": "bold", "content": match.group(6)})
-        elif match.group(7): # Italic
+        elif match.group(7):
             tokens.append({"type": "italic", "content": match.group(8)})
         last_idx = match.end()
-        
     if last_idx < len(text):
         tokens.append({"type": "text", "content": text[last_idx:]})
     return tokens
@@ -109,7 +170,6 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
 
     for line in lines:
         s_line = line.strip()
-
         if s_line.startswith("```"):
             if in_code:
                 in_code = False
@@ -120,43 +180,31 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
                 in_code = True
                 code_lang = s_line.lstrip("`").strip()
             continue
-
         if in_code:
             code_buffer.append(line)
             continue
-
         if s_line.startswith("|"):
             table_buffer.append(s_line)
             continue
         else:
             flush_table()
-
         if not s_line:
             continue
-
         if s_line.startswith("$$") and s_line.endswith("$$") and len(s_line) > 4:
             ast_nodes.append({"type": "block_math", "content": s_line[2:-2].strip()})
             continue
-
         if s_line.startswith("#"):
             match = re.match(r'^(#{1,6})\s+(.*)', s_line)
             if match:
-                level = len(match.group(1))
-                text = match.group(2)
-                ast_nodes.append({"type": "heading", "level": level, "text": text, "tokens": _parse_inline_with_math(text)})
+                ast_nodes.append({"type": "heading", "level": len(match.group(1)), "text": match.group(2), "tokens": _parse_inline_with_math(match.group(2))})
                 continue
-
         if s_line.startswith("- ") or s_line.startswith("* "):
-            text = s_line[2:].strip()
-            ast_nodes.append({"type": "list_item", "style": "bullet", "level": 1, "tokens": _parse_inline_with_math(text)})
+            ast_nodes.append({"type": "list_item", "style": "bullet", "level": 1, "tokens": _parse_inline_with_math(s_line[2:].strip())})
             continue
-
         num_match = re.match(r'^\d+\.\s+(.*)', s_line)
         if num_match:
-            text = num_match.group(1)
-            ast_nodes.append({"type": "list_item", "style": "number", "level": 1, "tokens": _parse_inline_with_math(text)})
+            ast_nodes.append({"type": "list_item", "style": "number", "level": 1, "tokens": _parse_inline_with_math(num_match.group(1))})
             continue
-
         ast_nodes.append({"type": "paragraph", "text": s_line, "tokens": _parse_inline_with_math(s_line)})
 
     flush_table()
@@ -189,21 +237,31 @@ class WordExportEngine:
                 ttype = token.get("type", "text")
                 content = token.get("content") or token.get("text") or ""
 
+                # --- BẢO VỆ CUỐI CÙNG: XỬ LÝ TEXT CÒN CHỨA LATEX ---
                 if ttype in ["text", "bold", "italic", "underline", "strike", "highlight", "inline_code", "code"]:
-                    run = p.add_run(content)
-                    cls._set_font(run, "Courier New" if ttype in ["inline_code", "code"] else "Times New Roman")
-                    run.font.size = Pt(11) if ttype in ["inline_code", "code"] else Pt(13)
+                    if ttype in ["inline_code", "code"]:
+                        run = p.add_run(content)
+                        cls._set_font(run, "Courier New")
+                        run.font.size = Pt(11)
+                    else:
+                        # Kiểm tra xem text có chứa LaTeX đi lạc hay không
+                        sub_tokens = _parse_inline_with_math(_fix_missing_math_dollars(content))
+                        if len(sub_tokens) > 1 or (sub_tokens and sub_tokens[0].get("type") != "text"):
+                            cls._render_inline_tokens(p, sub_tokens, export_errors)
+                        else:
+                            run = p.add_run(content)
+                            cls._set_font(run, "Times New Roman")
+                            run.font.size = Pt(13)
+                            if ttype == "bold": run.bold = True
+                            elif ttype == "italic": run.italic = True
+                            elif ttype == "underline": run.underline = True
+                            elif ttype == "strike": run.font.strike = True
+                            elif ttype == "highlight": run.font.color.rgb = RGBColor(199, 37, 78)
+                    continue
 
-                    if ttype == "bold": run.bold = True
-                    elif ttype == "italic": run.italic = True
-                    elif ttype == "underline": run.underline = True
-                    elif ttype == "strike": run.font.strike = True
-                    elif ttype == "highlight": run.font.color.rgb = RGBColor(199, 37, 78)
-
-                elif ttype in ["inline_math", "math_inline", "math", "math_block", "block_math"]:
+                if ttype in ["inline_math", "math_inline", "math", "math_block", "block_math"]:
                     if insert_math_to_paragraph:
-                        is_block = ttype in ["math_block", "block_math"]
-                        insert_math_to_paragraph(p, content, is_block=is_block)
+                        insert_math_to_paragraph(p, content, is_block=(ttype in ["math_block", "block_math"]))
                     else:
                         run = p.add_run(f" {content} ")
                         cls._set_font(run, "Cambria Math")
@@ -223,10 +281,8 @@ class WordExportEngine:
 
             except Exception as e:
                 export_errors.append({"type": "inline_token", "index": idx, "token": token, "error": str(e)})
-                try:
-                    p.add_run(str(token.get("content") or token.get("text") or ""))
-                except Exception:
-                    pass
+                try: p.add_run(str(token.get("content") or token.get("text") or ""))
+                except: pass
 
     @classmethod
     def _render_khbd_header(cls, doc: Document, metadata: dict):
@@ -299,7 +355,7 @@ class WordExportEngine:
         if metadata and isinstance(metadata, dict) and metadata.get("is_khbd"):
             cls._render_khbd_header(doc, metadata)
 
-        # Chuẩn hóa công thức
+        # Áp dụng Tầng 2: Auto-fix gom trọn vẹn biểu thức toán học
         markdown_text = _fix_missing_math_dollars(markdown_text or "")
 
         ast_nodes = []
@@ -334,8 +390,7 @@ class WordExportEngine:
                     if tokens:
                         cls._render_inline_tokens(p, tokens, export_errors)
                     elif raw_text:
-                        # Nếu Tokenizer ngoài không tách token, tự gọi hàm phân tách toán học
-                        inline_tokens = _parse_inline_with_math(raw_text)
+                        inline_tokens = _parse_inline_with_math(_fix_missing_math_dollars(raw_text))
                         cls._render_inline_tokens(p, inline_tokens, export_errors)
 
                 elif ntype == "heading":
@@ -350,7 +405,7 @@ class WordExportEngine:
                     if tokens:
                         cls._render_inline_tokens(p, tokens, export_errors)
                     else:
-                        inline_tokens = _parse_inline_with_math(str(node.get("text") or ""))
+                        inline_tokens = _parse_inline_with_math(_fix_missing_math_dollars(str(node.get("text") or "")))
                         cls._render_inline_tokens(p, inline_tokens, export_errors)
 
                     for r in p.runs:
@@ -363,7 +418,6 @@ class WordExportEngine:
                     p = doc.add_paragraph()
                     p.paragraph_format.space_before = Pt(6)
                     p.paragraph_format.space_after = Pt(6)
-
                     if insert_math_to_paragraph:
                         insert_math_to_paragraph(p, math_content, is_block=True)
                     else:
@@ -373,10 +427,8 @@ class WordExportEngine:
                         r.italic = True
 
                 elif ntype in ["list_item", "bullet_list", "numbered_list"]:
-                    is_num = (node.get("style") == "number" or ntype == "numbered_list")
-                    style_name = 'List Number' if is_num else 'List Bullet'
+                    style_name = 'List Number' if (node.get("style") == "number" or ntype == "numbered_list") else 'List Bullet'
                     level = node.get("level", 1)
-
                     p = doc.add_paragraph(style=style_name)
                     p.paragraph_format.left_indent = Inches(0.25 * level + 0.25)
                     p.paragraph_format.first_line_indent = Inches(-0.25)
@@ -386,20 +438,15 @@ class WordExportEngine:
                     if tokens:
                         cls._render_inline_tokens(p, tokens, export_errors)
                     else:
-                        inline_tokens = _parse_inline_with_math(str(node.get("text") or ""))
+                        inline_tokens = _parse_inline_with_math(_fix_missing_math_dollars(str(node.get("text") or "")))
                         cls._render_inline_tokens(p, inline_tokens, export_errors)
 
                 elif ntype == "image":
                     p = doc.add_paragraph()
                     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p.paragraph_format.space_before = Pt(6)
-                    p.paragraph_format.space_after = Pt(6)
-
                     img_source = node if ("base64" in node or "path" in node or "caption" in node) else (node.get("url") or node.get("path") or node.get("alt") or "")
-                    if insert_image_to_paragraph:
-                        insert_image_to_paragraph(p, img_source)
-                    else:
-                        p.add_run(f"[Hình ảnh: {img_source}]").italic = True
+                    if insert_image_to_paragraph: insert_image_to_paragraph(p, img_source)
+                    else: p.add_run(f"[Hình ảnh: {img_source}]").italic = True
 
                 elif ntype in ["table", "table_raw_lines"]:
                     lines = node.get("lines", [])
@@ -413,19 +460,7 @@ class WordExportEngine:
                 elif ntype in ["code", "code_block"]:
                     p = doc.add_paragraph()
                     p.paragraph_format.left_indent = Inches(0.4)
-                    p.paragraph_format.space_before = Pt(4)
-                    p.paragraph_format.space_after = Pt(4)
-                    try:
-                        pPr = p._element.get_or_add_pPr()
-                        shd = OxmlElement('w:shd')
-                        shd.set(qn('w:val'), 'clear')
-                        shd.set(qn('w:color'), 'auto')
-                        shd.set(qn('w:fill'), 'F5F5F5')
-                        pPr.append(shd)
-                    except Exception:
-                        pass
-                    code_text = node.get("text", "")
-                    r = p.add_run(code_text)
+                    r = p.add_run(node.get("text", ""))
                     cls._set_font(r, "Courier New")
                     r.font.size = Pt(10.5)
 
@@ -455,8 +490,7 @@ class WordExportEngine:
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
         if not isinstance(data_cache, dict):
             return cls.convert_markdown_to_docx_bytes(str(data_cache))
-        markdown_content = data_cache.get("ai_generated_content", "")
-        return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
+        return cls.convert_markdown_to_docx_bytes(data_cache.get("ai_generated_content", ""), metadata=data_cache)
 
 
 def export_word(markdown_text_or_cache) -> bytes:
