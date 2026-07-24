@@ -236,12 +236,21 @@ def parse_docx_structured(uploaded_file):
     tables_data = []
     
     try:
-        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file
-        doc = Document(BytesIO(source))
+        if hasattr(uploaded_file, "getvalue"):
+            source = uploaded_file.getvalue()
+        elif hasattr(uploaded_file, "read"):
+            source = uploaded_file.read()
+        else:
+            source = uploaded_file
+
+        if isinstance(source, bytes):
+            doc = Document(BytesIO(source))
+        else:
+            doc = Document(source)
         
         for p in doc.paragraphs:
             if p.text.strip():
-                paragraphs_text.strip()
+                # Đã loại bỏ lỗi paragraphs_text.strip() gây crash list
                 paragraphs_text.append(p.text.strip())
                 
         for t_idx, table in enumerate(doc.tables):
