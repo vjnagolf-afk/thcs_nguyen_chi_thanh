@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (SIÊU CHI TIẾT 4 BƯỚC SƯ PHẠM)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -12,9 +12,7 @@ import re
 import json
 import logging
 import base64
-import pandas as pd
 from docx import Document
-from pathlib import Path
 from io import BytesIO
 
 logger = logging.getLogger(__name__)
@@ -57,120 +55,18 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
-# ============================================================
-# KHUNG NĂNG LỰC SỐ GIÁO VIÊN & HỌC SINH (ĐẦY ĐỦ 100%)
-# ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
-            "Cơ bản": "Sử dụng được các chức năng và công cụ cơ bản của nền tảng quản lí học tập (LMS). Sử dụng các công cụ hỗ trợ dạy học trực tuyến đơn giản.",
-            "Thành thạo": "Xây dựng được kế hoạch bài dạy theo tiếp cận công nghệ, thiết kế và triển khai hoạt động dạy học theo mô hình kết hợp (blended learning) hiệu quả.",
-            "Nâng cao": "Sáng tạo và đổi mới các mô hình dạy học ứng dụng công nghệ số, hướng dẫn đồng nghiệp."
-        },
-        "1.2. Hướng dẫn, hỗ trợ học tập": {
-            "Cơ bản": "Sử dụng kênh giao tiếp số (email, diễn đàn) để trả lời câu hỏi và hỗ trợ người học.",
-            "Thành thạo": "Sử dụng dữ liệu học tập số để xác định người học cần hỗ trợ và lựa chọn biện pháp can thiệp phù hợp, cá nhân hóa.",
-            "Nâng cao": "Sáng tạo, phát triển các công cụ/phương pháp hỗ trợ dạy học thông minh trên nền tảng số."
-        },
-        "1.3. Cá nhân hóa người học": {
-            "Cơ bản": "Xác định nhu cầu, sự khác biệt của người học trong sử dụng công nghệ số để điều chỉnh nội dung.",
-            "Thành thạo": "Sử dụng công nghệ số thiết kế lộ trình học tập linh hoạt, phân hóa theo trình độ và sở thích người học.",
-            "Nâng cao": "Thiết kế môi trường học tập số cá nhân hóa nâng cao, đánh giá hiệu quả chiến lược cá nhân hóa."
-        },
-        "1.4. Học tập cộng tác": {
-            "Cơ bản": "Sử dụng công cụ số cơ bản tổ chức cho người học làm việc nhóm đơn giản, chia sẻ tài liệu.",
-            "Thành thạo": "Thiết kế nhiệm vụ học tập yêu cầu người học dùng đa dạng công cụ số để cùng xây dựng kiến thức.",
-            "Nâng cao": "Xây dựng dự án cộng tác phức tạp, quản lý cộng đồng học tập trực tuyến."
+            "Cơ bản": "Sử dụng được các chức năng và công cụ cơ bản của nền tảng quản lí học tập (LMS).",
+            "Thành thạo": "Xây dựng được kế hoạch bài dạy theo tiếp cận công nghệ, thiết kế hoạt động kết hợp.",
+            "Nâng cao": "Sáng tạo và đổi mới các mô hình dạy học ứng dụng công nghệ số."
         }
     },
     "2. KIỂM TRA, ĐÁNH GIÁ": {
         "2.1. Phương thức đánh giá": {
-            "Cơ bản": "Sử dụng hình thức kiểm tra truyền thống kết hợp nhập điểm hệ thống số, tạo bài kiểm tra online đơn giản.",
-            "Thành thạo": "Sử dụng công cụ số phổ biến tạo bài kiểm tra, khảo sát đánh giá quá trình và tổng kết.",
-            "Nâng cao": "Sáng tạo phương pháp, mô hình đánh giá số tiên tiến đáp ứng năng lực phức hợp."
-        },
-        "2.2. Phân tích kết quả học tập": {
-            "Cơ bản": "Sử dụng chức năng cơ bản của LMS xem báo cáo hoạt động và kết quả người học.",
-            "Thành thạo": "Phân tích dữ liệu hệ thống đánh giá số nhận diện tiến bộ, trực quan hóa dữ liệu kết quả học tập.",
-            "Nâng cao": "Áp dụng kỹ thuật phân tích dữ liệu học tập nâng cao dự đoán xu hướng, đề xuất can thiệp sớm."
-        },
-        "2.3. Phản hồi và đánh giá cải tiến": {
-            "Cơ bản": "Cung cấp phản hồi kịp thời cho người học bằng văn bản hoặc điểm số thông qua nền tảng số.",
-            "Thành thạo": "Sử dụng đa dạng công cụ số (ghi âm, video ngắn) đưa ra phản hồi chi tiết, quy trình tự đánh giá chéo.",
-            "Nâng cao": "Sử dụng dữ liệu phân tích điều chỉnh kế hoạch bài dạy, cải tiến liên tục chương trình giáo dục."
-        }
-    },
-    "3. TRAO QUYỀN CHO NGƯỜI HỌC": {
-        "3.1. Tiếp cận và hòa nhập": {
-            "Cơ bản": "Hỗ trợ người học gặp khó khăn, lựa chọn tài nguyên số có tính đến sự đa dạng người học.",
-            "Thành thạo": "Khai thác và điều chỉnh tài nguyên, đa dạng hóa công cụ số đáp ứng nhu cầu đặc biệt, giáo dục hòa nhập.",
-            "Nâng cao": "Hướng dẫn đồng nghiệp chiến lược và công nghệ số hỗ trợ giáo dục hòa nhập."
-        },
-        "3.2. Giải quyết vấn đề": {
-            "Cơ bản": "Thiết kế nhiệm vụ yêu cầu tìm kiếm Internet trả lời câu hỏi hoặc giải quyết vấn đề đơn giản.",
-            "Thành thạo": "Tổ chức hoạt động học tập dựa trên vấn đề (problem-based) hoặc dự án (project-based) dùng công nghệ số.",
-            "Nâng cao": "Kết nối người học với chuyên gia và vấn đề thực tiễn bên ngoài nhà trường giải quyết vấn đề cộng đồng."
-        },
-        "3.3. Khuyến khích sự tham gia tích cực": {
-            "Cơ bản": "Sáng tạo tương tác số đơn giản thu hút sự chú ý, trực quan hóa nội dung dạy học.",
-            "Thành thạo": "Tích hợp trò chơi hóa (gamification), công cụ sáng tạo thúc đẩy người học chủ động tạo ra nội dung số.",
-            "Nâng cao": "Thiết kế môi trường học tập số năng động, mô phỏng thí nghiệm ảo, thực tế ảo (VR/AR)."
-        }
-    },
-    "4. KĨ NĂNG CÔNG NGHỆ SỐ": {
-        "4.1. Kĩ năng thông tin và dữ liệu": {
-            "Cơ bản": "Sử dụng công cụ tìm kiếm tìm thông tin bài giảng, lưu trữ sắp xếp khoa học trên đám mây.",
-            "Thành thạo": "Đánh giá độ tin cậy nguồn tin Internet, hướng dẫn tư duy phản biện khi tiếp nhận thông tin số.",
-            "Nâng cao": "Thu thập, trực quan hóa dữ liệu nâng cao, tích hợp phát triển năng lực thông tin vào chương trình."
-        },
-        "4.2. Sáng tạo nội dung số": {
-            "Cơ bản": "Sử dụng công cụ phổ biến tạo nội dung dạy học theo định dạng số khác nhau.",
-            "Thành thạo": "Xây dựng kho học liệu số, hướng dẫn người học quyền tác giả, trích dẫn tài nguyên hợp pháp.",
-            "Nâng cao": "Sử dụng công cụ chuyên dụng tạo học liệu số tương tác cao, tích hợp AI, thực tế ảo."
-        },
-        "4.3. An toàn": {
-            "Cơ bản": "Bảo vệ sức khỏe thể chất tinh thần, bố trí thời gian sử dụng thiết bị hợp lý, xử lý bắt nạt trực tuyến.",
-            "Thành thạo": "Phòng tránh rủi ro mạng, bảo vệ dữ liệu cá nhân, định danh số, hướng dẫn học sinh dấu vết số.",
-            "Nâng cao": "Áp dụng phương pháp giảm căng thẳng môi trường số, xây dựng môi trường học tập an toàn lành mạnh."
-        }
-    },
-    "5. PHÁT TRIỂN CHUYÊN MÔN": {
-        "5.1. Giao tiếp trong tổ chức": {
-            "Cơ bản": "Sử dụng email, nhóm chat trao đổi công việc với đồng nghiệp và phụ huynh.",
-            "Thành thạo": "Sử dụng hiệu quả kênh giao tiếp số chính thức tương tác phụ huynh, chia sẻ dữ liệu chuyên môn.",
-            "Nâng cao": "Xây dựng chiến lược truyền thông số, kết nối cộng đồng giáo dục."
-        },
-        "5.2. Hợp tác phát triển chuyên môn": {
-            "Cơ bản": "Tham gia cộng đồng học tập trực tuyến, tự đánh giá thuận lợi khó khăn ứng dụng công nghệ.",
-            "Thành thạo": "Xây dựng kế hoạch cải tiến ứng dụng công nghệ số, tham gia khóa học cập nhật kỹ năng số.",
-            "Nâng cao": "Cập nhật xu hướng công nghệ mới, hướng dẫn đồng nghiệp phát triển năng lực số."
-        },
-        "5.3. Phát triển, sử dụng, chia sẻ học liệu số": {
-            "Cơ bản": "Tìm kiếm tài nguyên, kho học liệu số, thư viện trực tuyến, tài nguyên giáo dục mở (OER).",
-            "Thành thạo": "Tạo học liệu số từ nguồn có sẵn, quản lý kho học liệu cá nhân an toàn, đánh giá chất lượng.",
-            "Nâng cao": "Xây dựng và quản trị hệ thống quản lý, chia sẻ tài nguyên số mở cho toàn trường."
-        }
-    },
-    "6. ỨNG DỤNG TRÍ TUỆ NHÂN TẠO (AI)": {
-        "6.1. Tư duy lấy con người làm trung tâm": {
-            "Cơ bản": "Nhận diện cách vận hành của AI và các công nghệ tích hợp AI.",
-            "Thành thạo": "Thiết kế hoạt động dạy học tích hợp AI sáng tạo và có trách nhiệm.",
-            "Nâng cao": "Triển khai đổi mới phương pháp dạy học thích ứng sâu bằng AI, hướng dẫn đồng nghiệp."
-        },
-        "6.2. Đạo đức AI": {
-            "Cơ bản": "Sử dụng công cụ AI tạo sinh đơn giản hỗ trợ dạy học, nhận diện rủi ro dữ liệu cá nhân.",
-            "Thành thạo": "Khai thác công cụ AI giáo dục tạo học liệu tương tác, hướng dẫn học sinh dùng AI có trách nhiệm.",
-            "Nâng cao": "Đánh giá vấn đề đạo đức AI, tham gia xây dựng chính sách sử dụng AI có đạo đức trong nhà trường."
-        },
-        "6.3. Sư phạm AI": {
-            "Cơ bản": "Nhận diện khả năng tích hợp AI hướng cá nhân hóa, hiểu lợi ích sư phạm của AI.",
-            "Thành thạo": "Ứng dụng AI linh hoạt các bước dạy học lấy người học làm trung tâm, giáo dục hòa nhập.",
-            "Nâng cao": "Xây dựng nguyên tắc sư phạm sử dụng AI, hướng dẫn đồng nghiệp thiết kế đồng sáng tạo."
-        },
-        "6.4. AI cho phát triển chuyên môn": {
-            "Cơ bản": "Sử dụng AI lập kế hoạch, theo dõi phân tích quá trình phát triển chuyên môn bản thân.",
-            "Thành thạo": "Sử dụng AI hỗ trợ học tập suốt đời, tìm kiếm tài nguyên phát triển bản thân, phòng ngừa rủi ro.",
-            "Nâng cao": "Xây dựng bộ công cụ AI tạo sinh hỗ trợ phát triển chuyên môn cho đồng nghiệp."
+            "Cơ bản": "Sử dụng công cụ tạo bài kiểm tra online đơn giản.",
+            "Thành thạo": "Sử dụng các công cụ số phổ biến để đánh giá quá trình và tổng kết."
         }
     }
 }
@@ -242,63 +138,232 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
         return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
-def read_pdf(uploaded_file, range_str=""):
-    if uploaded_file is None: return ""
+# ============================================================
+# II, III, IV. BỘ ĐỌC TÀI LIỆU NGUỒN CÓ CẤU TRÚC (PDF & DOCX)
+# ============================================================
+def parse_pdf_structured(uploaded_file, range_str=""):
+    """Trích xuất tài liệu PDF thành cấu trúc chuẩn bao gồm văn bản, hình ảnh, bảng và số trang."""
+    if uploaded_file is None:
+        return {"source_name": "unknown", "pages": []}
+    
     content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
-    extracted_text = ""
+    file_name = getattr(uploaded_file, 'name', 'document.pdf')
+    pages_data = []
+    
     try:
-        import fitz
+        import fitz  # PyMuPDF
         doc = fitz.open(stream=content, filetype="pdf")
-        extracted_text = "\n\n".join([doc[i].get_text("text").strip() for i in range(len(doc))])
-    except: pass
-    return safe_text(extracted_text)
+        
+        # Xử lý dải trang nếu có (VD: "45-48")
+        target_pages = set()
+        if range_str.strip():
+            for part in range_str.split(','):
+                if '-' in part:
+                    try:
+                        start, end = map(int, part.split('-'))
+                        for p in range(start, end + 1):
+                            target_pages.add(p - 1)
+                    except:
+                        pass
+                else:
+                    try:
+                        target_pages.add(int(part.strip()) - 1)
+                    except:
+                        pass
+                        
+        for i in range(len(doc)):
+            if target_pages and i not in target_pages:
+                continue
+            page = doc[i]
+            page_text = safe_text(page.get_text("text"))
+            
+            # Trích xuất hình ảnh nhúng
+            page_images = []
+            image_list = page.get_images(full=True)
+            for img_idx, img in enumerate(image_list):
+                xref = img[0]
+                try:
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+                    image_id = f"IMG_P{i+1}_{img_idx+1}"
+                    # Lưu base64 để module xuất Word hoặc hiển thị có thể sử dụng
+                    b64_str = base64.b64encode(image_bytes).decode("utf-8")
+                    page_images.append({
+                        "id": image_id,
+                        "page": i + 1,
+                        "ext": image_ext,
+                        "base64": b64_str
+                    })
+                except:
+                    pass
+                    
+            # Trích xuất bảng (Sử dụng tính năng tìm bảng của PyMuPDF nếu hỗ trợ, hoặc phân tích cơ bản)
+            page_tables = []
+            try:
+                tabs = page.find_tables()
+                if tabs and tabs.tables:
+                    for t_idx, tab in enumerate(tabs.tables):
+                        extracted_df = tab.extract()
+                        if extracted_df and len(extracted_df) > 0:
+                            headers = [str(cell) for cell in extracted_df[0]]
+                            rows = [[str(cell) for cell in row] for row in extracted_df[1:]]
+                            page_tables.append({
+                                "id": f"TAB_P{i+1}_{t_idx+1}",
+                                "page": i + 1,
+                                "headers": headers,
+                                "rows": rows
+                            })
+            except:
+                pass
+
+            pages_data.append({
+                "page_number": i + 1,
+                "text": page_text,
+                "images": page_images,
+                "tables": page_tables,
+                "figures": [],
+                "charts": []
+            })
+    except Exception as e:
+        logger.error(f"Lỗi đọc cấu trúc PDF: {e}")
+        
+    return {"source_name": file_name, "pages": pages_data}
+
+def parse_docx_structured(uploaded_file):
+    """Trích xuất tài liệu Word thành cấu trúc tương đương chuẩn."""
+    if uploaded_file is None:
+        return {"source_name": "unknown", "pages": []}
+    
+    file_name = getattr(uploaded_file, 'name', 'document.docx')
+    paragraphs_text = []
+    tables_data = []
+    
+    try:
+        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file
+        doc = Document(BytesIO(source))
+        
+        for p in doc.paragraphs:
+            if p.text.strip():
+                paragraphs_text.strip()
+                paragraphs_text.append(p.text.strip())
+                
+        for t_idx, table in enumerate(doc.tables):
+            rows_raw = []
+            for row in table.rows:
+                rows_raw.append([cell.text.strip().replace('\n', ' ') for cell in row.cells])
+            if rows_raw:
+                tables_data.append({
+                    "id": f"TAB_DOCX_{t_idx+1}",
+                    "page": 1,
+                    "headers": rows_raw[0],
+                    "rows": rows_raw[1:] if len(rows_raw) > 1 else []
+                })
+    except Exception as e:
+        logger.error(f"Lỗi đọc cấu trúc DOCX: {e}")
+        
+    full_text = "\n".join(paragraphs_text)
+    return {
+        "source_name": file_name,
+        "pages": [{
+            "page_number": 1,
+            "text": full_text,
+            "images": [],
+            "tables": tables_data,
+            "figures": [],
+            "charts": []
+        }]
+    }
+
+# ============================================================
+# V. XÂY DỰNG NGUỒN KIẾN THỨC TRUNG GIAN CHO AI
+# ============================================================
+def build_intermediate_knowledge_source(structured_data):
+    """Tổng hợp dữ liệu cấu trúc thành nguồn kiến thức định dạng chuẩn [TEXT], [TABLE], [IMAGE], [FIGURE], [CHART]."""
+    if not structured_data or not structured_data.get("pages"):
+        return "Không có dữ liệu nguồn."
+        
+    source_lines = []
+    for page in structured_data["pages"]:
+        p_num = page["page_number"]
+        source_lines.append(f"=== TRANG {p_num} ===")
+        
+        # Văn bản
+        if page["text"]:
+            source_lines.append(f"[TEXT - Trang {p_num}]\n{page['text']}")
+            
+        # Bảng
+        for tab in page.get("tables", []):
+            tab_id = tab["id"]
+            headers_str = " | ".join(tab["headers"])
+            rows_str = "\n".join([" | ".join(r) for r in tab["rows"]])
+            source_lines.append(f"[TABLE - ID: {tab_id} - Trang {p_num}]\nHeaders: {headers_str}\nRows:\n{rows_str}")
+            
+        # Hình ảnh
+        for img in page.get("images", []):
+            img_id = img["id"]
+            source_lines.append(f"[IMAGE - ID: {img_id} - Trang {p_num} (Hình ảnh nhúng tài liệu)]")
+            
+        # Hình vẽ / Đồ thị
+        for fig in page.get("figures", []):
+            source_lines.append(f"[FIGURE - ID: {fig.get('id')} - Trang {p_num}]: {fig.get('description', '')}")
+            
+        for chart in page.get("charts", []):
+            source_lines.append(f"[CHART - ID: {chart.get('id')} - Trang {p_num}]: {chart.get('description', '')}")
+            
+    return "\n\n".join(source_lines)
+
+# Tương thích ngược với các hàm gọi cũ
+def read_pdf(uploaded_file, range_str=""):
+    data = parse_pdf_structured(uploaded_file, range_str)
+    return "\n".join([p["text"] for p in data["pages"]])
 
 def read_docx_ordered(source):
-    try:
-        doc = Document(BytesIO(source.getvalue())) if hasattr(source, "getvalue") else Document(source)
-        return safe_text("\n".join([p.text for p in doc.paragraphs]))
-    except: return ""
+    data = parse_docx_structured(source)
+    return "\n".join([p["text"] for p in data["pages"]])
 
 def read_multiple_files(files, range_str="", is_pdf_target=False):
-    result = []
+    combined_structured = {"source_name": "multi_files", "pages": []}
+    page_offset = 0
     for f in files or []:
         file_name = getattr(f, 'name', '').lower()
-        if file_name.endswith('.pdf'): content = read_pdf(f)
-        else: content = read_docx_ordered(f)
-        if len(content) > 30: result.append(content)
-    return safe_text("\n".join(result))
+        if file_name.endswith('.pdf'):
+            parsed = parse_pdf_structured(f, range_str)
+        else:
+            parsed = parse_docx_structured(f)
+            
+        for p in parsed["pages"]:
+            p["page_number"] += page_offset
+            combined_structured["pages"].append(p)
+        page_offset += len(parsed["pages"])
+        
+    return build_intermediate_knowledge_source(combined_structured)
 
+
+# ============================================================
+# VI. HỆ THỐNG GỌI AI & RÀ BUỘC PROMPT CHỐNG CHUNG CHUNG
+# ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     system_instruction = """
-[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
+[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - CHỐNG CỤT NGỦN VÀ CHỐNG CHUNG CHUNG 100%]:
 1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-2. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CẤU TRÚC TEMPLATE SAU:
-   I. MỤC TIÊU
-   1. Kiến thức
-   2. Năng lực
-      a) Năng lực chung:
-      b) Năng lực đặc thù:
-   3. Năng lực số và AI
-   4. Phẩm chất
-   II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-   1. Giáo viên:
-   2. Học sinh:
-   III. TIẾN TRÌNH DẠY HỌC
-   (Chia các HOẠT ĐỘNG rõ ràng)
-   PHỤ LỤC
-   PHIẾU HỌC TẬP
-
-3. QUY TẮC CỨNG CHỐNG "CỤT NGỦN", CHỐNG NÓI CHUNG CHUNG:
-   - TUYỆT ĐỐI KHÔNG sử dụng ký tự `**` trước các mục a), b), c), d). Trình bày thuần túy dạng `a) Mục tiêu:`, `b) Nội dung:`, `c) Sản phẩm:`, `d) Tổ chức thực hiện:`.
-   - Các tiểu mục a, b, c, d phải nằm trên các dòng riêng biệt.
-   - Các bài tập, ví dụ trong mục b) Nội dung và c) Sản phẩm PHẢI được ngắt dòng riêng biệt, trích xuất đầy đủ từng câu hỏi và lời giải chi tiết, tuyệt đối KHÔNG viết dồn thành một đoạn văn dài.
-   - Phần d) Tổ chức thực hiện BẮT BUỘC phải viết văn bản hướng dẫn sư phạm đầy đủ nội dung, cụ thể từng bước cho 4 gạch đầu dòng sau (CẤM viết chung chung kiểu "Giải quyết bài toán"):
-     *Chuyển giao nhiệm vụ học tập: [Giáo viên giao nhiệm vụ cụ thể gì, yêu cầu học sinh làm bài tập nào]
-     *Thực hiện nhiệm vụ học tập: [Học sinh thực hiện cá nhân/nhóm ra sao, tính toán thế nào]
-     *Báo cáo kết quả và thảo luận: [Học sinh lên bảng trình bày, gọi học sinh nhận xét]
-     *Kết luận: [Giáo viên đánh giá, chốt kiến thức trọng tâm và công thức cụ thể]
-
-4. TOÁN HỌC: Sử dụng chuẩn LaTeX `$\sqrt{x}$` cho mọi biểu thức toán.
+2. BẠN PHẢI SỬ DỤNG TRỰC TIẾP VÀ CHÍNH XÁC DỮ LIỆU TỪ NGUỒN KIẾN THỨC TRUNG GIAN ([TEXT], [TABLE], [IMAGE], [FIGURE], [CHART]) ĐƯỢC CUNG CẤP. 
+3. TUYỆT ĐỐI CẤM các câu văn chung chung vô nghĩa sau đây trong mọi hoạt động:
+   - "Học sinh thực hiện nhiệm vụ học tập theo hướng dẫn của giáo viên."
+   - "Học sinh thảo luận và trình bày kết quả."
+   - "Giáo viên nhận xét và kết luận."
+   - "Kết quả thảo luận của nhóm."
+   - "Câu trả lời của học sinh."
+4. QUY TẮC BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
+   - a) Mục tiêu: Nêu cụ thể kiến thức, kỹ năng, năng lực đặc thù cần đạt.
+   - b) Nội dung: Trích xuất chính xác câu hỏi, bài tập, biểu thức, bảng dữ liệu hoặc hình ảnh từ nguồn kiến thức.
+   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể, quan sát hoặc đánh giá được (Ví dụ: "Phiếu học tập số 1 đã hoàn thành lời giải 3 bài toán căn thức", "Bảng số liệu đo đạc thí nghiệm vật lý", "Sơ đồ tư duy phân loại hợp chất vô cơ", "Kết quả tính toán biểu thức đại số").
+   - d) Tổ chức thực hiện PHẢI ĐỦ 4 BƯỚC VÀ GẮN LIỀN NỘI DUNG NGUỒN:
+     *Chuyển giao nhiệm vụ học tập: Nêu rõ Giáo viên giao nhiệm vụ gì, yêu cầu học sinh đọc phần nào, quan sát hình ảnh/bảng [ID] nào, trả lời câu hỏi cụ thể nào.
+     *Thực hiện nhiệm vụ học tập: Nêu rõ Học sinh làm việc cá nhân hay nhóm, đọc tài liệu trang mấy, thực hiện phép tính/thao tác/thí nghiệm cụ thể nào.
+     *Báo cáo kết quả và thảo luận: Nêu rõ Học sinh/đại diện nhóm báo cáo sản phẩm cụ thể nào, trình bày nội dung gì trên bảng, các nhóm khác nhận xét theo tiêu chí cụ thể nào.
+     *Kết luận: Chốt kiến thức chuyên môn cụ thể được suy ra từ nội dung SGK, kết quả thí nghiệm hoặc tính toán, tuyệt đối không viết kết luận chung chung.
+5. ĐỊNH DẠNG TOÁN HỌC & HÓA HỌC: Sử dụng chuẩn LaTeX chính xác (ví dụ: $\sqrt{x+1}$, $\frac{a}{b}$, $x^2$, $H_2O$). Nếu hoạt động sử dụng bảng hoặc hình ảnh từ nguồn, bắt buộc phải tham chiếu đúng ID (VD: [TABLE - ID: TAB_P1_1] hoặc [IMAGE - ID: IMG_P2_1]).
     """
     full_prompt = system_instruction + "\n\n" + prompt
 
@@ -339,29 +404,64 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
     if "# TÊN BÀI HỌC:" in text_out:
         text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
         
-    # BỘ LỌC HẬU XỬ LÝ: XÓA SẠCH DẤU ** VÀ ÉP XUỐNG DÒNG
     text_out = text_out.replace("**", "")
-
     text_out = re.sub(r'([^\n])\s*([a-d]\)\s+)', r'\1\n\n\2', text_out)
     text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao nhiệm vụ học tập|Thực hiện nhiệm vụ học tập|Báo cáo kết quả và thảo luận|Kết luận)[^:\n]*:)', r'\1\n\n\2', text_out)
     
     return text_out
 
+
+# ============================================================
+# VII. NÂNG CẤP BỘ KIỂM TRA ĐẦU RA (VALIDATE KHBD RESULT)
+# ============================================================
 def validate_khbd_result(text):
-    if len(text) < 500: return False, "Nội dung quá ngắn."
+    """Kiểm tra khắt khe chất lượng đầu ra của giáo án do AI sinh."""
+    if not text or len(text) < 500:
+        return False, "Nội dung giáo án quá ngắn hoặc trống."
+        
+    text_lower = text.lower()
+    
+    # 1. Kiểm tra sự hiện diện của mục c) Sản phẩm
+    if "c) sản phẩm:" not in text_lower and "sản phẩm:" not in text_lower:
+        return False, "Thiếu mục c) Sản phẩm trong các hoạt động dạy học."
+        
+    # 2. Kiểm tra từ ngữ chung chung bị cấm
+    forbidden_phrases = [
+        "học sinh thực hiện nhiệm vụ học tập theo hướng dẫn",
+        "học sinh thảo luận và trình bày kết quả",
+        "giáo viên nhận xét và kết luận",
+        "kết quả thảo luận của nhóm",
+        "câu trả lời của học sinh"
+    ]
+    for phrase in forbidden_phrases:
+        if phrase in text_lower:
+            return False, f"Giáo án chứa câu văn chung chung bị cấm: '{phrase}'."
+            
+    # 3. Kiểm tra 4 bước tổ chức thực hiện
+    required_steps = [
+        "chuyển giao nhiệm vụ học tập",
+        "thực hiện nhiệm vụ học tập",
+        "báo cáo kết quả và thảo luận",
+        "kết luận"
+    ]
+    for step in required_steps:
+        if step not in text_lower:
+            return False, f"Thiếu bước tổ chức thực hiện bắt buộc: '{step}'."
+            
     return True, "Hợp lệ"
 
+
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:25000] 
+    source = safe_text(noi_dung_chinh)[:35000] 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
     hoa_nhap_block = f"- Dạy học hòa nhập: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
     ai_block = f"- Tích hợp AI: Đề xuất hoạt động ứng dụng." if tich_hop_ai else ""
 
     nhiem_vu = f"""
-NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY SIÊU CHI TIẾT TỪ TÀI LIỆU CUNG CẤP.
-1. TUYỆT ĐỐI KHÔNG TÓM TẮT. Hãy bám sát tài liệu SGK dưới đây, TRÍCH XUẤT NGUYÊN VĂN các hoạt động khám phá, ví dụ, bài tập, công thức (dùng chuẩn LaTeX $...$) vào trong giáo án.
-2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn.
-3. DÀN Ý BẮT BUỘC:
+NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY SIÊU CHI TIẾT TỪ NGUỒN KIẾN THỨC CÓ CẤU TRÚC.
+1. BẮT BUỘC SỬ DỤNG DỮ LIỆU CỤ THỂ TỪ NGUỒN ([TEXT], [TABLE], [IMAGE], [FIGURE], [CHART]) DƯỚI ĐÂY. Tuyệt đối không tự bịa đặt hoặc dùng từ ngữ chung chung.
+2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn qua các hoạt động (Khởi động, Hình thành kiến thức mới, Luyện tập, Vận dụng).
+3. DÀN Ý BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
 
 # TÊN BÀI HỌC: ...
 I. MỤC TIÊU
@@ -378,18 +478,18 @@ II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
 1. Giáo viên:
 2. Học sinh:
 III. TIẾN TRÌNH DẠY HỌC
-### TIẾT 1
-**Hoạt động 1: MỞ ĐẦU**
+### TIẾT 1 (hoặc các tiết tiếp theo)
+**Hoạt động 1: MỞ ĐẦU (hoặc HÌNH THÀNH KIẾN THỨC, LUYỆN TẬP, VẬN DỤNG)**
 a) Mục tiêu: ...
-b) Nội dung: [Trích xuất cụ thể câu hỏi/bài toán từ tài liệu nguồn]
-c) Sản phẩm: [Trích xuất cụ thể đáp án/lời giải chi tiết]
+b) Nội dung: [Trích xuất nguyên văn câu hỏi, ví dụ, bài toán hoặc tham chiếu bảng/hình ID từ nguồn]
+c) Sản phẩm: [Nêu rõ tên sản phẩm cụ thể: Phiếu học tập đã hoàn thành, bảng số liệu, kết quả tính toán, sơ đồ...]
 d) Tổ chức thực hiện: 
-*Chuyển giao nhiệm vụ học tập: [Viết chi tiết nhiệm vụ giao cho HS]
-*Thực hiện nhiệm vụ học tập: [Viết chi tiết cách HS làm việc]
-*Báo cáo kết quả và thảo luận: [Viết chi tiết cách HS báo cáo và trao đổi]
-*Kết luận: [Viết chi tiết nội dung GV chốt kiến thức]
+*Chuyển giao nhiệm vụ học tập: [Mô tả chi tiết việc giao nhiệm vụ cụ thể, chỉ rõ câu hỏi hoặc ID đối tượng]
+*Thực hiện nhiệm vụ học tập: [Mô tả chi tiết việc học sinh thực hiện, tính toán, đọc tài liệu]
+*Báo cáo kết quả và thảo luận: [Mô tả chi tiết việc báo cáo sản phẩm và tiêu chí nhận xét]
+*Kết luận: [Mô tả chi tiết nội dung kiến thức chuyên môn chốt lại bám sát nguồn]
 
 PHỤ LỤC
-PHIẾU HỌC TẬP
+PHIẾU HỌC TẬP (Trích xuất các bài tập cụ thể từ nguồn)
 """
-    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC CỐT LÕI TỪ TÀI LIỆU ---\n{source}\n\n{ga_block}"
+    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC TRUNG GIAN ĐÃ TRÍCH XUẤT ---\n{source}\n\n{ga_block}"
