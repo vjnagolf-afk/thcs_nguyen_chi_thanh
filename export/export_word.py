@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Module: export/export_word.py - Đoạn 1
-Nhiệm vụ: Import thư viện và thiết lập Regex cho bộ phân tích Markdown.
+Module: export/export_word.py - Đoạn 1/4
+Nhiệm vụ: Import thư viện và thiết lập Regex nội bộ cho hệ thống.
 """
 
 import io
@@ -13,7 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-# Tự động nạp bộ xử lý công thức và bảng biểu từ gói mới
+# Nạp an toàn bộ xử lý công thức và bảng biểu chuẩn từ package mới
 try:
     from .word_math import insert_math_to_paragraph
     from .word_tables import process_and_draw_markdown_table
@@ -21,10 +21,10 @@ except ImportError:
     from export.word_math import insert_math_to_paragraph
     from export.word_tables import process_and_draw_markdown_table
 
-# ==========================================
-# 1. BỘ PHÂN TÍCH MARKDOWN (TOKENIZER)
-# ==========================================
-class MarkdownTokenizer:
+# ============================================================
+# 1. BỘ PHÂN TÍCH MARKDOWN NỘI BỘ (ĐÃ ĐỔI TÊN TRÁNH XUNG ĐỘT AI)
+# ============================================================
+class OldSystemWordTokenizer:
     _HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)')
     _IMAGE_RE = re.compile(r'^!\[(.*?)\](.*?)')
     _BULLET_RE = re.compile(r'^(\s*)([\*\-])\s+(.*)')
@@ -137,11 +137,9 @@ class MarkdownTokenizer:
         if e < len(text): 
             tokens.extend(cls._parse_rich_text_styles(text[e:]))
         return tokens
-
-
-# ==========================================
+# ============================================================
 # 2. KẾT XUẤT TÀI LIỆU WORD (ENGINE GỐC)
-# ==========================================
+# ============================================================
 class WordExportEngine:
     
     @staticmethod
@@ -230,13 +228,12 @@ class WordExportEngine:
         r_time.font.italic = True
         cls._set_font(r_time)
         doc.add_paragraph()
-
     @classmethod
     def convert_markdown_to_docx_bytes(cls, markdown_text: str, metadata: dict = None) -> bytes:
-        ast_nodes = MarkdownTokenizer.parse(markdown_text)
+        ast_nodes = OldSystemWordTokenizer.parse(markdown_text)
         doc = docx.Document()
         
-        # Thống nhất hệ thống lề chuẩn chính xác theo yêu cầu (Top/Bottom/Right=1.5cm, Left=2.0cm)
+        # Thống nhất hệ thống lề chuẩn chính xác theo yêu cầu: Top/Bottom/Right=1.5cm, Left=2.0cm
         for s in doc.sections:
             s.page_height, s.page_width = Inches(11.69), Inches(8.27)
             s.top_margin = Inches(0.59)     # 1.5 cm
@@ -312,8 +309,8 @@ class WordExportEngine:
         markdown_content = data_cache.get("ai_generated_content", "")
         return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
 
-# ==========================================
-# 3. PUBLIC API CŨ (ĐỊNH NGHĨA NGOÀI CLASS)
-# ==========================================
+# ============================================================
+# 3. PUBLIC API CŨ (ĐỊNH NGHĨA NGOÀI CLASS PHỤC VỤ CÁC VIEWS)
+# ============================================================
 def export_word(markdown_text: str) -> bytes:
     return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text)
