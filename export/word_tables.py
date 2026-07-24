@@ -1,77 +1,210 @@
 # -*- coding: utf-8 -*-
+"""
+============================================================
+MODULE: export/word_tables.py
+Nhiệm vụ: Phân tích bảng Markdown, khởi tạo bảng Word, xử lý
+nội dung từng ô (văn bản, công thức OMML, hình ảnh, Markdown) 
+một cách thông minh. Tuyệt đối không dùng cell.text gây mất định dạng.
+============================================================
+"""
+
+import re
+import logging
+from docx import Document
+from docx.shared import Pt, Inches, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from .word_utils import clean_xml_forbidden_chars
-from .markdown_tokenizer import MarkdownTokenizer
-from .word_math import insert_math_to_paragraph
 
-def build_cell_border_xml(table):
-    """Cấu hình khung lưới viền (Grid Borders) mỏng nhẹ màu xám sang trọng chuẩn quốc tế."""
-    tblPr = table._tbl.tblPr
-    borders_node = OxmlElement('w:tblBorders')
-    for position in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-        b = OxmlElement(f'w:{position}')
-        b.set(qn('w:val'), 'single')
-        b.set(qn('w:sz'), '4')  # Độ dày mảnh tinh tế ~0.5pt
-        b.set(qn('w:space'), '0')
-        b.set(qn('w:color'), 'A0A0A0')  # Màu xám dịu mắt
-        borders_node.append(b)
-    tblPr.append(borders_node)
+logger = logging.getLogger(__name__)
 
-def process_and_draw_markdown_table(doc, raw_markdown_lines: list):
-    """Trích xuất mảng dữ liệu từ các dòng text Markdown và vẽ bảng biểu vào tệp Word."""
-    cleaned_rows = []
+# Tích hợp an toàn với các API nội bộ
+try:
+    from .word_math import insert_math_to_paragraph
+except ImportError:
+    insert_math_to_paragraph = None
+
+try:
+    from .word_images import insert_image_to_paragraph
+except ImportError:
+    insert_image_to_paragraph = None
+
+def _parse_and_fill_cell(cell, cell_text: str, is_header: bool = False):
+    """
+    Phân tích nội dung ô và điền dữ liệu tuần tự (Văn bản, Toán, Ảnh, Format).
+    """
+    if not cell.paragraphs:
+        p = cell.add_paragraph()
+    else:
+        p = cell.paragraphs[0]
+        
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if is_header else WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.space_after = Pt(3)
+    p.paragraph_format.space_before = Pt(3)
+
+    cell_text = cell_text.replace('<br>', '\n').replace('<br/>', '\n')
+
+    # Trực tiếp xử lý nếu toàn bộ ô là chuỗi JSON Metadata hình ảnh
+    if cell_text.strip().startswith('{') and cell_text.strip().endswith('}') and '"id"' in cell_text:
+        if insert_image_to_paragraph:
+            insert_image_to_paragraph(p, cell_text.strip(), max_width=Inches(2.0))
+        else:
+            r = p.add_run("[Hình ảnh]")
+            r.font.name = 'Times New Roman'
+        return
+
+    # Regex quét hỗn hợp: Ảnh, Công thức Toán, Bold, Italic
+    pattern = re.compile(
+        r'(!\[.*?\]\((.*?)\))|'       # Group 1, 2: Ảnh ![alt](url)
+        r'(\$\$(.*?)\$\$)|'           # Group 3, 4: Toán block $$...$$
+        r'(\$([^$]+)\$)|'             # Group 5, 6: Toán inline $...$
+        r'(\\\((.*?)\\\))|'           # Group 7, 8: Toán inline \(...\)
+        r'(\*\*([^*]+)\*\*)|'         # Group 9, 10: Bold **...**
+        r'(__([^_]+)__)|'             # Group 11, 12: Bold __...__
+        r'(\*([^*]+)\*)|'             # Group 13, 14: Italic *...*
+        r'(_([^_]+)_)'                # Group 15, 16: Italic _..._
+    )
     
-    for line in raw_markdown_lines:
-        current_line = line.strip().strip('|')
-        if not current_line or current_line.startswith('---') or current_line.startswith(':::'):
-            continue  # Loại bỏ dòng ngăn cách gạch ngang của chuẩn Markdown Table
+    last_idx = 0
+    for match in pattern.finditer(cell_text):
+        # 1. Ghi phần văn bản thường đứng trước match
+        text_before = cell_text[last_idx:match.start()]
+        if text_before:
+            r = p.add_run(text_before.replace('\\|', '|'))
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(12)
+            if is_header: r.bold = True
+            
+        # 2. Xử lý các thành phần đặc biệt
+        if match.group(1): # Hình ảnh Markdown
+            img_url = match.group(2)
+            if insert_image_to_paragraph:
+                # Giới hạn kích thước ảnh trong bảng để tránh vỡ cột
+                insert_image_to_paragraph(p, img_url, max_width=Inches(1.8))
+            else:
+                r = p.add_run(f"[Ảnh: {img_url}]")
+                r.font.name = 'Times New Roman'
+                
+        elif match.group(3) or match.group(5) or match.group(7): # Công thức Toán học (OMML)
+            math_content = match.group(4) or match.group(6) or match.group(8)
+            if insert_math_to_paragraph:
+                # Ép công thức trong bảng thành dạng inline để không phá dòng
+                insert_math_to_paragraph(p, math_content, is_block=False)
+            else:
+                r = p.add_run(math_content)
+                r.font.name = 'Cambria Math'
+                r.italic = True
+                
+        elif match.group(9) or match.group(11): # In đậm
+            text_bold = match.group(10) or match.group(12)
+            r = p.add_run(text_bold.replace('\\|', '|'))
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(12)
+            r.bold = True
+            
+        elif match.group(13) or match.group(15): # In nghiêng
+            text_italic = match.group(14) or match.group(16)
+            r = p.add_run(text_italic.replace('\\|', '|'))
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(12)
+            r.italic = True
+            if is_header: r.bold = True
+            
+        last_idx = match.end()
         
-        row_cells = [cell.strip() for cell in current_line.split('|')]
-        cleaned_rows.append(row_cells)
-        
-    if not cleaned_rows:
+    # 3. Ghi phần văn bản còn sót lại ở cuối
+    if last_idx < len(cell_text):
+        text_after = cell_text[last_idx:]
+        r = p.add_run(text_after.replace('\\|', '|'))
+        r.font.name = 'Times New Roman'
+        r.font.size = Pt(12)
+        if is_header: r.bold = True
+
+def process_and_draw_markdown_table(doc: Document, table_lines: list):
+    """
+    API Public: Chuyển đổi danh sách dòng Markdown table thành bảng Word chuẩn.
+    Bảo toàn cấu trúc, viền bảng và định dạng chi tiết từng ô.
+    """
+    if not table_lines or len(table_lines) < 2:
         return
         
-    total_rows = len(cleaned_rows)
-    total_cols = max(len(r) for r in cleaned_rows)
-    
-    word_table = doc.add_table(rows=total_rows, cols=total_cols)
-    word_table.autofit = True
-    build_cell_border_xml(word_table)
-    
-    for r_idx, cells_data in enumerate(cleaned_rows):
-        row_obj = word_table.rows[r_idx]
-        for c_idx, text_val in enumerate(cells_data):
-            if c_idx >= total_cols:
-                break
-            cell_obj = row_obj.cells[c_idx]
-            p_obj = cell_obj.paragraphs[0]
-            p_obj.paragraph_format.space_after = Pt(2)
+    try:
+        # 1. Phân tích an toàn hàng/cột (Không làm vỡ các công thức có chứa '|' như $|x|$)
+        parsed_rows = []
+        for line in table_lines:
+            line = line.strip()
+            if not line:
+                continue
             
-            # Tô nền xám nhạt cho dòng tiêu đề đầu tiên (Header Row)
-            if r_idx == 0:
-                bg_shd = OxmlElement('w:shd')
-                bg_shd.set(qn('w:val'), 'clear')
-                bg_shd.set(qn('w:fill'), 'F0F4F8')  # Màu xanh xám nhạt chuyên nghiệp
-                cell_obj._tc.get_or_add_tcPr().append(bg_shd)
-                p_obj.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Xóa ống | bao ngoài viền
+            if line.startswith('|'): line = line[1:]
+            if line.endswith('|'): line = line[:-1]
             
-            # Xử lý text chứa công thức hoặc chữ thường lồng trong ô bằng Tokenizer
-            inline_toks = MarkdownTokenizer.tokenize_inline(text_val)
-            styled_toks = MarkdownTokenizer.parse_rich_styles(inline_toks)
+            # Cắt cột an toàn, bỏ qua các dấu \| bị escape
+            cells = re.split(r'(?<!\\)\|', line)
+            cells = [c.strip() for c in cells]
+            parsed_rows.append(cells)
             
-            for tok in styled_toks:
-                if tok['type'] == 'text':
-                    r = p_obj.add_run(clean_xml_forbidden_chars(tok['content']))
-                    if r_idx == 0: r.bold = True
-                elif tok['type'] == 'bold':
-                    r = p_obj.add_run(clean_xml_forbidden_chars(tok['content']))
-                    r.bold = True
-                elif tok['type'] == 'italic':
-                    r = p_obj.add_run(clean_xml_forbidden_chars(tok['content']))
-                    r.italic = True
-                elif tok['type'] in ['math_inline', 'math_block']:
-                    insert_math_to_paragraph(p_obj, tok['content'], is_block=False)
+        # 2. Lọc bỏ dòng phân cách (vd: |---|---|)
+        filtered_rows = []
+        for row in parsed_rows:
+            if row and all(re.match(r'^[\-\:]+$', c.replace(' ', '')) for c in row if c):
+                continue
+            filtered_rows.append(row)
+            
+        if not filtered_rows:
+            return
+            
+        # 3. Chuẩn hóa ma trận bảng (Đảm bảo số cột đồng đều)
+        num_rows = len(filtered_rows)
+        num_cols = max(len(r) for r in filtered_rows)
+        
+        for r in filtered_rows:
+            while len(r) < num_cols:
+                r.append("")
+                
+        # 4. Khởi tạo Bảng Word
+        table = doc.add_table(rows=num_rows, cols=num_cols)
+        table.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # Vẽ viền bảng đen chuẩn xác
+        tblPr = table._element.xpath('w:tblPr')
+        if tblPr:
+            tblBorders = OxmlElement('w:tblBorders')
+            for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+                border = OxmlElement(f'w:{border_name}')
+                border.set(qn('w:val'), 'single')
+                border.set(qn('w:sz'), '4') 
+                border.set(qn('w:space'), '0')
+                border.set(qn('w:color'), '000000') 
+                tblBorders.append(border)
+            tblPr[0].append(tblBorders)
+
+        # 5. Phân tích và render nội dung từng ô thông minh
+        for r_idx, row_data in enumerate(filtered_rows):
+            row_cells = table.rows[r_idx].cells
+            is_header = (r_idx == 0)
+            
+            for c_idx, cell_value in enumerate(row_data):
+                cell = row_cells[c_idx]
+                
+                # Nền xám nhạt cho tiêu đề
+                if is_header:
+                    tcPr = cell._element.get_or_add_tcPr()
+                    shd = OxmlElement('w:shd')
+                    shd.set(qn('w:val'), 'clear')
+                    shd.set(qn('w:color'), 'auto')
+                    shd.set(qn('w:fill'), 'F2F2F2')
+                    tcPr.append(shd)
+                
+                # Gọi bộ xử lý nội dung đa thành phần
+                _parse_and_fill_cell(cell, cell_value, is_header=is_header)
+
+        # Cách 1 khoảng paragraph dưới bảng để không bị dính văn bản
+        doc.add_paragraph()
+        
+    except Exception as e:
+        logger.error(f"Lỗi vẽ bảng Markdown: {e}")
+        # Fallback an toàn: Trả văn bản thô lại vào Word nếu có lỗi ngoại lệ
+        for line in table_lines:
+            doc.add_paragraph(line)
