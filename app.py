@@ -153,10 +153,10 @@ st.sidebar.divider()
 menu_category = st.sidebar.radio(
     "📂 BẢNG ĐIỀU KHIỂN CHÍNH:",
     [
-        "👥 Phân hệ Quản lý Tổ chuyên môn",
         "👨‍🏫 Phân hệ Hỗ trợ Giáo viên",
         "🎓 Phân hệ Hỗ trợ Giảng dạy",
-        "🛠️ Phân hệ Ứng dụng khác"
+        "🛠️ Phân hệ Ứng dụng khác",
+        "👥 Phân hệ Quản lý Tổ chuyên môn"
     ]
 )
 
@@ -167,7 +167,16 @@ if user_api_key_input:
     st.sidebar.success("✅ Đã ghi nhận API Key cá nhân!")
 
 st.sidebar.markdown("---")
-st.sidebar.info("💡 **Hệ thống vận hành chuẩn:** Bám sát công văn 5512, Thông tư 18 và chuẩn khảo thí giáo dục phổ thông mới.")
+# Hiển thị thông tin bản quyền chữ nhỏ, nghiêng, màu xanh dương
+st.sidebar.markdown(
+    """
+    <div style='font-size: 0.85em; font-style: italic; color: #0056b3; text-align: left; line-height: 1.5;'>
+        Tác giả: Lê Hồng Dưỡng.<br>
+        Trường THCS Nguyễn Chí Thanh.
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
 
 # ============================================================
 # ĐIỀU HƯỚNG NỘI DUNG (ROUTING)
@@ -176,62 +185,9 @@ db_instance = st.session_state.get("db")
 ai_instance = st.session_state.get("ai_engine")
 
 # ------------------------------------------------------------
-# 1. PHÂN HỆ QUẢN LÝ TỔ CHUYÊN MÔN
+# 1. PHÂN HỆ HỖ TRỢ GIÁO VIÊN
 # ------------------------------------------------------------
-if menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
-    st.markdown("## 👥 Phân hệ: Quản lý Tổ chuyên môn")
-    sub_tab = st.tabs([
-        "Danh sách GV", 
-        "Phân công", 
-        "Thời khóa biểu", 
-        "Biên bản họp", 
-        "Kế hoạch chuyên đề", 
-        "Kiểm tra KHBD", 
-        "Chấm sáng kiến", 
-        "Viết sáng kiến", 
-        "Tóm tắt Email", 
-        "Tủ sách số", 
-        "Thi đua"
-    ])
-    
-    with sub_tab[0]:
-        try: render_danh_sach()
-        except NameError: st.warning("Module Danh sách chưa sẵn sàng.")
-    with sub_tab[1]:
-        try: render_phan_cong(db_instance)
-        except NameError: st.warning("Module Phân công chưa sẵn sàng.")
-    with sub_tab[2]:
-        try: render_tkb(db_instance)
-        except NameError: st.warning("Module Thời khóa biểu chưa sẵn sàng.")
-    with sub_tab[3]:
-        try: render_bien_ban(ai_instance)
-        except NameError: st.warning("Module Biên bản chưa sẵn sàng.")
-    with sub_tab[4]:
-        try: render_ke_hoach()
-        except NameError: st.warning("Module Kế hoạch chuyên đề chưa sẵn sàng.")
-    with sub_tab[5]:
-        try: render_kiem_tra_khbd(ai_instance)
-        except NameError: st.warning("Module Kiểm tra KHBD chưa sẵn sàng.")
-    with sub_tab[6]:
-        try: render_cham_sang_kien(ai_instance)
-        except NameError: st.warning("Module Chấm sáng kiến chưa sẵn sàng.")
-    with sub_tab[7]:
-        try: render_viet_sang_kien(ai_instance)
-        except NameError: st.warning("Module Viết sáng kiến chưa sẵn sàng.")
-    with sub_tab[8]:
-        try: render_tom_tat_gmail(ai_instance)
-        except NameError: st.warning("Module Tóm tắt Gmail chưa sẵn sàng.")
-    with sub_tab[9]:
-        try: render_sach_kn_so()
-        except NameError: st.warning("Module Tủ sách số chưa sẵn sàng.")
-    with sub_tab[10]:
-        try: render_thi_dua()
-        except NameError: st.warning("Module Thi đua chưa sẵn sàng.")
-
-# ------------------------------------------------------------
-# 2. PHÂN HỆ HỖ TRỢ GIÁO VIÊN
-# ------------------------------------------------------------
-elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
+if menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     st.markdown("## 👨‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     
     tab_titles_gv = [
@@ -286,7 +242,7 @@ elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
         except NameError: st.warning("Module Tạo học liệu/Prompt chưa sẵn sàng.")
 
 # ------------------------------------------------------------
-# 3. PHÂN HỆ HỖ TRỢ GIẢNG DẠY
+# 2. PHÂN HỆ HỖ TRỢ GIẢNG DẠY
 # ------------------------------------------------------------
 elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
     st.markdown("## 🎓 Phân hệ: Hỗ trợ Giảng dạy")
@@ -336,10 +292,63 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
         st.info("Khu vực tính năng Mô phỏng thuộc phân hệ Hỗ trợ giảng dạy đang được phát triển...")
 
 # ------------------------------------------------------------
-# 4. PHÂN HỆ ỨNG DỤNG KHÁC
+# 3. PHÂN HỆ ỨNG DỤNG KHÁC
 # ------------------------------------------------------------
 elif menu_category == "🛠️ Phân hệ Ứng dụng khác":
     try:
         render_ung_dung_khac(ai_instance)
     except Exception as e:
         st.error(f"Lỗi hiển thị phân hệ Ứng dụng khác: {e}")
+
+# ------------------------------------------------------------
+# 4. PHÂN HỆ QUẢN LÝ TỔ CHUYÊN MÔN
+# ------------------------------------------------------------
+elif menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
+    st.markdown("## 👥 Phân hệ: Quản lý Tổ chuyên môn")
+    sub_tab = st.tabs([
+        "Danh sách GV", 
+        "Phân công", 
+        "Thời khóa biểu", 
+        "Biên bản họp", 
+        "Kế hoạch chuyên đề", 
+        "Kiểm tra KHBD", 
+        "Chấm sáng kiến", 
+        "Viết sáng kiến", 
+        "Tóm tắt Email", 
+        "Tủ sách số", 
+        "Thi đua"
+    ])
+    
+    with sub_tab[0]:
+        try: render_danh_sach()
+        except NameError: st.warning("Module Danh sách chưa sẵn sàng.")
+    with sub_tab[1]:
+        try: render_phan_cong(db_instance)
+        except NameError: st.warning("Module Phân công chưa sẵn sàng.")
+    with sub_tab[2]:
+        try: render_tkb(db_instance)
+        except NameError: st.warning("Module Thời khóa biểu chưa sẵn sàng.")
+    with sub_tab[3]:
+        try: render_bien_ban(ai_instance)
+        except NameError: st.warning("Module Biên bản chưa sẵn sàng.")
+    with sub_tab[4]:
+        try: render_ke_hoach()
+        except NameError: st.warning("Module Kế hoạch chuyên đề chưa sẵn sàng.")
+    with sub_tab[5]:
+        try: render_kiem_tra_khbd(ai_instance)
+        except NameError: st.warning("Module Kiểm tra KHBD chưa sẵn sàng.")
+    with sub_tab[6]:
+        try: render_cham_sang_kien(ai_instance)
+        except NameError: st.warning("Module Chấm sáng kiến chưa sẵn sàng.")
+    with sub_tab[7]:
+        try: render_viet_sang_kien(ai_instance)
+        except NameError: st.warning("Module Viết sáng kiến chưa sẵn sàng.")
+    with sub_tab[8]:
+        try: render_tom_tat_gmail(ai_instance)
+        except NameError: st.warning("Module Tóm tắt Gmail chưa sẵn sàng.")
+    with sub_tab[9]:
+        try: render_sach_kn_so()
+        except NameError: st.warning("Module Tủ sách số chưa sẵn sàng.")
+    with sub_tab[10]:
+        try: render_thi_dua()
+        except NameError: st.warning("Module Thi đua chưa sẵn sàng.")
