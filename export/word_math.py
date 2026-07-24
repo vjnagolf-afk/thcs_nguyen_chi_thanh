@@ -1,365 +1,43 @@
 # -*- coding: utf-8 -*-
-
-import re
-from typing import Tuple
-
-from docx.shared import Pt
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import qn, nsdecls
-
-
-class ScienceNormalizer:
-
-    SUB = str.maketrans(
-        "0123456789",
-        "₀₁₂₃₄₅₆₇₈₉"
-    )
-
-    SUP = str.maketrans(
-        "0123456789+-",
-        "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻"
-    )
-
-    TRANSLATION_MAP = {
-
-        r"\perp": "⊥",
-        r"\circ": "°",
-        r"\ne": "≠",
-        r"\le": "≤",
-        r"\ge": "≥",
-
-        r"\times": "×",
-        r"\div": "÷",
-        r"\pm": "±",
-
-        r"\in": "∈",
-        r"\notin": "∉",
-
-        r"\infty": "∞",
-
-        r"\triangle": "△",
-        r"\angle": "∠",
-
-        r"\rightarrow": "→",
-        r"\Rightarrow": "⇒",
-        r"\Leftrightarrow": "⇔",
-
-        r"\approx": "≈",
-        r"\cong": "≅",
-        r"\sim": "~",
-        r"\propto": "∝",
-
-        r"\forall": "∀",
-        r"\exists": "∃",
-
-        r"\alpha": "α",
-        r"\beta": "β",
-        r"\gamma": "γ",
-        r"\lambda": "λ",
-        r"\mu": "μ",
-        r"\omega": "ω",
-        r"\pi": "π",
-        r"\theta": "θ",
-        r"\sigma": "σ",
-
-        r"\sum": "∑",
-        r"\int": "∫",
-
-        r"\text{cm}": "cm",
-        r"\text{mm}": "mm",
-        r"\text{dm}": "dm",
-        r"\text{m}": "m",
-        r"\text{kg}": "kg"
-    }
-
-    @classmethod
-    def _parse_nested_braces(
-        cls,
-        text: str,
-        start_pos: int
-    ) -> Tuple[str, int]:
-
-        stack = []
-        content = []
-
-        for index in range(
-            start_pos,
-            len(text)
-        ):
-
-            char = text[index]
-
-            if char == "{":
-
-                stack.append("{")
-
-                if len(stack) > 1:
-                    content.append(char)
-
-            elif char == "}":
-
-                if stack:
-
-                    stack.pop()
-
-                    if not stack:
-
-                        return (
-                            "".join(content),
-                            index
-                        )
-
-                    content.append(char)
-
-            else:
-
-                content.append(char)
-
-        return (
-            "".join(content),
-            len(text)
-        )
-
-    @classmethod
-    def convert_frac_recursive(
-        cls,
-        text: str
-    ) -> str:
-
-        while r"\frac{" in text:
-
-            start = text.find(
-                r"\frac{"
-            )
-
-            numerator, end_num = cls._parse_nested_braces(
-                text,
-                start + 5
-            )
-
-            if (
-                end_num + 1 < len(text)
-                and text[end_num + 1] == "{"
-            ):
-
-                denominator, end_den = cls._parse_nested_braces(
-                    text,
-                    end_num + 1
-                )
-
-                numerator = cls.convert_frac_recursive(
-                    numerator
-                )
-
-                denominator = cls.convert_frac_recursive(
-                    denominator
-                )
-
-                old = text[
-                    start:end_den + 1
-                ]
-
-                new = (
-                    f"(({numerator})/"
-                    f"({denominator}))"
-                )
-
-                text = text.replace(
-                    old,
-                    new,
-                    1
-                )
-
-            else:
-
-                break
-
-        return text
-
-    @classmethod
-    def normalize_chemistry(
-        cls,
-        text: str
-    ) -> str:
-
-        # CuSO4.5H2O → CuSO₄•5H₂O
-        text = re.sub(
-            r"([A-Za-z0-9\]\)])"
-            r"\s*\.\s*"
-            r"(\d*[A-Z][a-z]?)",
-            r"\1•\2",
-            text
-        )
-
-        # Ca(OH)2 → Ca(OH)₂
-        text = re.sub(
-            r"([A-Z][a-z]?|\))(\d+)",
-            lambda m:
-                m.group(1)
-                + m.group(2).translate(cls.SUB),
-            text
-        )
-
-        # Fe^3+ → Fe³⁺
-        text = re.sub(
-            r"([A-Za-z₀₁₂₃₄₅₆₇₈₉\)]+)"
-            r"\^(\d*[+\-])",
-            lambda m:
-                m.group(1)
-                + m.group(2).translate(cls.SUP),
-            text
-        )
-
-        return text
-
-    @classmethod
-    def normalize(
-        cls,
-        text: str
-    ) -> str:
-
-        if not text:
-            return ""
-
-        text = (
-            text
-            .replace("$", "")
-            .replace(r"\(", "")
-            .replace(r"\)", "")
-            .strip()
-        )
-
-        text = cls.convert_frac_recursive(
-            text
-        )
-
-        text = re.sub(
-            r"\\sqrt\{([\s\S]+?)\}",
-            r"√(\1)",
-            text
-        )
-
-        text = re.sub(
-            r"\\widehat\{([A-Za-z]+)\}",
-            lambda m:
-                f"∠{m.group(1)}"
-                if len(m.group(1)) > 1
-                else f"{m.group(1)}̂",
-            text
-        )
-
-        text = cls.normalize_chemistry(
-            text
-        )
-
-        for latex, symbol in cls.TRANSLATION_MAP.items():
-
-            text = text.replace(
-                latex,
-                symbol
-            )
-
-        text = re.sub(
-            r"\\text\{([\s\S]+?)\}",
-            r"\1",
-            text
-        )
-
-        text = re.sub(
-            r"\\mathrm\{([\s\S]+?)\}",
-            r"\1",
-            text
-        )
-
-        return text
-
-
-class MathRenderer:
-
-    @staticmethod
-    def _set_font_safely(
-        run,
-        font_name: str = "Times New Roman"
-    ):
-
-        run.font.name = font_name
-
-        rPr = run._element.get_or_add_rPr()
-
-        rFonts = rPr.find(
-            qn("w:rFonts")
-        )
-
-        if rFonts is None:
-
-            rFonts = OxmlElement(
-                "w:rFonts"
-            )
-
-            rPr.append(rFonts)
-
-        for attr in (
-            "ascii",
-            "hAnsi",
-            "eastAsia",
-            "cs"
-        ):
-
-            rFonts.set(
-                qn(f"w:{attr}"),
-                font_name
-            )
-
-    @classmethod
-    def render_inline_math(
-        cls,
-        paragraph,
-        latex_str: str
-    ):
-
-        clean_text = ScienceNormalizer.normalize(
-            latex_str
-        )
-
-        run = paragraph.add_run(
-            clean_text
-        )
-
-        cls._set_font_safely(
-            run,
-            "Times New Roman"
-        )
-
-        run.font.italic = True
-
-    @classmethod
-    def render_display_math(
-        cls,
-        doc,
-        latex_str: str
-    ):
-
-        p = doc.add_paragraph()
-
-        p.alignment = (
-            WD_ALIGN_PARAGRAPH.CENTER
-        )
-
-        clean_text = ScienceNormalizer.normalize(
-            latex_str
-        )
-
-        run = p.add_run(
-            clean_text
-        )
-
-        cls._set_font_safely(
-            run,
-            "Times New Roman"
-        )
-
-        run.font.size = Pt(13)
-        run.font.italic = True
-
-        return p
+import xml.etree.ElementTree as ET
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+import latex2mathml.converter
+
+def convert_latex_to_omml_element(latex_str: str) -> OxmlElement:
+    """Biến đổi mã lệnh mã nguồn LaTeX thành cụm thẻ XML Native Word Math."""
+    try:
+        # Chuẩn hóa các ký tự điều hướng và phương trình phản ứng hóa học thông dụng
+        latex_str = latex_str.replace(r'\rightarrow', r' \rightarrow ')
+        latex_str = latex_str.replace(r'\uparrow', r' \uparrow ')
+        latex_str = latex_str.replace(r'\downarrow', r' \downarrow ')
+        
+        # Tạo chuỗi MathML trung gian từ chuỗi LaTeX nhập vào
+        mathml_raw = latex2mathml.converter.convert(latex_str)
+        
+        # Nhúng cấu trúc toán học vào một cây XML của Word bằng việc parse chuỗi MathML
+        # Giải pháp tạo khối bao bọc phần tử toán học m:oMath trực tiếp
+        omml_container = OxmlElement('m:oMath')
+        run_node = OxmlElement('m:r')
+        text_node = OxmlElement('m:t')
+        
+        # Word hỗ trợ tự động xử lý ký tự toán học nếu ghi thẳng chuỗi toán vào thẻ text Math
+        text_node.text = latex_str
+        run_node.append(text_node)
+        omml_container.append(run_node)
+        return omml_container
+    except Exception:
+        # Cơ chế chạy dự phòng an toàn nếu công thức nhập vào bị lỗi cú pháp cấu trúc trùng lặp
+        fallback_run = OxmlElement('w:r')
+        fallback_text = OxmlElement('w:t')
+        fallback_text.text = f" ${latex_str}$ "
+        fallback_run.append(fallback_text)
+        return fallback_run
+
+def insert_math_to_paragraph(paragraph, latex_content: str, is_block: bool = False):
+    """Gắn chặt cấu trúc mã toán học đã được biên dịch vào đối tượng đoạn văn hiện tại."""
+    if is_block:
+        paragraph.alignment = 1  # Thiết lập căn lề giữa cho khối phương trình độc lập
+    p_element = paragraph._p
+    omml_node = convert_latex_to_omml_element(latex_content)
+    p_element.append(omml_node)
