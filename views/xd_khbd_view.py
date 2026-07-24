@@ -83,7 +83,6 @@ def render_xd_khbd(ai_engine_client=None):
 
     st.subheader("🔧 Tích hợp chuyên sâu (Hòa nhập, AI, Số hóa)")
     
-    # Checkbox cấu hình
     tich_hop_ai = st.checkbox("🤖 Tích hợp hoạt động sử dụng AI trong bài học")
     
     tich_hop_hoa_nhap = st.checkbox("🤝 Tích hợp Dạy học hòa nhập (HS Khuyết tật)")
@@ -145,20 +144,17 @@ def render_xd_khbd(ai_engine_client=None):
 
         with st.spinner("⏳ Siêu Trợ lý AI đang đọc tài liệu và phân bổ tiến trình sư phạm. Vui lòng chờ 30s - 1 phút..."):
             try:
-                # Trích xuất dữ liệu
                 noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if file_sgk else ""
                 noi_dung_ga = read_multiple_files(file_ga) if mode == "chinh_sua" and file_ga else ""
                 
-                # Kiểm tra OCR/Chất lượng Text
                 if mode == "tu_dong":
                     _show_source_quality(noi_dung_chinh, "Tài liệu SGK")
                     if len(noi_dung_chinh.strip()) < 100:
-                        st.stop() # Dừng nếu là PDF rỗng
+                        st.stop() 
 
                 thong_tin = f"- Khối: {khoi_lop}\n- Môn: {mon_hoc}\n- Tên bài: {ten_bai}\n- Số tiết: {so_tiet} tiết"
                 nls_str = format_nls() if tich_hop_nls else "Không yêu cầu."
                 
-                # Render Prompt
                 prompt = build_prompt(
                     thong_tin=thong_tin,
                     noi_dung_chinh=noi_dung_chinh,
@@ -171,7 +167,6 @@ def render_xd_khbd(ai_engine_client=None):
                     so_tiet=so_tiet
                 )
 
-                # Generate
                 raw_result = generate_ai(ai_engine_client, prompt, model_name)
                 is_valid, msg = validate_khbd_result(raw_result)
 
@@ -211,9 +206,9 @@ def render_xd_khbd(ai_engine_client=None):
             if WordExportEngine:
                 with st.spinner("Đang render công thức Toán/Bảng biểu và xuất ra file Word chuẩn..."):
                     try:
-                        template_path = "templates/KHBD_Mau.docx"
+                        # Đã loại bỏ tham số template_path gây lỗi
                         if hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
-                            word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'], template_path=template_path)
+                            word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'])
                     except Exception as e:
                         st.error(f"⚠️ Trình xuất Word đang gặp sự cố với format: {e}")
             
