@@ -1,25 +1,11 @@
 # -*- coding: utf-8 -*-
 
-"""
-Module: export/template_loader.py
-
-Nhiệm vụ:
-- Tải Word template.
-- Kiểm tra template.
-- Tạo bản sao làm việc.
-- Thay thế biến {{ variable }}.
-- Hỗ trợ paragraph, table, header, footer.
-"""
+from __future__ import annotations
 
 import os
-import shutil
 import logging
 
-from typing import (
-    Dict,
-    Any,
-    Optional
-)
+from typing import Dict, Any, Optional
 
 import docx
 
@@ -31,33 +17,16 @@ logger = logging.getLogger(
 
 class TemplateLoader:
 
-    DEFAULT_TEMPLATE_NAME = (
-        "default_template.docx"
-    )
-
-    @classmethod
+    @staticmethod
     def validate_template(
-        cls,
-        template_path: str
+        template_path: Optional[str]
     ) -> bool:
 
-        if not template_path:
-
-            return False
-
-        if not os.path.exists(
+        return bool(
             template_path
-        ):
-
-            return False
-
-        if not template_path.lower().endswith(
-            ".docx"
-        ):
-
-            return False
-
-        return True
+            and os.path.isfile(template_path)
+            and template_path.lower().endswith(".docx")
+        )
 
     @classmethod
     def load(
@@ -65,65 +34,22 @@ class TemplateLoader:
         template_path: Optional[str] = None
     ) -> docx.Document:
 
-        if template_path:
-
-            if not cls.validate_template(
-                template_path
-            ):
-
-                raise FileNotFoundError(
-                    "Template Word không hợp lệ: "
-                    f"{template_path}"
-                )
+        if cls.validate_template(template_path):
 
             return docx.Document(
                 template_path
             )
 
-        logger.info(
-            "Không có template. "
-            "Khởi tạo tài liệu Word mới."
+        logger.warning(
+            "Không có template hợp lệ. "
+            "Tạo tài liệu Word mới."
         )
 
         return docx.Document()
 
-    @classmethod
-    def copy_template(
-        cls,
-        template_path: str,
-        output_path: str
-    ) -> str:
-
-        if not cls.validate_template(
-            template_path
-        ):
-
-            raise FileNotFoundError(
-                "Không tìm thấy template Word."
-            )
-
-        output_dir = os.path.dirname(
-            output_path
-        )
-
-        if output_dir:
-
-            os.makedirs(
-                output_dir,
-                exist_ok=True
-            )
-
-        shutil.copy2(
-            template_path,
-            output_path
-        )
-
-        return output_path
-
-    @classmethod
+    @staticmethod
     def replace_variables(
-        cls,
-        doc: docx.Document,
+        doc,
         variables: Dict[str, Any]
     ):
 
@@ -131,15 +57,52 @@ class TemplateLoader:
 
             return doc
 
-        # Paragraph
-        for paragraph in doc.paragraphs:
+        def replace_paragraph(paragraph):
 
-            cls._replace_in_paragraph(
-                paragraph,
-                variables
+            if not paragraph.runs:
+
+                return
+
+            full_text = "".join(
+                run.text or ""
+                for run in paragraph.runs
             )
 
-        # Tables
+            new_text = full_text
+
+            for key, value in variables.items():
+
+                value = "" if value is None else str(value)
+
+                patterns = [
+                    "{{ " + str(key) + " }}",
+                    "{{" + str(key) + "}}",
+                    "{{" + str(key) + " }}",
+                    "{{ " + str(key) + "}}",
+                ]
+
+                for pattern in patterns:
+
+                    new_text = new_text.replace(
+                        pattern,
+                        value
+                    )
+
+            if new_text == full_text:
+
+                return
+
+            # Giữ format của run đầu tiên
+            paragraph.runs[0].text = new_text
+
+            for run in paragraph.runs[1:]:
+
+                run.text = ""
+
+        for paragraph in doc.paragraphs:
+
+            replace_paragraph(paragraph)
+
         for table in doc.tables:
 
             for row in table.rows:
@@ -148,105 +111,32 @@ class TemplateLoader:
 
                     for paragraph in cell.paragraphs:
 
-                        cls._replace_in_paragraph(
-                            paragraph,
-                            variables
-                        )
+                        replace_paragraph(paragraph)
 
-        # Headers / Footers
         for section in doc.sections:
 
             for paragraph in section.header.paragraphs:
 
-                cls._replace_in_paragraph(
-                    paragraph,
-                    variables
-                )
+                replace_paragraph(paragraph)
 
             for paragraph in section.footer.paragraphs:
 
-                cls._replace_in_paragraph(
-                    paragraph,
-                    variables
-                )
+                replace_paragraph(paragraph)
 
         return doc
 
     @staticmethod
-    def _replace_in_paragraph(
-        paragraph,
-        variables: Dict[str, Any]
+    def save(
+        doc,
+        output_path: str
     ):
 
-        if not paragraph.runs:
-
-            return
-
-        full_text = "".join(
-            run.text or ""
-            for run in paragraph.runs
+        os.makedirs(
+            os.path.dirname(output_path)
+            or ".",
+            exist_ok=True
         )
 
-        if not full_text:
-
-            return
-
-        new_text = full_text
-
-        for key, value in variables.items():
-
-            placeholder = (
-                "{{ "
-                + str(key)
-                + " }}"
-            )
-
-            placeholder_no_space = (
-                "{{"
-                + str(key)
-                + "}}"
-            )
-
-            new_text = new_text.replace(
-                placeholder,
-                str(value)
-            )
-
-            new_text = new_text.replace(
-                placeholder_no_space,
-                str(value)
-            )
-
-        if new_text == full_text:
-
-            return
-
-        paragraph.runs[0].text = new_text
-
-        for run in paragraph.runs[1:]:
-
-            run.text = ""
-
-    @classmethod
-    def save(
-        cls,
-        doc: docx.Document,
-        output_path: str
-    ) -> str:
-
-        output_dir = os.path.dirname(
-            output_path
-        )
-
-        if output_dir:
-
-            os.makedirs(
-                output_dir,
-                exist_ok=True
-            )
-
-        doc.save(
-            output_path
-        )
+        doc.save(output_path)
 
         return output_path
