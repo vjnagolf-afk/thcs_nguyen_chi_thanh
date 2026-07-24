@@ -1,31 +1,27 @@
 # -*- coding: utf-8 -*-
 
 import streamlit as st
-import PyPDF2
+import io
 
 try:
-    import fitz  # PyMuPDF
-except ImportError:
-    pass
-
-try:
-    from pypdf import PdfReader
+    import fitz  # PyMuPDF (Đã thay thế hoàn toàn PyPDF2)
 except ImportError:
     pass
 
 from docx import Document
 
 # ============================================================
-# ĐỌC FILE PDF
+# ĐỌC FILE PDF (SỬ DỤNG PyMuPDF / fitz)
 # ============================================================
 def extract_text_from_pdf(uploaded_file):
     text_parts = []
     try:
-        reader = PyPDF2.PdfReader(uploaded_file)
-        for page in reader.pages:
-            page_text = page.extract_text()
+        content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        doc = fitz.open(stream=content, filetype="pdf")
+        for page in doc:
+            page_text = page.get_text("text")
             if page_text:
-                text_parts.append(page_text)
+                text_parts.append(page_text.strip())
     except Exception as e:
         return f"[LỖI ĐỌC FILE PDF: {str(e)}]"
     return "\n\n".join(text_parts)
@@ -36,7 +32,8 @@ def extract_text_from_pdf(uploaded_file):
 def extract_text_from_docx(uploaded_file):
     text_parts = []
     try:
-        doc = Document(uploaded_file)
+        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        doc = Document(io.BytesIO(source))
         # Đoạn văn
         for paragraph in doc.paragraphs:
             text = paragraph.text.strip()
@@ -62,12 +59,13 @@ def extract_text_from_docx(uploaded_file):
 def extract_text_from_xlsx(uploaded_file):
     try:
         import openpyxl
-        workbook = openpyxl.load_workbook(uploaded_file, data_only=True)
+        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        workbook = openpyxl.load_workbook(io.BytesIO(source), data_only=True)
         text_parts = []
         for worksheet in workbook.worksheets:
             text_parts.append(f"\n--- SHEET: {worksheet.title} ---")
             for row in worksheet.iter_rows(values_only=True):
-                values = [str(value) for value in row if value is not None]
+                values = [str(value).strip() for value in row if value is not None and str(value).strip()]
                 if values:
                     text_parts.append(" | ".join(values))
         return "\n".join(text_parts)
@@ -194,11 +192,24 @@ def render_viet_sang_kien(ai_engine):
             try:
                 # Đã loại bỏ các params (model, temp...) để dùng thẳng hàm chuẩn của app
                 result = ai_engine.generate_text(prompt)
-                st.session_state["sk_viet_result"] = result
+                
+                # Trích xuất text an toàn từ kết quả AI
+                final_text = ""
+                if isinstance(result, str):
+                    final_text = result.strip()
+                elif hasattr(result, "text"):
+                    final_text = result.text.strip()
+                elif isinstance(result, dict):
+                    for key in ["text", "content", "response", "result"]:
+                        if key in result:
+                            final_text = str(result[key]).strip()
+                            break
+                            
+                st.session_state["sk_viet_result"] = final_text
             except Exception as e:
                 st.error(f"❌ Lỗi khi gọi AI Engine: {str(e)}")
 
-    if "sk_viet_result" in st.session_state:
+    if "sk_viet_result" in st.session_state and st.session_state["sk_viet_result"]:
         st.markdown("---")
         st.markdown("## 📄 BẢN THẢO SÁNG KIẾN")
         st.markdown(st.session_state["sk_viet_result"])
