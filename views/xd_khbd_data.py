@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (ĐA NỀN TẢNG OPENAI & GEMINI)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (TRẢ VỀ LÕI AI ENGINE CỦA HỆ THỐNG)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -11,7 +11,6 @@ import os
 import re
 import json
 import logging
-import base64
 import pandas as pd
 from docx import Document
 from pathlib import Path
@@ -57,6 +56,9 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
+# ============================================================
+# TỪ ĐIỂN KHUNG NĂNG LỰC SỐ FULL (Theo Thông tư 18/2026/TT-BGDĐT)
+# ============================================================
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
@@ -219,114 +221,8 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     text = safe_text(text)
     chars = len(text)
     if chars < MIN_SOURCE_CHARS:
-        return {"status": "empty", "message": "Hệ thống đang gọi AI Vision để quét OCR..."}
+        return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ. Vui lòng cung cấp file Word hoặc PDF chuẩn Text."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
-
-# ============================================================
-# CƠ CHẾ ĐỌC FILE TỰ ĐỘNG OCR (HỖ TRỢ CẢ OPENAI VÀ GEMINI)
-# ============================================================
-def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
-    import os
-    
-    api_key = st.session_state.get("user_api_key", "")
-    if isinstance(api_key, str):
-        api_key = api_key.strip()
-    if not api_key:
-        try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
-        except: pass
-    if not api_key: 
-        return "❌ Lỗi: Cần nhập API Key ở menu trái."
-
-    ext = os.path.splitext(file_name)[1].lower()
-    if not ext: ext = ".pdf"
-    
-    ocr_prompt = "Trích xuất toàn bộ chữ trong tài liệu. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng Unicode (ví dụ: √, ²). KHÔNG DÙNG ký tự $."
-
-    # XỬ LÝ NẾU KHÓA LÀ CỦA OPENAI (sk-proj...)
-    if api_key.startswith("sk-"):
-        try:
-            from openai import OpenAI
-            import fitz
-        except ImportError:
-            return "❌ Lỗi: Máy chủ thiếu thư viện `openai` hoặc `PyMuPDF`. Thầy vui lòng cài đặt (pip install openai pymupdf)."
-        
-        try:
-            client = OpenAI(api_key=api_key)
-            content_list = [{"type": "text", "text": ocr_prompt}]
-            
-            if ext == '.pdf':
-                doc = fitz.open(stream=file_bytes, filetype="pdf")
-                limit_pages = min(len(doc), 15) 
-                for page_num in range(limit_pages):
-                    pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-                    img_b64 = base64.b64encode(pix.tobytes("png")).decode("utf-8")
-                    content_list.append({
-                        "type": "image_url", 
-                        "image_url": {"url": f"data:image/png;base64,{img_b64}"}
-                    })
-            else:
-                img_b64 = base64.b64encode(file_bytes).decode("utf-8")
-                mime_type = "image/jpeg" if ext in ['.jpg', '.jpeg'] else "image/png"
-                content_list.append({
-                    "type": "image_url", 
-                    "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}
-                })
-
-            response = client.chat.completions.create(
-                model="gpt-4o", 
-                messages=[{"role": "user", "content": content_list}],
-                max_tokens=4000
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            return f"❌ Lỗi OpenAI OCR: {str(e)}"
-
-    # XỬ LÝ NẾU KHÓA LÀ CỦA GEMINI (AIza... / AQ...)
-    else:
-        import tempfile, time
-        try: 
-            import google.generativeai as genai
-        except ImportError: 
-            return "❌ Lỗi: Thư viện `google-generativeai` chưa được cài đặt."
-            
-        try:
-            genai.configure(api_key=api_key)
-            tmp_path = ""
-            media_file = None
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                tmp.write(file_bytes)
-                tmp_path = tmp.name
-                
-            media_file = genai.upload_file(path=tmp_path)
-            
-            while media_file.state.name == "PROCESSING":
-                time.sleep(2)
-                media_file = genai.get_file(media_file.name)
-                
-            if media_file.state.name == "FAILED":
-                return "❌ Lỗi: Máy chủ Google từ chối đọc file."
-                
-            model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-            response = model.generate_content([ocr_prompt, media_file])
-            text = getattr(response, "text", "").strip()
-            
-            if not text: return "❌ Lỗi: OCR hoàn tất nhưng không tìm thấy chữ."
-            return text
-        except Exception as e: 
-            error_msg = str(e).lower()
-            if "429" in error_msg or "quota" in error_msg:
-                return "❌ Lỗi 429: API Key Gemini hết hạn ngạch."
-            elif "api key not valid" in error_msg or "400" in error_msg:
-                return "❌ Lỗi 400: Khóa Gemini không hợp lệ."
-            return f"❌ Lỗi Gemini OCR: {str(e)}"
-        finally:
-            if media_file: 
-                try: genai.delete_file(media_file.name)
-                except: pass
-            if tmp_path and os.path.exists(tmp_path): 
-                try: os.remove(tmp_path)
-                except: pass
 
 def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
@@ -345,12 +241,6 @@ def read_pdf(uploaded_file, range_str=""):
             reader = PdfReader(BytesIO(content))
             extracted_text = "\n\n".join([p.extract_text().strip() for p in reader.pages if p.extract_text()])
         except: pass
-
-    if len(extracted_text) < 100:
-        ocr_text = extract_text_via_ai_vision(content, getattr(uploaded_file, "name", "doc.pdf"))
-        if ocr_text.startswith("❌"):
-            return ocr_text 
-        extracted_text = ocr_text
         
     return safe_text(extracted_text)
 
@@ -366,23 +256,24 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
         file_name = getattr(f, 'name', '').lower()
         if file_name.endswith('.pdf'):
             content = read_pdf(f)
-        elif file_name.endswith(('.png', '.jpg', '.jpeg', '.webp')):
-            file_bytes = f.getvalue() if hasattr(f, "getvalue") else f.read()
-            content = extract_text_via_ai_vision(file_bytes, file_name)
         else:
             content = read_docx_ordered(f)
-            
-        if content.startswith("❌"):
-            return content
             
         if len(content) > 30: 
             result.append(content)
     return safe_text("\n".join(result))
 
 # ============================================================
-# CƠ CHẾ SINH GIÁO ÁN BẰNG CẢ OPENAI VÀ GEMINI
+# CƠ CHẾ GỌI AI THÔNG QUA LÕI HỆ THỐNG CŨ (AI ENGINE)
 # ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
+    """
+    Hàm này được thiết kế trả lại hoàn toàn quyền kiểm soát API Key và Request mạng 
+    cho file `utils/ai_engine.py` của hệ thống để đảm bảo không xảy ra xung đột.
+    """
+    if client is None:
+        raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
+        
     try:
         system_instruction = """
 [QUY TẮC ĐỊNH DẠNG BẮT BUỘC - KHÔNG ĐƯỢC VI PHẠM]:
@@ -390,63 +281,27 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
 2. TRONG PHẦN "I. MỤC TIÊU": Bắt buộc phải có 3 mục nhỏ: 1. Kiến thức, 2. Năng lực, 3. Phẩm chất (Chăm chỉ, Trung thực, Trách nhiệm...).
 3. CÔNG THỨC TOÁN HỌC: Dùng ký tự Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng cú pháp LaTeX (như $ \sqrt{} $) vì file Word không hỗ trợ biên dịch mã.
 4. CẤM DÙNG DẤU CHẤM ĐEN (BULLET) trước các đề mục nhỏ: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
-5. CẤM TỰ BỊA NỘI DUNG TÍCH HỢP: Nếu giáo viên yêu cầu tích hợp Năng lực số (TT18), PHẢI chép y nguyên nội dung GV cung cấp, cấm bịa thêm LMS/Zoom nếu GV không chọn.
+5. CẤM TỰ BỊA NỘI DUNG TÍCH HỢP: Nếu giáo viên yêu cầu tích hợp Năng lực số (TT18), PHẢI chép y nguyên nội dung GV cung cấp.
         """
         full_prompt = system_instruction + "\n\n" + prompt
         
-        # Bắt khóa từ UI để quyết định dùng AI nào
-        api_key = st.session_state.get("user_api_key", "")
-        if isinstance(api_key, str): api_key = api_key.strip()
-        if not api_key:
-            try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
-            except: pass
-
-        # NẾU DÙNG KEY OPENAI (sk-...) BỎ QUA AI ENGINE CŨ
-        if api_key.startswith("sk-"):
-            try:
-                from openai import OpenAI
-            except ImportError:
-                raise RuntimeError("Máy chủ chưa cài thư viện openai. Hãy chạy: pip install openai")
-            
-            oai_client = OpenAI(api_key=api_key)
-            gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
-            
-            response = oai_client.chat.completions.create(
-                model=gpt_model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=8000
-            )
-            text_out = response.choices[0].message.content.strip()
-
-        # NẾU DÙNG KEY GOOGLE HOẶC KHÔNG CÓ KEY
-        else:
+        # CHỈ GỌI THÔNG QUA OBJECT CLIENT ĐƯỢC APP.PY TRUYỀN VÀO
+        if hasattr(client, "generate_text"):
+            text_out = client.generate_text(full_prompt, model_name=model_name)
+        elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
             api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+            response = client.models.generate_content(model=api_model, contents=full_prompt)
+            text_out = getattr(response, "text", "").strip()
+        else:
+            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
             
-            if api_key:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel(model_name=api_model)
-                response = model.generate_content(full_prompt)
-                text_out = getattr(response, "text", "").strip()
-            else:
-                # Fallback gọi qua lõi hệ thống cũ nếu không có key nhập vào
-                if hasattr(client, "generate_text"):
-                    text_out = client.generate_text(full_prompt, model_name=model_name)
-                else:
-                    response = client.models.generate_content(model=api_model, contents=full_prompt)
-                    text_out = getattr(response, "text", "").strip()
-            
-        # Dọn rác
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
         return text_out
     except Exception as e:
         logger.error(f"Lỗi gọi AI: {str(e)}")
-        raise RuntimeError(f"{str(e)}")
+        raise RuntimeError(f"Lỗi kết nối AI qua lõi hệ thống: {str(e)}")
 
 def validate_khbd_result(text):
     if len(text) < 500: return False, "Nội dung quá ngắn."
