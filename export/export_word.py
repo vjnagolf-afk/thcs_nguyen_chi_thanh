@@ -310,7 +310,23 @@ class WordExportEngine:
         return cls.convert_markdown_to_docx_bytes(markdown_content, metadata=data_cache)
 
 # ============================================================
-# 3. PUBLIC API CŨ (ĐỊNH NGHĨA NGOÀI CLASS PHỤC VỤ CÁC VIEWS)
+# 3. PUBLIC API CŨ (ĐÃ NÂNG CẤP BẪY LỖI LINH HOẠT THAM SỐ)
 # ============================================================
-def export_word(markdown_text: str) -> bytes:
-    return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text)
+def export_word(markdown_text_or_cache) -> bytes:
+    """
+    Hàm API công khai tương thích ngược với mọi kiểu truyền tham số từ các View cũ.
+    """
+    try:
+        if isinstance(markdown_text_or_cache, dict):
+            return WordExportEngine.export_to_word(markdown_text_or_cache)
+        elif isinstance(markdown_text_or_cache, str):
+            return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text_or_cache, metadata=None)
+        else:
+            return WordExportEngine.convert_markdown_to_docx_bytes(str(markdown_text_or_cache), metadata=None)
+    except Exception as e:
+        # Fallback an toàn tuyệt đối giúp Streamlit không bao giờ bị treo nút tải
+        doc = docx.Document()
+        doc.add_paragraph(f"Lỗi kết xuất file Word: {str(e)}")
+        bio = io.BytesIO()
+        doc.save(bio)
+        return bio.getvalue()
