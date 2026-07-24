@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHỐNG LƯỜI & ÉP KHUÔN 5512)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHỐNG LƯỜI BIẾNG & BẮT ÉP CHI TIẾT)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -11,6 +11,7 @@ import os
 import re
 import json
 import logging
+import base64
 import pandas as pd
 from docx import Document
 from pathlib import Path
@@ -139,7 +140,7 @@ KHUNG_NLS_GV = {
         "5.2. Hợp tác phát triển chuyên môn": {
             "Cơ bản": "Chủ động tham gia các cộng đồng học tập trực tuyến. Tự đánh giá được khó khăn, thách thức và thuận lợi ứng dụng công nghệ số trong công việc.",
             "Thành thạo": "Xây dựng được kế hoạch cải tiến, đổi mới ứng dụng công nghệ số trong hoạt động chuyên môn. Chủ động tìm kiếm và tham gia các khóa học cơ bản để cập nhật kiến thức, kĩ năng số. Tự đánh giá, cải tiến ứng dụng công nghệ số trong dạy học trong môi trường số. Tham gia chia sẻ, học tập và cập nhật kĩ năng ứng dụng công nghệ số với đồng nghiệp.",
-            "Nâng cao": "Cập nhật được các xu hướng công nghệ và phương pháp sư phạm số mới, áp dụng kiến thức, kĩ năng số vào thực tiễn dạy học. Hướng dẫn được đồng nghiệp xây dựng các yêu cầu về dạy học trong môi trường số, phát triển các công cụ, phương pháp hỗ trợ tự phản ánh về năng lực số."
+            "Nâng cao": "Cập nhật được các xu hướng công nghệ và phương pháp sư phạm số mới, áp dụng kiến thức, kĩ năng số vào thực hiện dạy học. Hướng dẫn được đồng nghiệp xây dựng các yêu cầu về dạy học trong môi trường số, phát triển các công cụ, phương pháp hỗ trợ tự phản ánh về năng lực số."
         },
         "5.3. Phát triển, sử dụng, chia sẻ và quản lí học liệu số": {
             "Cơ bản": "Sử dụng được các công cụ tìm kiếm phổ biến để tìm kiếm tài nguyên, kho học liệu số, thư viện trực tuyến, tài nguyên giáo dục mở (OER). Lựa chọn được tài nguyên phù hợp với mục tiêu bài học.",
@@ -261,31 +262,34 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
     return safe_text("\n".join(result))
 
 # ============================================================
-# CƠ CHẾ GỌI AI THÔNG QUA LÕI HỆ THỐNG CŨ BẢO ĐẢM API KEY
+# CƠ CHẾ GỌI AI & XỬ LÝ TEXT (TRỊ BỆNH LƯỜI & LỖI FORMAT)
 # ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     """
-    Hàm này được thiết kế trả lại hoàn toàn quyền kiểm soát API Key và Request mạng 
-    cho file `utils/ai_engine.py` của hệ thống để đảm bảo không xảy ra xung đột.
+    Hàm gọi AI Engine, kèm theo logic gọt dũa Text Output để xóa bỏ các dấu chấm đen rác.
     """
     if client is None:
         raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
         
     try:
         system_instruction = """
-[KỶ LUẬT THÉP VỀ CẤU TRÚC 5512 - KHÔNG ĐƯỢC VI PHẠM]:
-1. CẤM VIẾT LỜI CHÀO, LỜI MỞ ĐẦU HOẶC KẾT LUẬN. Kế hoạch phải bắt đầu bằng "# TÊN BÀI HỌC:".
-2. CẤU TRÚC GIÁO ÁN PHẢI CÓ ĐỦ 4 PHẦN LỚN NHƯ SAU:
+[KỶ LUẬT THÉP VỀ CẤU TRÚC VÀ NỘI DUNG SƯ PHẠM - BẮT BUỘC TUÂN THỦ 100%]:
+1. CẤM VIẾT LỜI CHÀO, LỜI MỞ ĐẦU HOẶC KẾT LUẬN. Giáo án phải bắt đầu trực tiếp bằng "# TÊN BÀI HỌC:".
+2. CẤU TRÚC GIÁO ÁN PHẢI CÓ ĐỦ 4 PHẦN LỚN:
    I. MỤC TIÊU (Bắt buộc có đủ 3 tiểu mục: 1. Kiến thức, 2. Năng lực, 3. Phẩm chất)
    II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-   III. TÍCH HỢP CHUYÊN SÂU (Chép lại y hệt nội dung GV yêu cầu, không tự bịa thêm phần mềm LMS hay Zoom nếu không được yêu cầu)
+   III. TÍCH HỢP CHUYÊN SÂU (Chỉ chép y nguyên nội dung Tích hợp GV giao, tuyệt đối không tự bịa)
    IV. TIẾN TRÌNH DẠY HỌC
-3. KHÔNG ĐƯỢC GỘP CHUNG MỘT TIẾT THÀNH MỘT HOẠT ĐỘNG. Trong mỗi `TIẾT` phải CHIA RA ÍT NHẤT 3 HOẠT ĐỘNG. Ví dụ: Khởi động, Khám phá, Luyện tập...
-4. CÔNG THỨC TOÁN HỌC: Bắt buộc dùng ký tự Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng cú pháp LaTeX (như $ \sqrt{} $).
+3. QUY TẮC CHỐNG "VIẾT LƯỜI", CHỐNG "CHUNG CHUNG": Đây là lỗi rất nặng. Bạn tuyệt đối không được phép tóm tắt SGK.
+   - Tại mục "b) Nội dung": BẮT BUỘC CHÉP LẠI CHÍNH XÁC TỪNG CHỮ, từng con số, từng phương trình của đề bài, câu hỏi, ví dụ từ SGK. KHÔNG ĐƯỢC tóm tắt kiểu "Giải bài tập 3.3". Phải ghi rõ "Bài tập 3.3: Tìm điều kiện xác định của...".
+   - Tại mục "c) Sản phẩm": BẮT BUỘC TRÌNH BÀY LỜI GIẢI CHI TIẾT, ĐÁP ÁN RÕ RÀNG cho từng câu hỏi/bài tập đã nêu ở phần Nội dung. Tuyệt đối không viết "Học sinh hiểu bài". Phải giải cụ thể ra: "Đáp án: x >= -10...".
+   - Tại mục "d) Tổ chức thực hiện": BẮT BUỘC ghi rõ 4 bước. Ở Bước 1 (GV giao nhiệm vụ), ghi cụ thể lời nói của GV. Ở Bước 2, ghi rõ HS làm gì. Ở Bước 3, ghi rõ dự kiến câu trả lời của HS. Ở Bước 4, ghi chốt lại kiến thức.
+4. LỆNH CẤM KÝ TỰ (RẤT QUAN TRỌNG): TUYỆT ĐỐI KHÔNG SỬ DỤNG CÁC DẤU CHẤM TRÒN ĐEN, DẤU CHẤM ĐẬM (•), HOẶC DẤU GẠCH NGANG (-) đứng trước các dòng trong các mục a, b, c, d. Hãy dùng dấu cộng (+) hoặc đánh số (1, 2, 3).
+5. CÔNG THỨC TOÁN HỌC: Dùng Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng cú pháp LaTeX (như $ \sqrt{} $).
         """
         full_prompt = system_instruction + "\n\n" + prompt
         
-        # CHỈ GỌI THÔNG QUA OBJECT CLIENT ĐƯỢC APP.PY TRUYỀN VÀO
+        # Gọi thông qua AI Engine của hệ thống
         if hasattr(client, "generate_text"):
             text_out = client.generate_text(full_prompt, model_name=model_name)
         elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
@@ -295,8 +299,16 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         else:
             raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
             
+        # ==========================================
+        # BỘ LỌC TỰ ĐỘNG LÀM SẠCH VĂN BẢN
+        # ==========================================
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
+            
+        # Gọt sạch mọi dấu chấm đen (•) mà AI ngoan cố chèn vào
+        text_out = text_out.replace("•", "+")
+        # Gọt sạch các bullet point gạch đầu dòng sai quy chuẩn ở các mục a, b, c, d
+        text_out = re.sub(r'^\s*-\s+(Bước)', r'+ \1', text_out, flags=re.MULTILINE)
             
         return text_out
     except Exception as e:
@@ -316,11 +328,10 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
 
     nhiem_vu = f"""
 NHIỆM VỤ CỦA BẠN: {'CHỈNH SỬA GIÁO ÁN GỐC' if mode == 'chinh_sua' else 'SOẠN MỚI GIÁO ÁN TỪ SGK'}.
-1. Đọc kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để trích xuất đầy đủ lý thuyết và bài tập.
-2. BÀI NÀY CÓ TỚI {so_tiet} TIẾT. ĐÂY LÀ MỘT GIÁO ÁN RẤT DÀI. TUYỆT ĐỐI KHÔNG ĐƯỢC LƯỜI BIẾNG GỘP CHUNG! 
-   - Một `TIẾT` học (45 phút) BẮT BUỘC PHẢI BAO GỒM NHIỀU `HOẠT ĐỘNG` (Ví dụ: Hoạt động 1: Khởi động, Hoạt động 2: Hình thành kiến thức...).
-   - Nghiêm cấm việc viết "TIẾT 1: a) Mục tiêu... b) Nội dung...". Việc coi 1 Tiết là 1 Hoạt động là SAI CẤU TRÚC NGHIÊM TRỌNG.
-3. DÀN Ý BẮT BUỘC PHẢI TUÂN THỦ (KHÔNG ĐƯỢC BỎ SÓT HOẶC SAI VỊ TRÍ):
+1. Đọc kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để trích xuất ĐẦY ĐỦ VÀ CHÍNH XÁC lý thuyết, ví dụ và bài tập.
+2. Bài học kéo dài {so_tiet} tiết. TRONG MỖI TIẾT, BẠN PHẢI TẠO RA ÍT NHẤT 2-3 HOẠT ĐỘNG (Ví dụ: Khởi động, Khám phá, Luyện tập). KHÔNG ĐƯỢC GỘP CHUNG MỘT TIẾT THÀNH MỘT HOẠT ĐỘNG.
+3. DÀN Ý BẮT BUỘC PHẢI TUÂN THỦ (TRÌNH BÀY SIÊU CHI TIẾT THEO ĐÚNG FORMAT NÀY):
+
 # TÊN BÀI HỌC: ...
 I. MỤC TIÊU
 1. Kiến thức
@@ -335,16 +346,17 @@ IV. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1
 **Hoạt động 1: Khởi động (Dự kiến: X phút)**
 a) Mục tiêu: ...
-b) Nội dung: ...
-c) Sản phẩm: ...
-d) Tổ chức thực hiện: ... (Bước 1: GV giao nhiệm vụ, Bước 2: HS thực hiện, Bước 3: Báo cáo thảo luận, Bước 4: Kết luận nhận định)
+b) Nội dung: Nội dung chi tiết câu hỏi/bài tập là: ... (Trích xuất CHÍNH XÁC từ ngữ, số liệu từ SGK)
+c) Sản phẩm: Lời giải/Đáp án chi tiết là: ... (Giải chi tiết từng bước bài toán. CẤM viết chung chung "HS giải được")
+d) Tổ chức thực hiện: 
++ Bước 1: GV giao nhiệm vụ: "Các em hãy..."
++ Bước 2: HS thực hiện: ...
++ Bước 3: Báo cáo thảo luận: ...
++ Bước 4: Kết luận nhận định: ...
+
 **Hoạt động 2: Hình thành kiến thức mới (Dự kiến: X phút)**
 (Viết lặp lại đầy đủ a,b,c,d chi tiết như trên)
-...
-### TIẾT 2
-**Hoạt động 3: Luyện tập (Dự kiến: X phút)**
-...
-### TIẾT 3 ...
-4. YÊU CẦU CHI TIẾT HÓA: Ở mục "Nội dung" và "Sản phẩm", PHẢI CHÉP LẠI CHI TIẾT từng câu hỏi, từng bài tập, từng định lý và LỜI GIẢI CHI TIẾT rút ra từ SGK. KHÔNG ĐƯỢC VIẾT CHUNG CHUNG kiểu "giải các bài tập trong SGK".
+
+### TIẾT 2 ... (Lặp lại logic trên)
 """
     return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC ---\n{source}\n\n{ga_block}"
