@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TT18 & ĐA NỀN TẢNG OCR)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (ĐA NỀN TẢNG OPENAI & GEMINI)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -228,7 +228,6 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
 def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
     import os
     
-    # 1. Lấy và dọn dẹp API Key
     api_key = st.session_state.get("user_api_key", "")
     if isinstance(api_key, str):
         api_key = api_key.strip()
@@ -243,22 +242,20 @@ def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
     
     ocr_prompt = "Trích xuất toàn bộ chữ trong tài liệu. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng Unicode (ví dụ: √, ²). KHÔNG DÙNG ký tự $."
 
-    # 2. Xử lý nếu dùng OpenAI Key (sk-...)
+    # XỬ LÝ NẾU KHÓA LÀ CỦA OPENAI (sk-proj...)
     if api_key.startswith("sk-"):
         try:
             from openai import OpenAI
-            import fitz  # PyMuPDF
+            import fitz
         except ImportError:
-            return "❌ Lỗi: Máy chủ thiếu thư viện `openai` hoặc `PyMuPDF`. Vui lòng cài đặt (pip install openai pymupdf)."
+            return "❌ Lỗi: Máy chủ thiếu thư viện `openai` hoặc `PyMuPDF`. Thầy vui lòng cài đặt (pip install openai pymupdf)."
         
         try:
             client = OpenAI(api_key=api_key)
             content_list = [{"type": "text", "text": ocr_prompt}]
             
-            # Nếu là file PDF: Biến PDF thành ảnh và đẩy vào GPT-4o
             if ext == '.pdf':
                 doc = fitz.open(stream=file_bytes, filetype="pdf")
-                # Giới hạn số trang đọc OCR để tránh tràn token (Ví dụ 15 trang đầu)
                 limit_pages = min(len(doc), 15) 
                 for page_num in range(limit_pages):
                     pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
@@ -267,7 +264,6 @@ def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
                         "type": "image_url", 
                         "image_url": {"url": f"data:image/png;base64,{img_b64}"}
                     })
-            # Nếu là file Ảnh trực tiếp
             else:
                 img_b64 = base64.b64encode(file_bytes).decode("utf-8")
                 mime_type = "image/jpeg" if ext in ['.jpg', '.jpeg'] else "image/png"
@@ -277,16 +273,15 @@ def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
                 })
 
             response = client.chat.completions.create(
-                model="gpt-4o", # Model Vision chuẩn của OpenAI
+                model="gpt-4o", 
                 messages=[{"role": "user", "content": content_list}],
                 max_tokens=4000
             )
             return response.choices[0].message.content
-
         except Exception as e:
             return f"❌ Lỗi OpenAI OCR: {str(e)}"
 
-    # 3. Xử lý nếu dùng Gemini Key (AIza... / AQ...)
+    # XỬ LÝ NẾU KHÓA LÀ CỦA GEMINI (AIza... / AQ...)
     else:
         import tempfile, time
         try: 
@@ -318,7 +313,6 @@ def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
             
             if not text: return "❌ Lỗi: OCR hoàn tất nhưng không tìm thấy chữ."
             return text
-            
         except Exception as e: 
             error_msg = str(e).lower()
             if "429" in error_msg or "quota" in error_msg:
@@ -385,6 +379,9 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
             result.append(content)
     return safe_text("\n".join(result))
 
+# ============================================================
+# CƠ CHẾ SINH GIÁO ÁN BẰNG CẢ OPENAI VÀ GEMINI
+# ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     try:
         system_instruction = """
@@ -397,20 +394,59 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         """
         full_prompt = system_instruction + "\n\n" + prompt
         
-        api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-        if hasattr(client, "generate_text"):
-            text_out = client.generate_text(full_prompt, model_name=model_name)
-        else:
-            response = client.models.generate_content(model=api_model, contents=full_prompt)
-            text_out = getattr(response, "text", "").strip()
+        # Bắt khóa từ UI để quyết định dùng AI nào
+        api_key = st.session_state.get("user_api_key", "")
+        if isinstance(api_key, str): api_key = api_key.strip()
+        if not api_key:
+            try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
+            except: pass
+
+        # NẾU DÙNG KEY OPENAI (sk-...) BỎ QUA AI ENGINE CŨ
+        if api_key.startswith("sk-"):
+            try:
+                from openai import OpenAI
+            except ImportError:
+                raise RuntimeError("Máy chủ chưa cài thư viện openai. Hãy chạy: pip install openai")
             
+            oai_client = OpenAI(api_key=api_key)
+            gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
+            
+            response = oai_client.chat.completions.create(
+                model=gpt_model,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=8000
+            )
+            text_out = response.choices[0].message.content.strip()
+
+        # NẾU DÙNG KEY GOOGLE HOẶC KHÔNG CÓ KEY
+        else:
+            api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+            
+            if api_key:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel(model_name=api_model)
+                response = model.generate_content(full_prompt)
+                text_out = getattr(response, "text", "").strip()
+            else:
+                # Fallback gọi qua lõi hệ thống cũ nếu không có key nhập vào
+                if hasattr(client, "generate_text"):
+                    text_out = client.generate_text(full_prompt, model_name=model_name)
+                else:
+                    response = client.models.generate_content(model=api_model, contents=full_prompt)
+                    text_out = getattr(response, "text", "").strip()
+            
+        # Dọn rác
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
         return text_out
     except Exception as e:
-        logger.error("Lỗi gọi AI: %s", e)
-        raise RuntimeError(f"Lỗi kết nối AI: {e}")
+        logger.error(f"Lỗi gọi AI: {str(e)}")
+        raise RuntimeError(f"{str(e)}")
 
 def validate_khbd_result(text):
     if len(text) < 500: return False, "Nội dung quá ngắn."
