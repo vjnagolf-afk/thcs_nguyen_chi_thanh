@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP OCR & TT18)
+VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY (TÍCH HỢP OCR & TT18 - FIX NÚT TẢI)
 FILE: views/xd_khbd_view.py
 ============================================================
 """
@@ -140,14 +140,13 @@ def render_xd_khbd(ai_engine_client=None):
                 noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if file_sgk else ""
                 noi_dung_ga = read_multiple_files(file_ga) if mode == "chinh_sua" and file_ga else ""
                 
-                # Logic kiểm tra lỗi mới (đã gỡ bỏ hàm kiểm tra chặn lỗi cũ)
                 if mode == "tu_dong":
                     if "❌" in noi_dung_chinh:
                         st.error(noi_dung_chinh)
                         st.stop()
                         
                     if len(noi_dung_chinh.strip()) < 100:
-                        st.error("❌ Hệ thống không thể đọc được nội dung chữ từ file này, và quá trình tự động quét ảnh OCR cũng thất bại (có thể do API Key chưa được nhập hoặc hết Quota). Thầy vui lòng nhập API Key cá nhân ở thanh bên trái để AI có thể đọc ảnh.")
+                        st.error("❌ Hệ thống không thể đọc được nội dung chữ từ file này. Thầy vui lòng kiểm tra lại file tài liệu.")
                         st.stop()
                     else:
                         st.success(f"✅ Đã trích xuất và bảo toàn thành công {len(noi_dung_chinh):,} ký tự từ tài liệu tải lên.")
@@ -185,7 +184,7 @@ def render_xd_khbd(ai_engine_client=None):
                 st.error(f"❌ Lỗi hệ thống: {e}")
 
     # ==========================================================
-    # HIỂN THỊ VÀ XUẤT WORD
+    # HIỂN THỊ VÀ XUẤT WORD (ĐẢM BẢO NÚT TẢI LUÔN HOẠT ĐỘNG)
     # ==========================================================
     if st.session_state.get('khbd_delete_trigger'):
         if 'current_khbd_data' in st.session_state:
@@ -194,7 +193,6 @@ def render_xd_khbd(ai_engine_client=None):
         st.rerun()
 
     khbd_cache = st.session_state.get('current_khbd_data')
-    word_file = None
     
     if khbd_cache and khbd_cache.get('is_khbd'):
         st.markdown("---")
@@ -203,20 +201,22 @@ def render_xd_khbd(ai_engine_client=None):
         with st.expander("👀 Xem trước Kế hoạch bài dạy chi tiết", expanded=True):
             st.markdown(khbd_cache.get('ai_generated_content', ''))
             
-            if WordExportEngine:
-                with st.spinner("Đang render công thức Toán/Bảng biểu và xuất ra file Word chuẩn..."):
-                    try:
-                        if hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
-                            word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'])
-                    except Exception as e:
-                        st.error(f"⚠️ Trình xuất Word đang gặp sự cố với format: {e}")
-            
         col_save, col_download, col_delete = st.columns(3)
         with col_save:
             if st.button("💾 Lưu nháp vào hệ thống", use_container_width=True):
                 st.toast("Đã lưu cấu hình giáo án vào bộ nhớ an toàn!")
                 
         with col_download:
+            # GỌI XUẤT FILE WORD TRỰC TIẾP TẠI NÚT BẤM ĐỂ KHÔNG BAO GIỜ BỊ TREO SPINNER
+            word_file = None
+            if WordExportEngine:
+                try:
+                    if hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
+                        word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache['ai_generated_content'])
+                except Exception as e:
+                    logger_err = str(e)
+                    st.error(f"⚠️ Trình xuất Word đang gặp sự cố: {logger_err}")
+
             if word_file:
                 saved_title = khbd_cache.get("title", "Giao_An").replace(" ", "_")
                 st.download_button(
