@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (ÉP CẤU TRÚC CHI TIẾT & API ĐỘC LẬP)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHỐNG LƯỜI & ÉP KHUÔN 5512)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -261,101 +261,47 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
     return safe_text("\n".join(result))
 
 # ============================================================
-# CƠ CHẾ GỌI AI ĐỘC LẬP TỰ ĐỘNG NHẬN DIỆN KHÓA OPENAI VÀ GEMINI
+# CƠ CHẾ GỌI AI THÔNG QUA LÕI HỆ THỐNG CŨ BẢO ĐẢM API KEY
 # ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     """
-    Hệ thống sẽ tự nhận diện API Key (sk- hoặc AIza) và thực thi trực tiếp,
-    tránh xung đột với lõi ai_engine cũ của hệ thống.
+    Hàm này được thiết kế trả lại hoàn toàn quyền kiểm soát API Key và Request mạng 
+    cho file `utils/ai_engine.py` của hệ thống để đảm bảo không xảy ra xung đột.
     """
-    api_key = st.session_state.get("user_api_key", "")
-    if isinstance(api_key, str):
-        api_key = api_key.strip()
+    if client is None:
+        raise RuntimeError("Chưa truyền đối tượng Client AI (ai_engine).")
         
-    if not api_key:
-        try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
-        except: pass
-
-    system_instruction = """
-[KỶ LUẬT THÉP VỀ ĐỊNH DẠNG VÀ CẤU TRÚC GIÁO ÁN THEO CÔNG VĂN 5512 - LÀM SAI SẼ BỊ PHẠT]:
+    try:
+        system_instruction = """
+[KỶ LUẬT THÉP VỀ CẤU TRÚC 5512 - KHÔNG ĐƯỢC VI PHẠM]:
 1. CẤM VIẾT LỜI CHÀO, LỜI MỞ ĐẦU HOẶC KẾT LUẬN. Kế hoạch phải bắt đầu bằng "# TÊN BÀI HỌC:".
-2. CẤU TRÚC GIÁO ÁN PHẢI ĐẦY ĐỦ 4 PHẦN LỚN:
+2. CẤU TRÚC GIÁO ÁN PHẢI CÓ ĐỦ 4 PHẦN LỚN NHƯ SAU:
    I. MỤC TIÊU (Bắt buộc có đủ 3 tiểu mục: 1. Kiến thức, 2. Năng lực, 3. Phẩm chất)
    II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-   III. TÍCH HỢP CHUYÊN SÂU (Chép lại y hệt yêu cầu, không tự bịa)
+   III. TÍCH HỢP CHUYÊN SÂU (Chép lại y hệt nội dung GV yêu cầu, không tự bịa thêm phần mềm LMS hay Zoom nếu không được yêu cầu)
    IV. TIẾN TRÌNH DẠY HỌC
-3. TRONG PHẦN "IV. TIẾN TRÌNH DẠY HỌC": Bắt buộc chia rõ ### TIẾT 1, ### TIẾT 2... 
-   Dưới mỗi tiết, BẮT BUỘC PHẢI CHIA LÀM NHIỀU HOẠT ĐỘNG CỤ THỂ, ví dụ:
-   **Hoạt động 1: Khởi động**
-   **Hoạt động 2: Hình thành kiến thức mới**
-   **Hoạt động 3: Luyện tập**
-   **Hoạt động 4: Vận dụng**
-4. TRONG MỖI HOẠT ĐỘNG: Bắt buộc trình bày đúng 4 bước KHÔNG DÙNG BULLET ĐIỂM ĐEN (*, -, •):
-   a) Mục tiêu: ...
-   b) Nội dung: ... (Trích xuất CHÍNH XÁC đề bài, câu hỏi, dữ liệu từ SGK)
-   c) Sản phẩm: ... (Trích xuất CHÍNH XÁC công thức, đáp án, lời giải)
-   d) Tổ chức thực hiện: ... (MÔ TẢ SIÊU CHI TIẾT THEO BƯỚC: Bước 1: GV giao nhiệm vụ gì? Bước 2: HS thực hiện ra sao? Bước 3: Báo cáo thảo luận thế nào? Bước 4: GV Kết luận nhận định ra sao?)
-5. TUYỆT ĐỐI KHÔNG VIẾT SƠ SÀI. KHÔNG ĐƯỢC CHUNG CHUNG. Giáo án phải dài, cụ thể từng lời nói, bài tập.
-6. CÔNG THỨC TOÁN HỌC: Dùng ký tự Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng ký hiệu LaTeX ($ \sqrt{} $).
-    """
-    full_prompt = system_instruction + "\n\n" + prompt
-
-    try:
-        text_out = ""
+3. KHÔNG ĐƯỢC GỘP CHUNG MỘT TIẾT THÀNH MỘT HOẠT ĐỘNG. Trong mỗi `TIẾT` phải CHIA RA ÍT NHẤT 3 HOẠT ĐỘNG. Ví dụ: Khởi động, Khám phá, Luyện tập...
+4. CÔNG THỨC TOÁN HỌC: Bắt buộc dùng ký tự Unicode rõ ràng (ví dụ: √(x-3), x², y³). Khi có căn bậc hai phức tạp, PHẢI dùng ngoặc đơn bao quanh biểu thức, ví dụ: √((x-2)²). TUYỆT ĐỐI KHÔNG dùng cú pháp LaTeX (như $ \sqrt{} $).
+        """
+        full_prompt = system_instruction + "\n\n" + prompt
         
-        # 1. NẾU DÙNG KEY OPENAI (sk-...)
-        if api_key.startswith("sk-"):
-            try:
-                from openai import OpenAI
-            except ImportError:
-                raise RuntimeError("Máy chủ chưa cài thư viện `openai`. Vui lòng chạy `pip install openai`")
-                
-            oai_client = OpenAI(api_key=api_key)
-            gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
-            
-            response = oai_client.chat.completions.create(
-                model=gpt_model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=8192
-            )
-            text_out = response.choices[0].message.content.strip()
-
-        # 2. NẾU DÙNG KEY GOOGLE GEMINI (AIza... / AQ...)
-        elif api_key.startswith("AIza") or api_key.startswith("AQ"):
-            try:
-                import google.generativeai as genai
-            except ImportError:
-                raise RuntimeError("Máy chủ chưa cài thư viện `google-generativeai`.")
-                
-            genai.configure(api_key=api_key)
+        # CHỈ GỌI THÔNG QUA OBJECT CLIENT ĐƯỢC APP.PY TRUYỀN VÀO
+        if hasattr(client, "generate_text"):
+            text_out = client.generate_text(full_prompt, model_name=model_name)
+        elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
             api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-            model = genai.GenerativeModel(model_name=api_model)
-            response = model.generate_content(full_prompt)
+            response = client.models.generate_content(model=api_model, contents=full_prompt)
             text_out = getattr(response, "text", "").strip()
-
-        # 3. NẾU KHÔNG NHẬN DIỆN ĐƯỢC KHÓA HOẶC KHÔNG NHẬP KHÓA (FALLBACK VÀO ENGINE CŨ CỦA APP)
         else:
-            if hasattr(client, "generate_text"):
-                text_out = client.generate_text(full_prompt, model_name=model_name)
-            elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
-                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-                response = client.models.generate_content(model=api_model, contents=full_prompt)
-                text_out = getattr(response, "text", "").strip()
-            else:
-                raise RuntimeError("API Key không hợp lệ (Phải bắt đầu bằng 'sk-', 'AIza' hoặc 'AQ'). Hoặc đối tượng AI Engine cũ không đúng chuẩn.")
-
-        # Xóa các lời chào thừa mứa của AI nếu có
+            raise RuntimeError("Đối tượng AI Engine không đúng chuẩn của hệ thống.")
+            
         if "# TÊN BÀI HỌC:" in text_out:
             text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
             
         return text_out
-        
     except Exception as e:
         logger.error(f"Lỗi gọi AI: {str(e)}")
-        raise RuntimeError(f"Lỗi kết nối AI: {str(e)}")
+        raise RuntimeError(f"Lỗi kết nối AI qua lõi hệ thống: {str(e)}")
 
 def validate_khbd_result(text):
     if len(text) < 500: return False, "Nội dung quá ngắn."
@@ -370,9 +316,11 @@ def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, t
 
     nhiem_vu = f"""
 NHIỆM VỤ CỦA BẠN: {'CHỈNH SỬA GIÁO ÁN GỐC' if mode == 'chinh_sua' else 'SOẠN MỚI GIÁO ÁN TỪ SGK'}.
-1. Đọc kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để rút ra khái niệm, công thức, bài tập. Tuyệt đối KHÔNG ĐƯỢC VIẾT SƠ SÀI. Hãy soạn một giáo án siêu chi tiết, cụ thể từng lời nói, hành động của GV và HS.
-2. Bài học kéo dài {so_tiet} tiết. Phân bổ rải đều nội dung SGK cho các tiết này.
-3. DÀN Ý BẮT BUỘC PHẢI TUÂN THỦ (KHÔNG ĐƯỢC BỎ SÓT HAY LÀM SAI BẤT KỲ MỤC NÀO MÀ TÔI NÊU DƯỚI ĐÂY):
+1. Đọc kỹ NGUỒN KIẾN THỨC CỐT LÕI (SGK) để trích xuất đầy đủ lý thuyết và bài tập.
+2. BÀI NÀY CÓ TỚI {so_tiet} TIẾT. ĐÂY LÀ MỘT GIÁO ÁN RẤT DÀI. TUYỆT ĐỐI KHÔNG ĐƯỢC LƯỜI BIẾNG GỘP CHUNG! 
+   - Một `TIẾT` học (45 phút) BẮT BUỘC PHẢI BAO GỒM NHIỀU `HOẠT ĐỘNG` (Ví dụ: Hoạt động 1: Khởi động, Hoạt động 2: Hình thành kiến thức...).
+   - Nghiêm cấm việc viết "TIẾT 1: a) Mục tiêu... b) Nội dung...". Việc coi 1 Tiết là 1 Hoạt động là SAI CẤU TRÚC NGHIÊM TRỌNG.
+3. DÀN Ý BẮT BUỘC PHẢI TUÂN THỦ (KHÔNG ĐƯỢC BỎ SÓT HOẶC SAI VỊ TRÍ):
 # TÊN BÀI HỌC: ...
 I. MỤC TIÊU
 1. Kiến thức
@@ -385,18 +333,18 @@ III. TÍCH HỢP CHUYÊN SÂU
 {hoa_nhap_block}
 IV. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1
-**Hoạt động 1: Khởi động**
+**Hoạt động 1: Khởi động (Dự kiến: X phút)**
 a) Mục tiêu: ...
 b) Nội dung: ...
 c) Sản phẩm: ...
-d) Tổ chức thực hiện: ... (Bước 1: GV giao nhiệm vụ..., Bước 2: HS thực hiện..., Bước 3: Báo cáo thảo luận..., Bước 4: Kết luận nhận định...)
-**Hoạt động 2: Hình thành kiến thức**
-(Lặp lại a, b, c, d tương tự...)
-**Hoạt động 3: Luyện tập**
-(Lặp lại a, b, c, d tương tự...)
-**Hoạt động 4: Vận dụng**
-(Lặp lại a, b, c, d tương tự...)
-### TIẾT 2 ... (Nếu có)
-(Làm tương tự siêu chi tiết cho mọi hoạt động ở tất cả các tiết tiếp theo).
+d) Tổ chức thực hiện: ... (Bước 1: GV giao nhiệm vụ, Bước 2: HS thực hiện, Bước 3: Báo cáo thảo luận, Bước 4: Kết luận nhận định)
+**Hoạt động 2: Hình thành kiến thức mới (Dự kiến: X phút)**
+(Viết lặp lại đầy đủ a,b,c,d chi tiết như trên)
+...
+### TIẾT 2
+**Hoạt động 3: Luyện tập (Dự kiến: X phút)**
+...
+### TIẾT 3 ...
+4. YÊU CẦU CHI TIẾT HÓA: Ở mục "Nội dung" và "Sản phẩm", PHẢI CHÉP LẠI CHI TIẾT từng câu hỏi, từng bài tập, từng định lý và LỜI GIẢI CHI TIẾT rút ra từ SGK. KHÔNG ĐƯỢC VIẾT CHUNG CHUNG kiểu "giải các bài tập trong SGK".
 """
     return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC ---\n{source}\n\n{ga_block}"
