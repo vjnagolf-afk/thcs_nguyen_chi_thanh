@@ -139,7 +139,7 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
 # ============================================================
-# II, III, IV. BỘ ĐỌC TÀI LIỆU NGUỒN CÓ CẤU TRÚC (PDF & DOCX)
+# BỘ ĐỌC TÀI LIỆU NGUỒN CÓ CẤU TRÚC (PDF & DOCX)
 # ============================================================
 def parse_pdf_structured(uploaded_file, range_str=""):
     if uploaded_file is None:
@@ -277,9 +277,6 @@ def parse_docx_structured(uploaded_file):
         }]
     }
 
-# ============================================================
-# V. XÂY DỰNG NGUỒN KIẾN THỨC TRUNG GIAN CHO AI
-# ============================================================
 def build_intermediate_knowledge_source(structured_data):
     if not structured_data or not structured_data.get("pages"):
         return "Không có dữ liệu nguồn."
@@ -305,7 +302,6 @@ def build_intermediate_knowledge_source(structured_data):
             
     return "\n\n".join(source_lines)
 
-# Tương thích ngược với các hàm gọi cũ
 def read_pdf(uploaded_file, range_str=""):
     data = parse_pdf_structured(uploaded_file, range_str)
     return "\n".join([p["text"] for p in data["pages"]])
@@ -331,9 +327,8 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
         
     return build_intermediate_knowledge_source(combined_structured)
 
-
 # ============================================================
-# VI. HỆ THỐNG GỌI AI & RÀ BUỘC PROMPT CHỐNG CHUNG CHUNG
+# HỆ THỐNG GỌI AI & RÀ BUỘC PROMPT CHỐNG CHUNG CHUNG
 # ============================================================
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     system_instruction = """
@@ -346,21 +341,23 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
    - "Giáo viên nhận xét và kết luận."
    - "Kết quả thảo luận của nhóm."
    - "Câu trả lời của học sinh."
-4. QUY TẮC BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
-   - a) Mục tiêu: Nêu cụ thể kiến thức, kỹ năng, năng lực đặc thù cần đạt.
-   - b) Nội dung: Trích xuất chính xác câu hỏi, bài tập, biểu thức, bảng dữ liệu hoặc hình ảnh từ nguồn.
-   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể, quan sát hoặc đánh giá được.
-   - d) Tổ chức thực hiện PHẢI ĐỦ 4 BƯỚC VÀ GẮN LIỀN NỘI DUNG NGUỒN (Chuyển giao, Thực hiện, Báo cáo, Kết luận).
 
-5. KỶ LUẬT THÉP VỀ ĐỊNH DẠNG TOÁN/LÝ/HÓA HỌC:
-   - BẠN ĐANG BỊ PHẠM LỖI RẤT NẶNG LÀ KHÔNG BỌC DẤU $ CHO CÔNG THỨC VÀ BIẾN SỐ.
-   - CẤM TUYỆT ĐỐI viết mã LaTeX trần mà không bọc trong dấu $...$.
-   - LỖI SAI BỊ CẤM: Chiết suất n21 = \frac{\sin i}{\sin r}
-   - BẮT BUỘC SỬA THÀNH: Chiết suất $n_{21} = \frac{\sin i}{\sin r}$
-   - LỖI SAI BỊ CẤM: 3 \times 108 m/s
-   - BẮT BUỘC SỬA THÀNH: $3 \times 10^8$ m/s
-   - TẤT CẢ các biến số đơn lẻ (i, r, I, S, n), công thức, phép toán đều phải BỌC TRONG DẤU $.
-   - Chỉ số dưới dùng dấu _ (VD: $H_2O$). Số mũ dùng dấu ^ (VD: $x^2$).
+4. KỶ LUẬT THÉP VỀ ĐỊNH DẠNG TOÁN/LÝ/HÓA HỌC VÀ HÌNH ẢNH/BẢNG BIỂU:
+   - MỌI BIẾN SỐ, CÔNG THỨC TOÁN/LÝ/HÓA BẮT BUỘC PHẢI BỌC TRONG DẤU $...$ (INLINE) HOẶC $$...$$ (BLOCK).
+   - SAI: n_{21} > 1, \frac{\sin i}{\sin r}, c = 3 \times 10^8
+   - ĐÚNG CHUẨN: $n_{21} > 1$, $\frac{\sin i}{\sin r}$, $c = 3 \times 10^8$
+   - Mọi ký hiệu \widehat{SIN}, \circ, \rightarrow, biến i, r, n đều phải nằm trong $...$.
+   - KHI NÊU HÌNH ẢNH TỪ NGUỒN, BẮT BUỘC XUẤT DẠNG CÚ PHÁP: ![Tên hình](ID_HÌNH) hoặc [IMAGE:ID_HÌNH] trên một dòng riêng. VD: ![Hình 5.2](IMG_P1_1)
+   - KHI SỬ DỤNG BẢNG BIỂU, BẮT BUỘC dựng lại bảng Markdown dạng:
+     | Cột 1 | Cột 2 |
+     | --- | --- |
+     | Dữ liệu | Dữ liệu |
+
+5. QUY TẮC BẮT BUỘC CHO TỪNG HOẠT ĐỘNG:
+   - a) Mục tiêu: Nêu cụ thể kiến thức, kỹ năng.
+   - b) Nội dung: Trích xuất chính xác câu hỏi, bài tập, biểu thức, hình ảnh từ nguồn.
+   - c) Sản phẩm: BẮT BUỘC là một đầu ra cụ thể (VD: "Phiếu học tập số 1 đã hoàn thành...", "Bảng số liệu...").
+   - d) Tổ chức thực hiện PHẢI ĐỦ 4 BƯỚC VÀ GẮN LIỀN NỘI DUNG NGUỒN (Chuyển giao, Thực hiện, Báo cáo, Kết luận).
     """
     full_prompt = system_instruction + "\n\n" + prompt
 
@@ -403,15 +400,11 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
         
     text_out = text_out.replace("**", "")
     
-    # Màng lọc Auto-Fix cứu hộ các công thức bị AI quên bọc dấu $
-    text_out = re.sub(r'(?<!\$)(?<!\\)(\\frac\s*\{[^{}]*\}\s*\{[^{}]*\})(?!\$)', r'$\1$', text_out)
-    text_out = re.sub(r'(?<!\$)(?<!\\)(\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}]*\})(?!\$)', r'$\1$', text_out)
-    
+    # Định dạng lại các mục con a, b, c, d và các bước hành động
     text_out = re.sub(r'([^\n])\s*([a-d]\)\s+)', r'\1\n\n\2', text_out)
     text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao nhiệm vụ học tập|Thực hiện nhiệm vụ học tập|Báo cáo kết quả và thảo luận|Kết luận)[^:\n]*:)', r'\1\n\n\2', text_out)
     
     return text_out
-
 
 def validate_khbd_result(text):
     if not text or len(text) < 500:
@@ -444,7 +437,6 @@ def validate_khbd_result(text):
             
     return True, "Hợp lệ"
 
-
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
     source = safe_text(noi_dung_chinh)[:35000] 
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
@@ -475,7 +467,7 @@ III. TIẾN TRÌNH DẠY HỌC
 ### TIẾT 1 (hoặc các tiết tiếp theo)
 **Hoạt động 1: MỞ ĐẦU (hoặc HÌNH THÀNH KIẾN THỨC, LUYỆN TẬP, VẬN DỤNG)**
 a) Mục tiêu: ...
-b) Nội dung: [Trích xuất nguyên văn câu hỏi, bài toán hoặc tham chiếu bảng/hình ID từ nguồn]
+b) Nội dung: [Trích xuất nguyên văn câu hỏi, bài toán hoặc tham chiếu bảng/hình ID từ nguồn. BỌC $...$ CHO CÔNG THỨC]
 c) Sản phẩm: [Nêu rõ tên sản phẩm cụ thể: Phiếu học tập đã hoàn thành, bảng số liệu, kết quả tính toán...]
 d) Tổ chức thực hiện: 
 *Chuyển giao nhiệm vụ học tập: [Mô tả chi tiết việc giao nhiệm vụ, chỉ rõ câu hỏi hoặc ID đối tượng]
