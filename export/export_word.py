@@ -4,7 +4,7 @@
 MODULE: export/export_word.py
 Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
 thành file Word (.docx) chuẩn 5512.
-Có Auto-Fix Tự bọc dấu $ chống lỗi LaTeX trần.
+Có Auto-Fix Regex bọc $ tự động cho công thức LaTeX bị đi lạc.
 ============================================================
 """
 
@@ -59,18 +59,26 @@ except ImportError as e1:
         insert_image_to_paragraph = None
         insert_image_to_docx = None
 
-
-def _auto_fix_missing_math_delimiters(text: str) -> str:
-    """Tự động bọc dấu $ cho các mã LaTeX phân số/căn thức bị AI quên."""
-    if not text: return ""
-    # Bọc \frac{a}{b}
+# ============================================================
+# AUTO-FIX CÔNG THỨC BỊ THIẾU DẤU $
+# ============================================================
+def _fix_missing_math_dollars(text: str) -> str:
+    """Tự động bọc dấu $ cho các ký hiệu LaTeX đi lạc trong văn bản."""
+    if not text:
+        return ""
+    
+    # 1. Bọc các hàm phân số \frac, căn \sqrt, góc \widehat
     text = re.sub(r'(?<!\$)(?<!\\)(\\frac\s*\{[^{}]*\}\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
-    # Bọc \sqrt{a}
     text = re.sub(r'(?<!\$)(?<!\\)(\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
+    text = re.sub(r'(?<!\$)(?<!\\)(\\widehat\s*\{[^{}]*\})(?!\$)', r'$\1$', text)
+    
+    # 2. Bọc các công thức dạng n_{21}, x_1, 10^8, 0^\circ
+    text = re.sub(r'(?<!\$)\b([a-zA-Z]_\{[^{}]+\}|[a-zA-Z]_\d+)(?!\$)', r'$\1$', text)
+    text = re.sub(r'(?<!\$)\b(\d+\^\circ|\d+\^\{[^{}]+\}|\d+\^\d+)(?!\$)', r'$\1$', text)
+    
     return text
 
 def _parse_inline_fallback(text: str) -> List[Dict[str, Any]]:
-    """Phân tách text có chứa Toán, Bold, Italic cho Fallback Tokenizer."""
     tokens = []
     pattern = re.compile(r'(\$\$(.*?)\$\$)|(\$([^$]+?)\$)|(\*\*([^*]+?)\*\*)|(\*([^*]+?)\*)')
     last_idx = 0
@@ -91,7 +99,6 @@ def _parse_inline_fallback(text: str) -> List[Dict[str, Any]]:
     return tokens
 
 def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
-    """Bộ phân tách Markdown dự phòng khi MarkdownTokenizer bị lỗi import."""
     ast_nodes = []
     lines = (markdown_text or "").splitlines()
     table_buffer = []
@@ -176,7 +183,9 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
     flush_table()
     return ast_nodes
 
-
+# ============================================================
+# EXPORT ENGINE
+# ============================================================
 class WordExportEngine:
 
     @staticmethod
@@ -320,7 +329,7 @@ class WordExportEngine:
             cls._render_khbd_header(doc, metadata)
 
         # Kích hoạt Auto-Fix cho công thức
-        markdown_text = _auto_fix_missing_math_delimiters(markdown_text or "")
+        markdown_text = _fix_missing_math_dollars(markdown_text or "")
 
         ast_nodes = []
         if MarkdownTokenizer and hasattr(MarkdownTokenizer, 'parse'):
@@ -340,6 +349,7 @@ class WordExportEngine:
                     p = doc.add_paragraph()
                     p.paragraph_format.space_after = Pt(4)
                     raw_text = str(node.get("text", "")).strip()
+                    
                     if raw_text.startswith("[IMAGE:") and raw_text.endswith("]"):
                         img_id = raw_text[7:-1].strip()
                         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
