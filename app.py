@@ -46,11 +46,33 @@ except ImportError as e:
 # ============================================================
 # IMPORT PHÂN HỆ 2: HỖ TRỢ GIÁO VIÊN
 # ============================================================
+# Tách độc lập cơ chế import các file làm từ trước để bảo toàn hệ thống
+
+# 1. Module KHBD
 try:
     from views.xd_khbd_view import render_xd_khbd
+except ImportError:
+    try: from views.xd_khbd_view import render_xd_khbd_view as render_xd_khbd
+    except ImportError: render_xd_khbd = None
+
+# 2. Module Đề kiểm tra
+try:
     from views.xd_de_kt_view import render_xd_de_kt
+except ImportError:
+    try: from views.xd_de_kt_view import render_xd_de_kt_view as render_xd_de_kt
+    except ImportError: 
+        try: from views.xd_de_kt_view import render_de_kt as render_xd_de_kt
+        except ImportError: render_xd_de_kt = None
+
+# 3. Module Ma trận
+try:
     from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
-    
+except ImportError:
+    try: from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de_view as render_xd_ma_tran_tu_de
+    except ImportError: render_xd_ma_tran_tu_de = None
+
+# Các module Hỗ trợ Giáo viên mới
+try:
     from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
     from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
     from modules.ho_tro_gv.xd_chuyen_doi import render_xd_chuyen_doi
@@ -62,7 +84,7 @@ try:
     from modules.ho_tro_gv.xd_tao_hoc_lieu import render_xd_tao_hoc_lieu
     from modules.ho_tro_gv.xd_tao_prompt import render_xd_tao_prompt
 except ImportError as e:
-    st.error(f"❌ Lỗi import phân hệ Hỗ trợ Giáo viên: {e}")
+    st.error(f"❌ Lỗi import các tính năng Hỗ trợ Giáo viên: {e}")
 
 # ============================================================
 # IMPORT PHÂN HỆ 3: HỖ TRỢ GIẢNG DẠY
@@ -221,14 +243,17 @@ elif menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     tabs_gv = st.tabs(tab_titles_gv)
     
     with tabs_gv[0]:
-        try: render_xd_khbd(ai_instance)
-        except NameError: st.warning("Module KHBD chưa sẵn sàng.")
+        if render_xd_khbd: render_xd_khbd(ai_instance)
+        else: st.warning("🚧 Hệ thống tạm cách ly Module KHBD do lỗi sai tên hàm bên trong file views/xd_khbd_view.py.")
+            
     with tabs_gv[1]:
-        try: render_xd_de_kt(ai_instance)
-        except NameError: st.warning("Module Đề kiểm tra chưa sẵn sàng.")
+        if render_xd_de_kt: render_xd_de_kt(ai_instance)
+        else: st.warning("🚧 Hệ thống tạm cách ly Module Đề kiểm tra do lỗi sai tên hàm bên trong file views/xd_de_kt_view.py.")
+            
     with tabs_gv[2]:
-        try: render_xd_ma_tran_tu_de(ai_instance)
-        except NameError: st.warning("Module Ma trận ngược chưa sẵn sàng.")
+        if render_xd_ma_tran_tu_de: render_xd_ma_tran_tu_de(ai_instance)
+        else: st.warning("🚧 Hệ thống tạm cách ly Module Ma trận do lỗi sai tên hàm bên trong file views/xd_ma_tran_tu_de.py.")
+            
     with tabs_gv[3]:
         try: render_xd_cham_viet(ai_instance)
         except NameError: st.warning("Module Chấm viết chưa sẵn sàng.")
