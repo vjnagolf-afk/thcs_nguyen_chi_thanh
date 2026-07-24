@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TT18 & ĐỊNH TUYẾN ẢNH OCR)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (FULL TT18 & ĐA NỀN TẢNG OCR)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -11,6 +11,7 @@ import os
 import re
 import json
 import logging
+import base64
 import pandas as pd
 from docx import Document
 from pathlib import Path
@@ -221,69 +222,117 @@ def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
         return {"status": "empty", "message": "Hệ thống đang gọi AI Vision để quét OCR..."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
-def extract_text_via_gemini_ocr(file_bytes, file_name="document.pdf"):
-    import tempfile, os, time
-    try: 
-        import google.generativeai as genai
-    except ImportError as e: 
-        return f"❌ Lỗi Máy chủ: Thư viện `google-generativeai` chưa được cài đặt hoặc bị xung đột phiên bản SDK. Chi tiết: {e}"
-
+# ============================================================
+# CƠ CHẾ ĐỌC FILE TỰ ĐỘNG OCR (HỖ TRỢ CẢ OPENAI VÀ GEMINI)
+# ============================================================
+def extract_text_via_ai_vision(file_bytes, file_name="document.pdf"):
+    import os
+    
+    # 1. Lấy và dọn dẹp API Key
     api_key = st.session_state.get("user_api_key", "")
     if isinstance(api_key, str):
         api_key = api_key.strip()
-        
     if not api_key:
         try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
         except: pass
-
     if not api_key: 
         return "❌ Lỗi: Cần nhập API Key ở menu trái."
+
+    ext = os.path.splitext(file_name)[1].lower()
+    if not ext: ext = ".pdf"
     
-    try:
-        genai.configure(api_key=api_key)
-    except Exception as e:
-        return f"❌ Lỗi cấu hình API: {str(e)}"
-    
-    ext = os.path.splitext(file_name)[1] or ".pdf"
-    tmp_path = ""
-    media_file = None
-    
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = tmp.name
-            
-        media_file = genai.upload_file(path=tmp_path)
+    ocr_prompt = "Trích xuất toàn bộ chữ trong tài liệu. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng Unicode (ví dụ: √, ²). KHÔNG DÙNG ký tự $."
+
+    # 2. Xử lý nếu dùng OpenAI Key (sk-...)
+    if api_key.startswith("sk-"):
+        try:
+            from openai import OpenAI
+            import fitz  # PyMuPDF
+        except ImportError:
+            return "❌ Lỗi: Máy chủ thiếu thư viện `openai` hoặc `PyMuPDF`. Vui lòng cài đặt (pip install openai pymupdf)."
         
-        while media_file.state.name == "PROCESSING":
-            time.sleep(2)
-            media_file = genai.get_file(media_file.name)
+        try:
+            client = OpenAI(api_key=api_key)
+            content_list = [{"type": "text", "text": ocr_prompt}]
             
-        if media_file.state.name == "FAILED":
-            return "❌ Lỗi: AI từ chối đọc file."
+            # Nếu là file PDF: Biến PDF thành ảnh và đẩy vào GPT-4o
+            if ext == '.pdf':
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                # Giới hạn số trang đọc OCR để tránh tràn token (Ví dụ 15 trang đầu)
+                limit_pages = min(len(doc), 15) 
+                for page_num in range(limit_pages):
+                    pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                    img_b64 = base64.b64encode(pix.tobytes("png")).decode("utf-8")
+                    content_list.append({
+                        "type": "image_url", 
+                        "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                    })
+            # Nếu là file Ảnh trực tiếp
+            else:
+                img_b64 = base64.b64encode(file_bytes).decode("utf-8")
+                mime_type = "image/jpeg" if ext in ['.jpg', '.jpeg'] else "image/png"
+                content_list.append({
+                    "type": "image_url", 
+                    "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}
+                })
+
+            response = client.chat.completions.create(
+                model="gpt-4o", # Model Vision chuẩn của OpenAI
+                messages=[{"role": "user", "content": content_list}],
+                max_tokens=4000
+            )
+            return response.choices[0].message.content
+
+        except Exception as e:
+            return f"❌ Lỗi OpenAI OCR: {str(e)}"
+
+    # 3. Xử lý nếu dùng Gemini Key (AIza... / AQ...)
+    else:
+        import tempfile, time
+        try: 
+            import google.generativeai as genai
+        except ImportError: 
+            return "❌ Lỗi: Thư viện `google-generativeai` chưa được cài đặt."
             
-        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-        ocr_prompt = "Trích xuất toàn bộ chữ trong tài liệu. CÁC CÔNG THỨC TOÁN BẮT BUỘC dùng Unicode (ví dụ: √, ²). KHÔNG DÙNG ký tự $."
-        response = model.generate_content([ocr_prompt, media_file])
-        
-        text = getattr(response, "text", "").strip()
-        if not text: return "❌ Lỗi: OCR không ra chữ."
-        return text
-        
-    except Exception as e: 
-        error_msg = str(e).lower()
-        if "429" in error_msg or "quota" in error_msg:
-            return "❌ Lỗi 429: API Key hết hạn ngạch. Vui lòng tạo key mới tại aistudio.google.com."
-        elif "api key not valid" in error_msg or "400" in error_msg:
-            return "❌ Lỗi 400: API Key không hợp lệ hoặc bị sai ký tự khoảng trắng. Thầy vui lòng kiểm tra lại."
-        return f"❌ Lỗi OCR: {str(e)}"
-    finally:
-        if media_file: 
-            try: genai.delete_file(media_file.name)
-            except: pass
-        if tmp_path and os.path.exists(tmp_path): 
-            try: os.remove(tmp_path)
-            except: pass
+        try:
+            genai.configure(api_key=api_key)
+            tmp_path = ""
+            media_file = None
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+                
+            media_file = genai.upload_file(path=tmp_path)
+            
+            while media_file.state.name == "PROCESSING":
+                time.sleep(2)
+                media_file = genai.get_file(media_file.name)
+                
+            if media_file.state.name == "FAILED":
+                return "❌ Lỗi: Máy chủ Google từ chối đọc file."
+                
+            model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+            response = model.generate_content([ocr_prompt, media_file])
+            text = getattr(response, "text", "").strip()
+            
+            if not text: return "❌ Lỗi: OCR hoàn tất nhưng không tìm thấy chữ."
+            return text
+            
+        except Exception as e: 
+            error_msg = str(e).lower()
+            if "429" in error_msg or "quota" in error_msg:
+                return "❌ Lỗi 429: API Key Gemini hết hạn ngạch."
+            elif "api key not valid" in error_msg or "400" in error_msg:
+                return "❌ Lỗi 400: Khóa Gemini không hợp lệ."
+            return f"❌ Lỗi Gemini OCR: {str(e)}"
+        finally:
+            if media_file: 
+                try: genai.delete_file(media_file.name)
+                except: pass
+            if tmp_path and os.path.exists(tmp_path): 
+                try: os.remove(tmp_path)
+                except: pass
 
 def read_pdf(uploaded_file, range_str=""):
     if uploaded_file is None: return ""
@@ -304,7 +353,7 @@ def read_pdf(uploaded_file, range_str=""):
         except: pass
 
     if len(extracted_text) < 100:
-        ocr_text = extract_text_via_gemini_ocr(content, getattr(uploaded_file, "name", "doc.pdf"))
+        ocr_text = extract_text_via_ai_vision(content, getattr(uploaded_file, "name", "doc.pdf"))
         if ocr_text.startswith("❌"):
             return ocr_text 
         extracted_text = ocr_text
@@ -324,9 +373,8 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
         if file_name.endswith('.pdf'):
             content = read_pdf(f)
         elif file_name.endswith(('.png', '.jpg', '.jpeg', '.webp')):
-            # Nhận diện ảnh và đẩy thẳng vào luồng OCR, tránh lỗi nạp ảnh vào thư viện đọc docx
             file_bytes = f.getvalue() if hasattr(f, "getvalue") else f.read()
-            content = extract_text_via_gemini_ocr(file_bytes, file_name)
+            content = extract_text_via_ai_vision(file_bytes, file_name)
         else:
             content = read_docx_ordered(f)
             
