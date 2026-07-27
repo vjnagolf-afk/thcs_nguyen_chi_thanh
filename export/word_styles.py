@@ -3,44 +3,39 @@
 ============================================================
 MODULE: export/word_styles.py
 
-NHIỆM VỤ
-------------------------------------------------------------
-Nền tảng định dạng DOCX dùng chung cho toàn bộ hệ thống xuất Word.
+NHIỆM VỤ:
+- Thiết lập khổ giấy và lề trang theo template / quy định.
+- Thiết lập hệ thống Style Word thống nhất.
+- Thiết lập font Times New Roman an toàn cho tiếng Việt.
+- Hỗ trợ căn chỉnh đoạn văn.
+- Hỗ trợ shading, border, cell border.
+- Hỗ trợ bảng, callout, code block, heading, list.
+- Không chứa logic AI.
+- Không chứa logic phân tích Markdown.
+- Không xử lý trực tiếp công thức.
+  Công thức phải được chuyển qua export.word_math.
 
-MỤC TIÊU
-------------------------------------------------------------
-1. Thiết lập khổ giấy A4.
-2. Thiết lập lề đúng quy định cho văn bản giáo dục:
-   - Top    : 1.0 – 1.5 cm
-   - Bottom : 1.0 – 1.5 cm
-   - Left   : 1.5 – 2.0 cm
-   - Right  : 1.0 – 1.5 cm
-
-   Cấu hình mặc định:
-   - Top    : 1.5 cm
-   - Bottom : 1.5 cm
-   - Left   : 2.0 cm
-   - Right  : 1.5 cm
-
-3. Không ép căn đều toàn bộ tài liệu một cách máy móc.
-4. Căn đều 2 bên cho nội dung văn bản.
-5. Không căn đều:
-   - Heading
-   - Bảng
-   - Hình ảnh
-   - Công thức hiển thị
-   - Danh sách
-   - Callout
-6. Đồng bộ font bằng cả python-docx và XML.
-7. Hỗ trợ xử lý bảng, cell margin, border, shading.
-8. Không chứa logic AI, Markdown hay nghiệp vụ.
+NGUYÊN TẮC:
+1. Nếu có template, ưu tiên giữ cấu trúc template.
+2. Không ép toàn bộ tài liệu về lề 3 cm trái / 2 cm phải.
+3. Lề mặc định:
+       Top    = 1.2 cm
+       Bottom = 1.2 cm
+       Left   = 2.0 cm
+       Right  = 1.5 cm
+4. Nội dung văn bản thường căn đều hai bên.
+5. Heading không căn đều.
+6. Công thức, hình ảnh, bảng có quy tắc riêng.
+7. Không tạo các class trùng lặp giữa word_styles.py
+   và word_tables.py.
 
 ============================================================
 """
 
 from __future__ import annotations
 
-from typing import Optional
+import logging
+from typing import Any, Optional
 
 import docx
 
@@ -63,29 +58,77 @@ from docx.shared import (
 )
 
 
+logger = logging.getLogger("WordStyles")
+
+
 # ============================================================
-# CONSTANTS
+# CẤU HÌNH TRANG
 # ============================================================
 
-DEFAULT_FONT = "Times New Roman"
+class PageConfig:
+    """
+    Cấu hình trang A4.
 
-DEFAULT_FONT_SIZE = 13
+    Có thể điều chỉnh tập trung tại đây.
+    """
 
-A4_WIDTH_CM = 21.0
-A4_HEIGHT_CM = 29.7
+    PAGE_WIDTH_CM = 21.0
+    PAGE_HEIGHT_CM = 29.7
 
-# Lề chuẩn được lựa chọn trong phạm vi quy định
-TOP_MARGIN_CM = 1.5
-BOTTOM_MARGIN_CM = 1.5
-LEFT_MARGIN_CM = 2.0
-RIGHT_MARGIN_CM = 1.5
+    # Theo yêu cầu:
+    # Top    : 1.0 – 1.5 cm
+    # Bottom : 1.0 – 1.5 cm
+    # Left   : 1.5 – 2.0 cm
+    # Right  : 1.0 – 1.5 cm
 
-# Khoảng cách đoạn
-DEFAULT_SPACE_BEFORE_PT = 0
-DEFAULT_SPACE_AFTER_PT = 3
+    TOP_CM = 1.2
+    BOTTOM_CM = 1.2
+    LEFT_CM = 2.0
+    RIGHT_CM = 1.5
 
-# Line spacing
-DEFAULT_LINE_SPACING = 1.15
+    HEADER_CM = 0.5
+    FOOTER_CM = 0.5
+
+    GUTTER_CM = 0.0
+
+
+# ============================================================
+# CẤU HÌNH STYLE
+# ============================================================
+
+class StyleConfig:
+    """
+    Cấu hình font và khoảng cách.
+    """
+
+    FONT_NAME = "Times New Roman"
+
+    NORMAL_SIZE = 13
+    HEADING_1_SIZE = 16
+    HEADING_2_SIZE = 14
+    HEADING_3_SIZE = 13
+
+    CODE_SIZE = 10.5
+
+    # Line spacing:
+    # 1.0 = single
+    # 1.15 = Word-like
+    # 1.5 = giãn dòng 1.5
+    NORMAL_LINE_SPACING = 1.15
+
+    NORMAL_SPACE_BEFORE_PT = 0
+    NORMAL_SPACE_AFTER_PT = 6
+
+    HEADING_1_BEFORE_PT = 12
+    HEADING_1_AFTER_PT = 6
+
+    HEADING_2_BEFORE_PT = 8
+    HEADING_2_AFTER_PT = 4
+
+    HEADING_3_BEFORE_PT = 6
+    HEADING_3_AFTER_PT = 3
+
+    LIST_SPACE_AFTER_PT = 3
 
 
 # ============================================================
@@ -94,12 +137,7 @@ DEFAULT_LINE_SPACING = 1.15
 
 class XmlHelpers:
     """
-    Các hàm thao tác XML Word dùng chung.
-
-    Mục tiêu:
-    - Không tạo thẻ XML trùng lặp.
-    - Có thể gọi nhiều lần an toàn.
-    - Không làm hỏng cấu trúc DOCX.
+    Các thao tác XML dùng chung cho Word.
     """
 
     # --------------------------------------------------------
@@ -109,63 +147,98 @@ class XmlHelpers:
     @staticmethod
     def set_font_safely(
         run,
-        font_name: str = DEFAULT_FONT,
+        font_name: str = StyleConfig.FONT_NAME,
     ) -> None:
         """
-        Thiết lập font đầy đủ cho một Run.
+        Thiết lập font đầy đủ cho Latin, East Asia và Complex Script.
 
-        Bao phủ:
-        - ascii
-        - hAnsi
-        - eastAsia
-        - cs
+        Đây là cách an toàn hơn chỉ dùng:
+            run.font.name = "Times New Roman"
+
+        vì Word có thể vẫn sử dụng font khác cho tiếng Việt
+        hoặc ký tự Unicode.
         """
 
         if run is None:
             return
 
-        font_name = font_name or DEFAULT_FONT
+        try:
+            run.font.name = font_name
 
-        run.font.name = font_name
+            r_pr = run._element.get_or_add_rPr()
 
-        r_pr = run._element.get_or_add_rPr()
+            r_fonts = r_pr.find(
+                qn("w:rFonts")
+            )
 
-        r_fonts = r_pr.find(
-            qn("w:rFonts")
-        )
+            if r_fonts is None:
+                r_fonts = OxmlElement("w:rFonts")
+                r_pr.append(r_fonts)
 
-        if r_fonts is None:
-            r_fonts = OxmlElement("w:rFonts")
-            r_pr.append(r_fonts)
+            for attribute in (
+                "ascii",
+                "hAnsi",
+                "eastAsia",
+                "cs",
+            ):
+                r_fonts.set(
+                    qn(f"w:{attribute}"),
+                    font_name,
+                )
 
-        for attr in (
-            "ascii",
-            "hAnsi",
-            "eastAsia",
-            "cs",
-        ):
-            r_fonts.set(
-                qn(f"w:{attr}"),
-                font_name,
+        except Exception as exc:
+            logger.warning(
+                "Không thể thiết lập font: %s",
+                exc,
             )
 
     # --------------------------------------------------------
-    # PARAGRAPH ALIGNMENT
+    # PARAGRAPH KEEP
     # --------------------------------------------------------
 
     @staticmethod
-    def set_paragraph_alignment(
+    def set_keep_with_next(
         paragraph,
-        alignment: WD_ALIGN_PARAGRAPH,
+        value: bool = True,
     ) -> None:
-        """
-        Thiết lập căn lề đoạn văn.
-        """
 
-        if paragraph is None:
-            return
+        p_pr = paragraph._p.get_or_add_pPr()
 
-        paragraph.alignment = alignment
+        element = p_pr.find(
+            qn("w:keepNext")
+        )
+
+        if value:
+
+            if element is None:
+                element = OxmlElement("w:keepNext")
+                p_pr.append(element)
+
+        elif element is not None:
+
+            p_pr.remove(element)
+
+    @staticmethod
+    def set_keep_together(
+        paragraph,
+        value: bool = True,
+    ) -> None:
+
+        p_pr = paragraph._p.get_or_add_pPr()
+
+        element = p_pr.find(
+            qn("w:keepLines")
+        )
+
+        if value:
+
+            if element is None:
+                element = OxmlElement("w:keepLines")
+                p_pr.append(element)
+
+        elif element is not None:
+
+            p_pr.remove(element)
 
     # --------------------------------------------------------
     # SHADING
@@ -177,19 +250,20 @@ class XmlHelpers:
         color_hex: str = "F5F5F5",
     ) -> None:
         """
-        Tô nền toàn bộ đoạn văn.
+        Tô nền toàn bộ paragraph.
         """
 
         if paragraph is None:
             return
 
-        p_pr = paragraph._element.get_or_add_pPr()
+        p_pr = paragraph._p.get_or_add_pPr()
 
         shd = p_pr.find(
             qn("w:shd")
         )
 
         if shd is None:
+
             shd = OxmlElement("w:shd")
             p_pr.append(shd)
 
@@ -205,7 +279,7 @@ class XmlHelpers:
 
         shd.set(
             qn("w:fill"),
-            color_hex,
+            color_hex.replace("#", "").upper(),
         )
 
     @staticmethod
@@ -213,9 +287,6 @@ class XmlHelpers:
         cell,
         color_hex: str = "FFFFFF",
     ) -> None:
-        """
-        Tô nền cho ô bảng.
-        """
 
         if cell is None:
             return
@@ -227,6 +298,7 @@ class XmlHelpers:
         )
 
         if shd is None:
+
             shd = OxmlElement("w:shd")
             tc_pr.append(shd)
 
@@ -242,7 +314,7 @@ class XmlHelpers:
 
         shd.set(
             qn("w:fill"),
-            color_hex,
+            color_hex.replace("#", "").upper(),
         )
 
     # --------------------------------------------------------
@@ -252,39 +324,30 @@ class XmlHelpers:
     @staticmethod
     def apply_bottom_border(
         paragraph,
-        color_hex: str = "BFBFBF",
-        size: int = 6,
-        space: int = 1,
+        color_hex: str = "CCCCCC",
+        size: int = 8,
+        space: int = 4,
     ) -> None:
-        """
-        Tạo đường kẻ dưới đoạn văn.
 
-        Dùng cho:
-        - HR Markdown
-        - Phân cách nội dung
-        - Một số thành phần hành chính
-        """
-
-        if paragraph is None:
-            return
-
-        p_pr = paragraph._element.get_or_add_pPr()
+        p_pr = paragraph._p.get_or_add_pPr()
 
         p_bdr = p_pr.find(
             qn("w:pBdr")
         )
 
         if p_bdr is None:
+
             p_bdr = OxmlElement("w:pBdr")
             p_pr.append(p_bdr)
 
-        bottom = p_bdr.find(
+        old_bottom = p_bdr.find(
             qn("w:bottom")
         )
 
-        if bottom is None:
-            bottom = OxmlElement("w:bottom")
-            p_bdr.append(bottom)
+        if old_bottom is not None:
+            p_bdr.remove(old_bottom)
+
+        bottom = OxmlElement("w:bottom")
 
         bottom.set(
             qn("w:val"),
@@ -303,88 +366,92 @@ class XmlHelpers:
 
         bottom.set(
             qn("w:color"),
-            color_hex,
+            color_hex.replace("#", "").upper(),
         )
 
+        p_bdr.append(bottom)
+
     # --------------------------------------------------------
-    # TABLE BORDER
+    # CELL BORDER
     # --------------------------------------------------------
 
     @staticmethod
-    def set_table_borders(
-        table,
-        color_hex: str = "000000",
-        size: int = 4,
-        inside: bool = True,
+    def set_cell_borders(
+        cell,
+        *,
+        top: Optional[dict] = None,
+        bottom: Optional[dict] = None,
+        left: Optional[dict] = None,
+        right: Optional[dict] = None,
+        inside_h: Optional[dict] = None,
+        inside_v: Optional[dict] = None,
     ) -> None:
         """
-        Thiết lập đường viền bảng.
+        Thiết lập viền ô Word.
+
+        Ví dụ:
+
+            XmlHelpers.set_cell_borders(
+                cell,
+                top={
+                    "val": "single",
+                    "sz": "8",
+                    "color": "000000",
+                },
+            )
         """
 
-        if table is None:
+        if cell is None:
             return
 
-        tbl = table._tbl
+        tc_pr = cell._tc.get_or_add_tcPr()
 
-        tbl_pr = tbl.tblPr
-
-        tbl_borders = tbl_pr.find(
-            qn("w:tblBorders")
+        tc_borders = tc_pr.find(
+            qn("w:tcBorders")
         )
 
-        if tbl_borders is None:
-            tbl_borders = OxmlElement("w:tblBorders")
-            tbl_pr.append(tbl_borders)
+        if tc_borders is None:
 
-        border_names = [
-            "top",
-            "left",
-            "bottom",
-            "right",
-        ]
+            tc_borders = OxmlElement("w:tcBorders")
+            tc_pr.append(tc_borders)
 
-        if inside:
-            border_names.extend(
-                [
-                    "insideH",
-                    "insideV",
-                ]
+        border_map = {
+            "top": top,
+            "bottom": bottom,
+            "left": left,
+            "right": right,
+            "insideH": inside_h,
+            "insideV": inside_v,
+        }
+
+        for side, config in border_map.items():
+
+            if config is None:
+                continue
+
+            tag = qn(
+                f"w:{side}"
             )
 
-        for border_name in border_names:
+            element = tc_borders.find(tag)
 
-            border = tbl_borders.find(
-                qn(f"w:{border_name}")
-            )
+            if element is None:
 
-            if border is None:
-                border = OxmlElement(
-                    f"w:{border_name}"
+                element = OxmlElement(
+                    f"w:{side}"
                 )
-                tbl_borders.append(border)
 
-            border.set(
-                qn("w:val"),
-                "single",
-            )
+                tc_borders.append(element)
 
-            border.set(
-                qn("w:sz"),
-                str(size),
-            )
+            for key, value in config.items():
 
-            border.set(
-                qn("w:space"),
-                "0",
-            )
-
-            border.set(
-                qn("w:color"),
-                color_hex,
-            )
+                element.set(
+                    qn(f"w:{key}"),
+                    str(value),
+                )
 
     # --------------------------------------------------------
-    # TABLE CELL MARGIN
+    # CELL MARGINS
     # --------------------------------------------------------
 
     @staticmethod
@@ -396,10 +463,9 @@ class XmlHelpers:
         end: int = 100,
     ) -> None:
         """
-        Thiết lập khoảng đệm bên trong ô.
+        Đơn vị Word: twentieths of a point (twips-like XML unit).
 
-        Đơn vị Word:
-        - Twips / DXA
+        Giúp nội dung bảng không bị dính sát biên.
         """
 
         if cell is None:
@@ -412,6 +478,7 @@ class XmlHelpers:
         )
 
         if tc_mar is None:
+
             tc_mar = OxmlElement("w:tcMar")
             tc_pr.append(tc_mar)
 
@@ -424,22 +491,24 @@ class XmlHelpers:
 
         for side, value in margins.items():
 
-            node = tc_mar.find(
+            element = tc_mar.find(
                 qn(f"w:{side}")
             )
 
-            if node is None:
-                node = OxmlElement(
+            if element is None:
+
+                element = OxmlElement(
                     f"w:{side}"
                 )
-                tc_mar.append(node)
 
-            node.set(
+                tc_mar.append(element)
+
+            element.set(
                 qn("w:w"),
                 str(value),
             )
 
-            node.set(
+            element.set(
                 qn("w:type"),
                 "dxa",
             )
@@ -453,16 +522,9 @@ class XmlHelpers:
         table,
         width_inches: float,
     ) -> None:
-        """
-        Thiết lập chiều rộng bảng.
-        """
 
         if table is None:
             return
-
-        width_twips = int(
-            width_inches * 1440
-        )
 
         tbl_pr = table._tbl.tblPr
 
@@ -471,12 +533,18 @@ class XmlHelpers:
         )
 
         if tbl_w is None:
+
             tbl_w = OxmlElement("w:tblW")
             tbl_pr.append(tbl_w)
 
+        # 1 inch = 1440 twentieths of a point
+        width = int(
+            width_inches * 1440
+        )
+
         tbl_w.set(
             qn("w:w"),
-            str(width_twips),
+            str(width),
         )
 
         tbl_w.set(
@@ -492,14 +560,6 @@ class XmlHelpers:
     def set_table_fixed_layout(
         table,
     ) -> None:
-        """
-        Ép bảng dùng layout cố định.
-
-        Giúp tránh:
-        - Bảng tự co giãn bất thường.
-        - Cột bị vỡ.
-        - Nội dung làm thay đổi kích thước cột ngoài ý muốn.
-        """
 
         if table is None:
             return
@@ -511,9 +571,11 @@ class XmlHelpers:
         )
 
         if tbl_layout is None:
+
             tbl_layout = OxmlElement(
                 "w:tblLayout"
             )
+
             tbl_pr.append(tbl_layout)
 
         tbl_layout.set(
@@ -522,16 +584,13 @@ class XmlHelpers:
         )
 
     # --------------------------------------------------------
-    # ROW CONTROL
+    # ROW CANNOT SPLIT
     # --------------------------------------------------------
 
     @staticmethod
     def prevent_row_split(
         row,
     ) -> None:
-        """
-        Không cho phép một hàng bảng bị tách giữa hai trang.
-        """
 
         if row is None:
             return
@@ -543,18 +602,21 @@ class XmlHelpers:
         )
 
         if cant_split is None:
+
             cant_split = OxmlElement(
                 "w:cantSplit"
             )
+
             tr_pr.append(cant_split)
 
+    # --------------------------------------------------------
+    # REPEAT HEADER ROW
+    # --------------------------------------------------------
+
     @staticmethod
-    def repeat_table_header(
+    def set_repeat_table_header(
         row,
     ) -> None:
-        """
-        Cho phép hàng đầu bảng lặp lại khi sang trang mới.
-        """
 
         if row is None:
             return
@@ -566,46 +628,27 @@ class XmlHelpers:
         )
 
         if tbl_header is None:
+
             tbl_header = OxmlElement(
                 "w:tblHeader"
             )
+
             tr_pr.append(tbl_header)
 
     # --------------------------------------------------------
-    # KEEP WITH NEXT
+    # VERTICAL ALIGNMENT
     # --------------------------------------------------------
 
     @staticmethod
-    def set_keep_with_next(
-        paragraph,
-        value: bool = True,
+    def set_cell_vertical_alignment(
+        cell,
+        alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER,
     ) -> None:
-        """
-        Giữ tiêu đề đi cùng đoạn văn tiếp theo.
-        """
 
-        if paragraph is None:
+        if cell is None:
             return
 
-        paragraph.paragraph_format.keep_with_next = value
-
-    # --------------------------------------------------------
-    # KEEP TOGETHER
-    # --------------------------------------------------------
-
-    @staticmethod
-    def set_keep_together(
-        paragraph,
-        value: bool = True,
-    ) -> None:
-        """
-        Không cho phép đoạn văn bị tách bất hợp lý.
-        """
-
-        if paragraph is None:
-            return
-
-        paragraph.paragraph_format.keep_together = value
+        cell.vertical_alignment = alignment
 
 
 # ============================================================
@@ -614,175 +657,184 @@ class XmlHelpers:
 
 class BaseStyleSetup:
     """
-    Thiết lập nền tảng định dạng cho DOCX.
-
-    Đây là lớp trung tâm được gọi trước khi render nội dung.
+    Thiết lập nền tảng cho toàn bộ tài liệu Word.
     """
-
-    # --------------------------------------------------------
-    # PAGE SETUP
-    # --------------------------------------------------------
 
     @staticmethod
     def setup_page(
         doc: docx.Document,
     ) -> None:
         """
-        Thiết lập khổ A4 và lề trang.
+        Thiết lập A4 và lề trang.
 
-        A4:
-        - 21.0 x 29.7 cm
-
-        Lề:
-        - Top    : 1.5 cm
-        - Bottom : 1.5 cm
-        - Left   : 2.0 cm
-        - Right  : 1.5 cm
+        Nếu template đã có section riêng, hàm vẫn chỉ điều chỉnh
+        các thuộc tính trang cần thiết, không tạo section mới.
         """
 
         for section in doc.sections:
 
             section.page_width = Cm(
-                A4_WIDTH_CM
+                PageConfig.PAGE_WIDTH_CM
             )
 
             section.page_height = Cm(
-                A4_HEIGHT_CM
+                PageConfig.PAGE_HEIGHT_CM
             )
 
             section.top_margin = Cm(
-                TOP_MARGIN_CM
+                PageConfig.TOP_CM
             )
 
             section.bottom_margin = Cm(
-                BOTTOM_MARGIN_CM
+                PageConfig.BOTTOM_CM
             )
 
             section.left_margin = Cm(
-                LEFT_MARGIN_CM
+                PageConfig.LEFT_CM
             )
 
             section.right_margin = Cm(
-                RIGHT_MARGIN_CM
+                PageConfig.RIGHT_CM
             )
 
-            # Không chừa thêm gáy.
-            section.gutter = Cm(0)
+            section.header_distance = Cm(
+                PageConfig.HEADER_CM
+            )
 
-    # --------------------------------------------------------
-    # NORMAL STYLE
-    # --------------------------------------------------------
+            section.footer_distance = Cm(
+                PageConfig.FOOTER_CM
+            )
+
+            section.gutter = Cm(
+                PageConfig.GUTTER_CM
+            )
 
     @staticmethod
-    def setup_normal_style(
+    def setup_base_styles(
         doc: docx.Document,
     ) -> None:
         """
-        Thiết lập Normal Style.
+        Thiết lập toàn bộ style nền tảng.
         """
 
-        style = doc.styles["Normal"]
+        if doc is None:
+            return
 
-        style.font.name = DEFAULT_FONT
-        style.font.size = Pt(
-            DEFAULT_FONT_SIZE
+        BaseStyleSetup.setup_page(
+            doc
         )
 
-        style.font.bold = False
-        style.font.italic = False
+        styles_config = {
 
-        style.font.color.rgb = RGBColor(
-            0,
-            0,
-            0,
-        )
+            "Normal": {
+                "size": StyleConfig.NORMAL_SIZE,
+                "bold": False,
+                "italic": False,
+                "before": StyleConfig.NORMAL_SPACE_BEFORE_PT,
+                "after": StyleConfig.NORMAL_SPACE_AFTER_PT,
+                "alignment": WD_ALIGN_PARAGRAPH.JUSTIFY,
+                "line_spacing": StyleConfig.NORMAL_LINE_SPACING,
+            },
 
-        XmlHelpers.set_font_safely(
-            style._element,
-            DEFAULT_FONT,
-        )
+            "Body Text": {
+                "size": StyleConfig.NORMAL_SIZE,
+                "bold": False,
+                "italic": False,
+                "before": 0,
+                "after": 6,
+                "alignment": WD_ALIGN_PARAGRAPH.JUSTIFY,
+                "line_spacing": StyleConfig.NORMAL_LINE_SPACING,
+            },
 
-        paragraph_format = style.paragraph_format
-
-        paragraph_format.alignment = (
-            WD_ALIGN_PARAGRAPH.JUSTIFY
-        )
-
-        paragraph_format.space_before = Pt(
-            DEFAULT_SPACE_BEFORE_PT
-        )
-
-        paragraph_format.space_after = Pt(
-            DEFAULT_SPACE_AFTER_PT
-        )
-
-        paragraph_format.line_spacing = (
-            DEFAULT_LINE_SPACING
-        )
-
-    # --------------------------------------------------------
-    # HEADING STYLES
-    # --------------------------------------------------------
-
-    @staticmethod
-    def setup_heading_styles(
-        doc: docx.Document,
-    ) -> None:
-        """
-        Thiết lập Heading 1, 2, 3.
-
-        Không căn đều heading.
-        """
-
-        heading_config = {
             "Heading 1": {
-                "size": 16,
+                "size": StyleConfig.HEADING_1_SIZE,
                 "bold": True,
                 "italic": False,
-                "before": 10,
-                "after": 5,
+                "before": StyleConfig.HEADING_1_BEFORE_PT,
+                "after": StyleConfig.HEADING_1_AFTER_PT,
                 "alignment": WD_ALIGN_PARAGRAPH.CENTER,
+                "line_spacing": 1.0,
             },
+
             "Heading 2": {
-                "size": 14,
+                "size": StyleConfig.HEADING_2_SIZE,
                 "bold": True,
                 "italic": False,
-                "before": 8,
-                "after": 4,
+                "before": StyleConfig.HEADING_2_BEFORE_PT,
+                "after": StyleConfig.HEADING_2_AFTER_PT,
                 "alignment": WD_ALIGN_PARAGRAPH.LEFT,
+                "line_spacing": 1.0,
             },
+
             "Heading 3": {
-                "size": 13,
+                "size": StyleConfig.HEADING_3_SIZE,
                 "bold": True,
                 "italic": False,
-                "before": 6,
-                "after": 3,
+                "before": StyleConfig.HEADING_3_BEFORE_PT,
+                "after": StyleConfig.HEADING_3_AFTER_PT,
                 "alignment": WD_ALIGN_PARAGRAPH.LEFT,
+                "line_spacing": 1.0,
             },
+
+            "List Bullet": {
+                "size": StyleConfig.NORMAL_SIZE,
+                "bold": False,
+                "italic": False,
+                "before": 0,
+                "after": StyleConfig.LIST_SPACE_AFTER_PT,
+                "alignment": WD_ALIGN_PARAGRAPH.JUSTIFY,
+                "line_spacing": StyleConfig.NORMAL_LINE_SPACING,
+            },
+
+            "List Number": {
+                "size": StyleConfig.NORMAL_SIZE,
+                "bold": False,
+                "italic": False,
+                "before": 0,
+                "after": StyleConfig.LIST_SPACE_AFTER_PT,
+                "alignment": WD_ALIGN_PARAGRAPH.JUSTIFY,
+                "line_spacing": StyleConfig.NORMAL_LINE_SPACING,
+            },
+
         }
 
-        for style_name, config in heading_config.items():
+        for style_name, config in styles_config.items():
 
-            style = doc.styles[style_name]
+            try:
 
-            style.font.name = DEFAULT_FONT
+                style = doc.styles[
+                    style_name
+                ]
+
+            except KeyError:
+
+                logger.warning(
+                    "Không tìm thấy style: %s",
+                    style_name,
+                )
+
+                continue
+
+            style.font.name = (
+                StyleConfig.FONT_NAME
+            )
 
             style.font.size = Pt(
                 config["size"]
             )
 
-            style.font.bold = config["bold"]
+            style.font.bold = (
+                config["bold"]
+            )
 
-            style.font.italic = config["italic"]
+            style.font.italic = (
+                config["italic"]
+            )
 
             style.font.color.rgb = RGBColor(
                 0,
                 0,
                 0,
-            )
-
-            style.paragraph_format.alignment = (
-                config["alignment"]
             )
 
             style.paragraph_format.space_before = Pt(
@@ -793,127 +845,38 @@ class BaseStyleSetup:
                 config["after"]
             )
 
-            style.paragraph_format.keep_with_next = True
-
-            XmlHelpers.set_font_safely(
-                style._element,
-                DEFAULT_FONT,
+            style.paragraph_format.line_spacing = (
+                config["line_spacing"]
             )
-
-    # --------------------------------------------------------
-    # LIST STYLES
-    # --------------------------------------------------------
-
-    @staticmethod
-    def setup_list_styles(
-        doc: docx.Document,
-    ) -> None:
-        """
-        Thiết lập style danh sách.
-
-        Không căn đều để tránh giãn khoảng trắng
-        bất thường ở các dòng ngắn.
-        """
-
-        for style_name in (
-            "List Bullet",
-            "List Number",
-        ):
-
-            style = doc.styles[style_name]
-
-            style.font.name = DEFAULT_FONT
-
-            style.font.size = Pt(
-                DEFAULT_FONT_SIZE
-            )
-
-            style.font.bold = False
-
-            style.font.italic = False
 
             style.paragraph_format.alignment = (
-                WD_ALIGN_PARAGRAPH.LEFT
+                config["alignment"]
             )
 
-            style.paragraph_format.space_before = Pt(
-                0
-            )
+            style.paragraph_format.widow_control = True
 
-            style.paragraph_format.space_after = Pt(
-                2
-            )
+            if style_name.startswith(
+                "Heading"
+            ):
 
-            style.paragraph_format.line_spacing = (
-                DEFAULT_LINE_SPACING
-            )
-
-            XmlHelpers.set_font_safely(
-                style._element,
-                DEFAULT_FONT,
-            )
-
-    # --------------------------------------------------------
-    # TABLE STYLE
-    # --------------------------------------------------------
+                style.paragraph_format.keep_with_next = True
 
     @staticmethod
-    def setup_table_style(
-        doc: docx.Document,
-    ) -> None:
-        """
-        Thiết lập Table Grid nếu có.
-        """
-
-        try:
-
-            table_style = doc.styles[
-                "Table Grid"
-            ]
-
-            table_style.font.name = DEFAULT_FONT
-
-            table_style.font.size = Pt(
-                12
-            )
-
-            XmlHelpers.set_font_safely(
-                table_style._element,
-                DEFAULT_FONT,
-            )
-
-        except KeyError:
-            pass
-
-    # --------------------------------------------------------
-    # FULL SETUP
-    # --------------------------------------------------------
-
-    @classmethod
-    def setup_base_styles(
-        cls,
+    def setup_document(
         doc: docx.Document,
     ) -> docx.Document:
         """
-        Hàm trung tâm thiết lập toàn bộ style nền.
+        API chính.
 
-        Thứ tự:
-        1. Page
-        2. Normal
-        3. Heading
-        4. List
-        5. Table
+        Dùng:
+
+            BaseStyleSetup.setup_document(doc)
+
         """
 
-        cls.setup_page(doc)
-
-        cls.setup_normal_style(doc)
-
-        cls.setup_heading_styles(doc)
-
-        cls.setup_list_styles(doc)
-
-        cls.setup_table_style(doc)
+        BaseStyleSetup.setup_base_styles(
+            doc
+        )
 
         return doc
 
@@ -924,38 +887,44 @@ class BaseStyleSetup:
 
 class BlockRenderer:
     """
-    Render các block cấp cao:
-    - Heading
-    - List
-    - Checkbox
+    Render các block Markdown / AST.
     """
-
-    # --------------------------------------------------------
-    # HEADING
-    # --------------------------------------------------------
 
     @classmethod
     def render_heading(
         cls,
         doc,
         node: dict,
-        text_renderer,
-        math_renderer,
+        text_renderer: Any,
+        math_renderer: Any,
     ):
         """
-        Render tiêu đề.
+        Render heading.
+
+        Công thức trong heading vẫn phải được chuyển qua
+        math_renderer.
         """
 
-        level = int(
-            node.get(
-                "level",
-                1,
-            )
+        level = node.get(
+            "level",
+            1,
         )
 
-        level = min(
-            max(level, 1),
-            3,
+        try:
+            level = int(level)
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            level = 1
+
+        level = max(
+            1,
+            min(
+                level,
+                3,
+            ),
         )
 
         paragraph = doc.add_paragraph(
@@ -979,44 +948,39 @@ class BlockRenderer:
             True,
         )
 
-        text_renderer.render_inline_tokens(
+        XmlHelpers.set_keep_together(
             paragraph,
-            node.get(
-                "tokens",
-                [],
-            ),
-            math_renderer,
+            True,
         )
+
+        if text_renderer is not None:
+
+            text_renderer.render_inline_tokens(
+                paragraph,
+                node.get(
+                    "tokens",
+                    [],
+                ),
+                math_renderer,
+            )
 
         for run in paragraph.runs:
 
             XmlHelpers.set_font_safely(
                 run,
-                DEFAULT_FONT,
+                StyleConfig.FONT_NAME,
             )
 
         return paragraph
-
-    # --------------------------------------------------------
-    # LIST ITEM
-    # --------------------------------------------------------
 
     @classmethod
     def render_list_item(
         cls,
         doc,
         node: dict,
-        text_renderer,
-        math_renderer,
+        text_renderer: Any,
+        math_renderer: Any,
     ):
-        """
-        Render một mục danh sách.
-
-        Hỗ trợ:
-        - Bullet
-        - Number
-        - Nested level
-        """
 
         style_name = (
             "List Number"
@@ -1028,79 +992,88 @@ class BlockRenderer:
             style=style_name
         )
 
-        level = int(
-            node.get(
-                "level",
-                1,
-            )
-        )
-
-        level = max(
-            level,
+        level = node.get(
+            "level",
             1,
         )
 
-        left_indent = (
-            0.25 * level
-            + 0.25
+        try:
+            level = max(
+                1,
+                int(level),
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            level = 1
+
+        # Không thụt quá sâu.
+        # Mỗi cấp tăng 0.5 cm.
+        left_cm = 0.5 + (
+            (level - 1) * 0.5
         )
 
-        paragraph.paragraph_format.left_indent = (
-            Inches(left_indent)
+        paragraph.paragraph_format.left_indent = Cm(
+            left_cm
         )
 
-        paragraph.paragraph_format.first_line_indent = (
-            Inches(-0.25)
+        paragraph.paragraph_format.first_line_indent = Cm(
+            -0.5
         )
 
-        paragraph.alignment = (
-            WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.alignment = (
+            WD_ALIGN_PARAGRAPH.JUSTIFY
         )
 
-        text_renderer.render_inline_tokens(
-            paragraph,
-            node.get(
-                "tokens",
-                [],
-            ),
-            math_renderer,
-        )
+        if text_renderer is not None:
+
+            text_renderer.render_inline_tokens(
+                paragraph,
+                node.get(
+                    "tokens",
+                    [],
+                ),
+                math_renderer,
+            )
 
         return paragraph
-
-    # --------------------------------------------------------
-    # CHECKBOX
-    # --------------------------------------------------------
 
     @classmethod
     def render_checkbox(
         cls,
         doc,
         node: dict,
-        text_renderer,
-        math_renderer,
+        text_renderer: Any,
+        math_renderer: Any,
     ):
-        """
-        Render checkbox.
-        """
 
         paragraph = doc.add_paragraph()
 
-        level = int(
-            node.get(
-                "level",
+        level = node.get(
+            "level",
+            1,
+        )
+
+        try:
+            level = max(
                 1,
+                int(level),
             )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            level = 1
+
+        paragraph.paragraph_format.left_indent = Cm(
+            0.5 * level
         )
 
-        paragraph.paragraph_format.left_indent = (
-            Inches(
-                0.25 * level
-            )
-        )
-
-        paragraph.alignment = (
-            WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.alignment = (
+            WD_ALIGN_PARAGRAPH.JUSTIFY
         )
 
         checked = bool(
@@ -1120,6 +1093,8 @@ class BlockRenderer:
             box_char
         )
 
+        # Segoe UI Symbol có độ tương thích tốt hơn MS Gothic
+        # với các hệ thống Windows hiện đại.
         XmlHelpers.set_font_safely(
             run_box,
             "Segoe UI Symbol",
@@ -1127,14 +1102,16 @@ class BlockRenderer:
 
         run_box.bold = True
 
-        text_renderer.render_inline_tokens(
-            paragraph,
-            node.get(
-                "tokens",
-                [],
-            ),
-            math_renderer,
-        )
+        if text_renderer is not None:
+
+            text_renderer.render_inline_tokens(
+                paragraph,
+                node.get(
+                    "tokens",
+                    [],
+                ),
+                math_renderer,
+            )
 
         return paragraph
 
@@ -1144,15 +1121,6 @@ class BlockRenderer:
 # ============================================================
 
 class ContainerRenderer:
-    """
-    Render các block dạng container:
-    - Code
-    - Callout
-    """
-
-    # --------------------------------------------------------
-    # CODE BLOCK
-    # --------------------------------------------------------
 
     @classmethod
     def render_code_block(
@@ -1160,29 +1128,26 @@ class ContainerRenderer:
         doc,
         node: dict,
     ):
-        """
-        Render code block.
-        """
 
         paragraph = doc.add_paragraph()
 
-        paragraph.paragraph_format.left_indent = (
-            Inches(0.25)
+        paragraph.paragraph_format.left_indent = Cm(
+            0.5
         )
 
-        paragraph.paragraph_format.right_indent = (
-            Inches(0.25)
+        paragraph.paragraph_format.right_indent = Cm(
+            0.5
         )
 
-        paragraph.paragraph_format.space_before = (
-            Pt(4)
+        paragraph.paragraph_format.space_before = Pt(
+            4
         )
 
-        paragraph.paragraph_format.space_after = (
-            Pt(4)
+        paragraph.paragraph_format.space_after = Pt(
+            4
         )
 
-        paragraph.alignment = (
+        paragraph.paragraph_format.alignment = (
             WD_ALIGN_PARAGRAPH.LEFT
         )
 
@@ -1199,7 +1164,7 @@ class ContainerRenderer:
         )
 
         run.font.size = Pt(
-            10.5
+            StyleConfig.CODE_SIZE
         )
 
         XmlHelpers.set_font_safely(
@@ -1209,35 +1174,19 @@ class ContainerRenderer:
 
         return paragraph
 
-    # --------------------------------------------------------
-    # CALLOUT
-    # --------------------------------------------------------
-
     @classmethod
     def render_callout(
         cls,
         doc,
         node: dict,
-        text_renderer,
-        math_renderer,
+        text_renderer: Any,
+        math_renderer: Any,
     ):
-        """
-        Render khối Callout.
 
-        Không dùng paragraph shading cho block dài.
-        Dùng bảng 1 ô để:
-        - Giữ nền ổn định.
-        - Giữ border.
-        - Hạn chế lỗi khi sang trang.
-        """
-
-        style = (
-            node.get(
-                "style",
-                "quote",
-            )
-            or "quote"
-        ).lower()
+        style = node.get(
+            "style",
+            "quote",
+        )
 
         if style == "warning":
 
@@ -1247,7 +1196,7 @@ class ContainerRenderer:
         elif style == "tip":
 
             bg_color = "F0F7FF"
-            border_color = "4472C4"
+            border_color = "0070C0"
 
         else:
 
@@ -1274,8 +1223,9 @@ class ContainerRenderer:
             0,
         )
 
-        cell.vertical_alignment = (
-            WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        XmlHelpers.apply_cell_shading(
+            cell,
+            bg_color,
         )
 
         XmlHelpers.set_cell_margins(
@@ -1286,149 +1236,85 @@ class ContainerRenderer:
             end=140,
         )
 
-        XmlHelpers.apply_cell_shading(
+        XmlHelpers.set_cell_borders(
             cell,
-            bg_color,
+
+            left={
+                "val": "single",
+                "sz": "20",
+                "space": "0",
+                "color": border_color,
+            },
+
+            top={
+                "val": "nil",
+            },
+
+            bottom={
+                "val": "nil",
+            },
+
+            right={
+                "val": "nil",
+            },
         )
 
-        # ----------------------------------------------------
-        # BORDER
-        # ----------------------------------------------------
-
-        tc_pr = cell._tc.get_or_add_tcPr()
-
-        tc_borders = tc_pr.find(
-            qn("w:tcBorders")
+        cell.vertical_alignment = (
+            WD_CELL_VERTICAL_ALIGNMENT.CENTER
         )
-
-        if tc_borders is None:
-
-            tc_borders = OxmlElement(
-                "w:tcBorders"
-            )
-
-            tc_pr.append(
-                tc_borders
-            )
-
-        for side in (
-            "top",
-            "bottom",
-            "right",
-        ):
-
-            border = tc_borders.find(
-                qn(f"w:{side}")
-            )
-
-            if border is None:
-
-                border = OxmlElement(
-                    f"w:{side}"
-                )
-
-                tc_borders.append(
-                    border
-                )
-
-            border.set(
-                qn("w:val"),
-                "nil",
-            )
-
-        left = tc_borders.find(
-            qn("w:left")
-        )
-
-        if left is None:
-
-            left = OxmlElement(
-                "w:left"
-            )
-
-            tc_borders.append(
-                left
-            )
-
-        left.set(
-            qn("w:val"),
-            "single",
-        )
-
-        left.set(
-            qn("w:sz"),
-            "20",
-        )
-
-        left.set(
-            qn("w:space"),
-            "0",
-        )
-
-        left.set(
-            qn("w:color"),
-            border_color,
-        )
-
-        # ----------------------------------------------------
-        # CONTENT
-        # ----------------------------------------------------
-
-        first_paragraph = cell.paragraphs[0]
 
         children = node.get(
             "children",
             [],
         )
 
+        # Xóa paragraph rỗng mặc định nếu cần
+        paragraph = cell.paragraphs[0]
+
         for index, child in enumerate(
             children
         ):
 
-            if index == 0:
-
-                paragraph = first_paragraph
-
-            else:
+            if index > 0:
 
                 paragraph = cell.add_paragraph()
 
-            paragraph.alignment = (
+            paragraph.paragraph_format.space_after = Pt(
+                4
+            )
+
+            paragraph.paragraph_format.alignment = (
                 WD_ALIGN_PARAGRAPH.JUSTIFY
             )
 
-            paragraph.paragraph_format.space_after = (
-                Pt(3)
-            )
+            if (
+                child.get("type")
+                == "paragraph"
+            ):
 
-            if child.get(
-                "type"
-            ) == "paragraph":
+                if text_renderer is not None:
 
-                text_renderer.render_inline_tokens(
-                    paragraph,
-                    child.get(
-                        "tokens",
-                        [],
-                    ),
-                    math_renderer,
-                )
-
-            elif child.get(
-                "type"
-            ) == "heading":
-
-                text_renderer.render_inline_tokens(
-                    paragraph,
-                    child.get(
-                        "tokens",
-                        [],
-                    ),
-                    math_renderer,
-                )
-
-                for run in paragraph.runs:
-
-                    run.bold = True
+                    text_renderer.render_inline_tokens(
+                        paragraph,
+                        child.get(
+                            "tokens",
+                            [],
+                        ),
+                        math_renderer,
+                    )
 
         return table
+
+
+# ============================================================
+# EXPORT API
+# ============================================================
+
+__all__ = [
+    "PageConfig",
+    "StyleConfig",
+    "XmlHelpers",
+    "BaseStyleSetup",
+    "BlockRenderer",
+    "ContainerRenderer",
+]
