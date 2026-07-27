@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 ============================================================
 MODULE: export/export_word.py
 Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
 thành file Word (.docx) chuẩn 5512.
-(Bản hoàn hảo: Tự gọi Metadata từ Session State, tự biến Backtick thành Toán)
+(Bản hoàn thiện: Sạch bóng SyntaxWarning và Tích hợp Auto-Fix Backtick)
 ============================================================
 """
 
@@ -65,6 +65,7 @@ except ImportError:
 
 
 def _sanitize_and_fix_math(text: str) -> str:
+    r"""Sửa lỗi AI sinh sai dấu `|` thay vì `\`, và bọc $ cho các biểu thức bị bỏ quên."""
     if not text: return ""
 
     # AUTO-FIX: Biến mọi dấu nháy ngược (`) do AI sinh nhầm thành dấu $ để module OMML xử lý Toán học
@@ -80,7 +81,7 @@ def _sanitize_and_fix_math(text: str) -> str:
     text = re.sub(r"\$\$[\s\S]*?\$\$", protect_math, text)
     text = re.sub(r"\$(?!\$)[^$\n]+?\$(?!\$)", protect_math, text)
 
-    formula_regex = r"(?<![\w$])((?:[a-zA-Z][a-zA-Z0-9_]*|\d+)\^\{?[^{}\n]+\}?\s*(?:=|<|>|\\le|\\ge|\\approx|\\neq)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$))|[A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+)\s*=\s*(?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}\s*(?:=|\\approx)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$)))(?![\w$])"
+    formula_regex = r"(?<![\w$])((?:[a-zA-Z][a-zA-Z0-9_]*\vert{}\d+)\^\{?[^{}\n]+\}?\s*(?:=\vert{}<\vert{}>\vert{}\\le\vert{}\\ge\vert{}\\approx\vert{}\\neq)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s\vert{}$))|[A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+)\s*=\s*(?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}\s*(?:=|\\approx)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$)))(?![\w$])"
     formula_pattern = re.compile(formula_regex)
 
     def wrap_formula(match):
@@ -568,7 +569,6 @@ class WordExportEngine:
 
     @classmethod
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
-        # KIỂM TRA SESSION STATE ĐỂ TỰ ĐỘNG LẤY METADATA
         metadata = {}
         if isinstance(data_cache, dict):
             metadata = data_cache.copy()
@@ -584,7 +584,6 @@ class WordExportEngine:
 
 def export_word(markdown_text_or_cache) -> bytes:
     try:
-        # BỌC LỚP BẢO VỆ CUỐI CÙNG ĐỂ GỌI SESSION STATE TỪ MỌI NƠI
         metadata = {}
         if isinstance(markdown_text_or_cache, dict):
             metadata = markdown_text_or_cache.copy()
