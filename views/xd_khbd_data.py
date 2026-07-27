@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 ============================================================
 DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
 FILE: views/xd_khbd_data.py
-(Bản khóa chốt Metadata và Tiêm Kỷ luật thép tuyệt đối)
+(Bản nâng cấp SDK Google GenAI mới nhất và Khóa chốt Metadata)
 ============================================================
 """
 
@@ -271,7 +271,6 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
             combined["pages"].append(p)
         offset += len(parsed["pages"])
         
-    # LƯU TRỮ METADATA VÀO BỘ NHỚ TRUNG TÂM ĐỂ EXPORT_WORD SỬ DỤNG
     st.session_state["current_source_metadata"] = combined
     
     return build_intermediate_knowledge_source(combined)
@@ -321,11 +320,14 @@ def generate_ai(client, prompt, model_name="3.5 Flash"):
             )
             text_out = response.choices[0].message.content.strip()
         else:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key or "AIzaSy_dummy")
-            model = genai.GenerativeModel(model_name="gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash")
-            response = model.generate_content(full_prompt)
-            text_out = getattr(response, "text", "").strip()
+            from google import genai
+            client_genai = genai.Client(api_key=api_key or "AIzaSy_dummy")
+            api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+            response = client_genai.models.generate_content(
+                model=api_model,
+                contents=full_prompt
+            )
+            text_out = response.text.strip()
     except Exception as e:
         logger.error(f"AI Generation Error: {e}")
         raise RuntimeError(f"Lỗi kết nối AI: {e}")
