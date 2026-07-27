@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_live.py
 Nhiệm vụ: Trợ lý Kịch bản Tương tác Trực tiếp (Live).
-ĐÃ FIX LỖI SYNTAX: Xử lý triệt để lỗi "xé toạc" markdown khi copy.
+CẬP NHẬT TỐI THƯỢNG: Sinh MASTER PROMPT (Chỉ copy 1 lần duy nhất cho toàn bộ Video).
 ============================================================
 """
 
@@ -85,23 +85,22 @@ Nhiệm vụ của bạn là thiết kế một Kịch bản Tương tác Trực
 --- CẤU TRÚC KỊCH BẢN BẮT BUỘC ---
 
 # 1. SET-UP & BỐI CẢNH (Dành riêng cho GV)
-(Gợi ý nhanh về đạo cụ, hình ảnh hiển thị trên Slide, nhạc nền cần bật, hoặc ánh mắt/thái độ cần thể hiện để tạo "vibe" ngay từ giây đầu tiên).
+(Gợi ý nhanh về đạo cụ, hình ảnh hiển thị trên Slide, nhạc nền cần bật).
 
 # 2. SCRIPT LỜI DẪN NHẬP (Mở mic lên là thu hút 100%)
-(Viết chi tiết TỪNG CÂU TỪNG CHỮ để Giáo viên đọc. Lời thoại phải mang đậm phong cách "{phong_cach}". Mở bài bằng một câu hỏi sốc, một nghịch lý, hoặc một câu chuyện ngắn giật gân liên quan đến chủ đề).
+(Viết chi tiết TỪNG CÂU TỪNG CHỮ để Giáo viên đọc. Lời thoại phải mang đậm phong cách "{phong_cach}". Mở bài bằng một câu hỏi sốc, một nghịch lý, hoặc một câu chuyện ngắn giật gân).
 
 # 3. KÍCH HOẠT TƯƠNG TÁC (Tâm điểm của hoạt động)
-(Đưa ra 3 câu hỏi/tình huống/nhiệm vụ. 
-HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phím 1 nếu... phím 2 nếu...", "Ai phản đối hãy thả icon phẫn nộ", "Chia làm 2 phe chat tranh biện"... Đừng dùng cách hỏi đáp truyền thống nhàm chán).
+(Đưa ra 3 câu hỏi/tình huống/nhiệm vụ. HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC).
 
 # 4. GÓC NHÌN "GIÁM KHẢO" (Kỹ năng bẻ lái & Phản biện)
-(Dự đoán các câu trả lời ngô nghê hoặc trái chiều của học sinh. Gợi ý cho Giáo viên các câu nói sắc bén để "chặt chém" (một cách hài hước/giáo dục), lật ngược vấn đề, ép học sinh phải tư duy sâu hơn. Giống như một giám khảo quyền lực nhận xét thí sinh).
+(Dự đoán các câu trả lời ngô nghê hoặc trái chiều của học sinh. Gợi ý cho Giáo viên các câu nói sắc bén để "chặt chém" hoặc lật ngược vấn đề).
 
 # 5. CHỐT HẠ & NEO CẢM XÚC
-(Câu nói chốt lại vấn đề, đúc kết kiến thức lõi thành một thông điệp ngắn gọn, sâu sắc khiến học sinh nổi da gà và nhớ mãi).
+(Câu nói chốt lại vấn đề, đúc kết kiến thức lõi).
 
 [KỶ LUẬT ĐỊNH DẠNG]
-- Sử dụng Markdown chuyên nghiệp (Bullet points, in đậm từ khóa).
+- Sử dụng Markdown chuyên nghiệp.
 - NẾU có dính đến công thức Toán/Lý/Hóa, BẮT BUỘC dùng chuẩn LaTeX bọc trong dấu `$...$`.
 - Tuyệt đối không dùng dấu backtick (`) cho công thức Toán.
 """
@@ -148,49 +147,35 @@ HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phí
 
         with col_video:
             st.markdown("#### 🎬 Chuyển hóa thành Video Tương tác")
-            btn_tao_video = st.button("🪄 2. Sinh bộ Prompt tạo AI Video (Veo/HeyGen)", use_container_width=True, type="secondary")
+            btn_tao_video = st.button("🪄 2. Sinh MASTER PROMPT (Tạo AI Video 1 chạm)", use_container_width=True, type="secondary")
 
         # ========================================================
-        # XỬ LÝ: SINH PROMPT AI VIDEO (DÙNG BIẾN BQ ĐỂ FIX LỖI MARKDOWN)
+        # XỬ LÝ: SINH MASTER PROMPT (1 COPY-PASTE)
         # ========================================================
         if btn_tao_video:
-            with st.spinner("⏳ AI đang phân rã kịch bản thành Storyboard và thiết kế bộ lệnh Prompt..."):
+            with st.spinner("⏳ AI đang nén toàn bộ kịch bản thành 1 Master Prompt duy nhất..."):
                 bq = "```"
                 video_prompt = f"""
-Bạn là một Đạo diễn Phim & Chuyên gia AI Video (Google Veo, Sora, HeyGen, Midjourney).
-Dựa vào Kịch bản văn bản dưới đây, hãy "chuyển thể" nó thành bảng phân cảnh (Storyboard) chi tiết kèm các Prompt chuẩn xác nhất để nạp vào các cỗ máy tạo Video AI.
+Bạn là một Đạo diễn Phim & Chuyên gia AI Video (Google Veo, Sora, HeyGen).
+YÊU CẦU ĐẶC BIỆT: Người dùng muốn chỉ cần COPY 1 LẦN DUY NHẤT để dán vào công cụ tạo Video. Do đó, bạn KHÔNG ĐƯỢC chia nhỏ prompt theo từng cảnh nữa. Hãy gộp tất cả thành các MASTER BLOCK.
 
-[YÊU CẦU QUAN TRỌNG: TÍNH XUYÊN SUỐT VÀ NHẤT QUÁN]
-- Xác định 1 nhân vật MC (giáo viên ảo) duy nhất: Mô tả rõ giới tính, trang phục, phong cách. BẮT BUỘC lặp lại mô tả này trong mọi phân cảnh để AI Video không đổi mặt nhân vật.
-- Xác định 1 bối cảnh xuyên suốt (ví dụ: "Lớp học tương lai", "Studio ánh sáng vàng").
-- Nếu có nhiều phân cảnh, phải giữ nguyên vẹn tone giọng và nhân vật.
+Hãy thiết lập ĐÚNG cấu trúc sau bằng Markdown:
 
-[KỶ LUẬT HIỂN THỊ ĐỂ NGƯỜI DÙNG DỄ COPY (BẮT BUỘC)]
-Bạn PHẢI sử dụng khung Code Block (dùng 3 dấu {bq}text và {bq}) để bọc các phần Prompt lại. Việc này giúp người dùng dễ dàng ấn nút Copy.
-
-Hãy chia thành các Phân cảnh (Scene 1, Scene 2...) và trình bày ĐÚNG cấu trúc sau cho mỗi cảnh bằng Markdown:
-
-## 🎬 Phân cảnh [Số]: [Tên cảnh]
-**👤 Bối cảnh & Nhân vật (Giữ xuyên suốt):** [Mô tả ngắn gọn]
-
-**🎥 PROMPT TẠO VIDEO (TIẾNG ANH - Copy & Paste vào Veo/Sora/Midjourney):**
+## 🎥 1. MASTER VIDEO PROMPT (TIẾNG ANH - TẠO HÌNH ẢNH/VIDEO)
+(Gộp toàn bộ thông tin về nhân vật MC, bối cảnh, và chuỗi hành động xuyên suốt từ đầu đến cuối kịch bản vào MỘT đoạn văn bản tiếng Anh duy nhất. Sử dụng các từ khóa chuyển cảnh mượt mà. Đảm bảo mô tả ngoại hình MC xuất hiện rõ ràng để AI giữ tính nhất quán).
 {bq}text
-[Chỉ viết nội dung prompt tiếng Anh chuyên nghiệp: Góc máy, Ánh sáng, Hành động, Bối cảnh. Không giải thích thêm]
+[Viết Master Prompt Tiếng Anh vào đây - Chỉ một đoạn văn bản dài duy nhất, liên tục]
 {bq}
 
-**🎥 PROMPT TẠO VIDEO (TIẾNG VIỆT - Dành cho AI nội địa/Kling/Hải螺):**
+## 🗣️ 2. MASTER SCRIPT (TIẾNG VIỆT - TẠO GIỌNG ĐỌC MC ẢO)
+(Trích xuất toàn bộ lời thoại của MC từ đầu đến cuối kịch bản. Loại bỏ các chỉ dẫn hành động, chỉ giữ lại LỜI NÓI. Có thể dùng các thẻ [Pause 2s] để ngắt nhịp nếu cần).
 {bq}text
-[Bản dịch chuẩn xác và mượt mà của prompt tiếng Anh ở trên. Không giải thích thêm]
+[Viết Master Script Tiếng Việt vào đây - Liền mạch từ đầu đến cuối]
 {bq}
 
-**🗣️ LỜI THOẠI MC (Copy & Paste vào HeyGen/D-ID/TTS):**
-{bq}text
-[Trích xuất chính xác lời thoại tiếng Việt của MC trong kịch bản để lồng tiếng]
-{bq}
-
-**🖱️ ĐIỂM CHẠM TƯƠNG TÁC (Dành cho Edpuzzle/H5P):**
-[Chỉ định rõ: Tại giây này/khúc này, chèn hiệu ứng pop-up câu hỏi gì, yêu cầu học sinh bấm vào đâu]
----
+## 🖱️ 3. KỊCH BẢN ĐIỂM CHẠM (EDPUZZLE/H5P)
+(Chỉ dẫn nhanh cho giáo viên biết nên dừng video ở đoạn nào để chèn câu hỏi tương tác).
+[Liệt kê ngắn gọn]
 
 --- KỊCH BẢN GỐC ---
 {st.session_state["live_result"]}
@@ -210,16 +195,16 @@ Hãy chia thành các Phân cảnh (Scene 1, Scene 2...) và trình bày ĐÚNG 
         # Hiển thị bộ Prompt Video nếu đã tạo
         if st.session_state.get("video_prompts"):
             st.markdown("---")
-            st.success("✅ Đã thiết kế xong Bảng phân cảnh và Bộ lệnh Prompt AI Video!")
-            st.info("💡 **Mẹo:** Rê chuột vào góc trên cùng bên phải của các ô viền xám (Code Block) sẽ thấy biểu tượng **Copy**, bấm vào đó để sao chép nhanh Prompt và dán vào các công cụ AI!")
+            st.success("✅ Đã nén thành công Master Prompt! Giờ đây Thầy/Cô chỉ cần 1 thao tác Copy-Paste.")
+            st.info("💡 **Hướng dẫn:** Bấm Copy ở khung Tiếng Anh dán vào Veo/Sora. Bấm Copy ở khung Tiếng Việt dán vào HeyGen/V-hub.")
             
-            with st.expander("🎞️ BỘ PROMPT AI VIDEO (Bấm để xem & Copy)", expanded=True):
+            with st.expander("🎞️ MASTER PROMPT AI VIDEO (Bấm để xem & Copy)", expanded=True):
                 st.markdown(st.session_state["video_prompts"], unsafe_allow_html=True)
                 
                 st.download_button(
-                    label="📋 Tải toàn bộ Bảng phân cảnh (.TXT)",
+                    label="📋 Tải file Master Prompt (.TXT)",
                     data=st.session_state["video_prompts"],
-                    file_name="AI_Video_Prompts.txt",
+                    file_name="Master_Video_Prompts.txt",
                     mime="text/plain",
                     use_container_width=True
                 )
