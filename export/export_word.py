@@ -4,7 +4,7 @@
 MODULE: export/export_word.py
 Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
 thành file Word (.docx) chuẩn 5512.
-(Bản hoàn chỉnh không bị cắt cụt, bắt buộc kéo copy đến dòng cuối cùng)
+(Bản hoàn hảo: Tự gọi Metadata từ Session State, tự biến Backtick thành Toán)
 ============================================================
 """
 
@@ -12,6 +12,7 @@ import io
 import re
 import json
 import logging
+import streamlit as st
 from typing import List, Dict, Any, Optional
 
 import docx
@@ -23,9 +24,6 @@ from docx.oxml.ns import qn
 
 logger = logging.getLogger(__name__)
 
-# ============================================================
-# NẠP CÁC MODULE TRONG HỆ THỐNG EXPORT
-# ============================================================
 try:
     from .markdown_tokenizer import MarkdownTokenizer
 except ImportError:
@@ -66,13 +64,12 @@ except ImportError:
         return Document()
 
 
-# ============================================================
-# TẦNG 2 — HÀM SANITIZER VÀ AUTO-FIX GOM TRỌN TOÁN HỌC
-# ============================================================
 def _sanitize_and_fix_math(text: str) -> str:
     if not text: return ""
 
-    # Khử đột biến | thành \
+    # AUTO-FIX: Biến mọi dấu nháy ngược (`) do AI sinh nhầm thành dấu $ để module OMML xử lý Toán học
+    text = re.sub(r'`([^`\n]+)`', r'$\1$', text)
+
     text = re.sub(r'\|(sqrt|frac|approx|times|sin|cos|tan|cot|lim|log|ln|alpha|beta|gamma|Delta|pi)\b', r'\\\1', text)
 
     protected = []
@@ -83,7 +80,7 @@ def _sanitize_and_fix_math(text: str) -> str:
     text = re.sub(r"\$\$[\s\S]*?\$\$", protect_math, text)
     text = re.sub(r"\$(?!\$)[^$\n]+?\$(?!\$)", protect_math, text)
 
-    formula_regex = r"(?<![\w$])((?:[a-zA-Z][a-zA-Z0-9_]*\vert{}\d+)\^\{?[^{}\n]+\}?\s*(?:=\vert{}<\vert{}>\vert{}\\le\vert{}\\ge\vert{}\\approx\vert{}\\neq)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s\vert{}$))|[A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+)\s*=\s*(?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}\s*(?:=|\\approx)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$)))(?![\w$])"
+    formula_regex = r"(?<![\w$])((?:[a-zA-Z][a-zA-Z0-9_]*|\d+)\^\{?[^{}\n]+\}?\s*(?:=|<|>|\\le|\\ge|\\approx|\\neq)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$))|[A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+)\s*=\s*(?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}\s*(?:=|\\approx)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$)))(?![\w$])"
     formula_pattern = re.compile(formula_regex)
 
     def wrap_formula(match):
@@ -571,20 +568,35 @@ class WordExportEngine:
 
     @classmethod
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
-        if not isinstance(data_cache, dict):
-            return cls.convert_markdown_to_docx_bytes(str(data_cache))
-        return cls.convert_markdown_to_docx_bytes(data_cache.get("ai_generated_content", ""), metadata=data_cache)
+        # KIỂM TRA SESSION STATE ĐỂ TỰ ĐỘNG LẤY METADATA
+        metadata = {}
+        if isinstance(data_cache, dict):
+            metadata = data_cache.copy()
+            md_text = metadata.get("ai_generated_content", "")
+        else:
+            md_text = str(data_cache)
+            
+        if "current_source_metadata" in st.session_state:
+            metadata["pages"] = st.session_state["current_source_metadata"].get("pages", [])
+            
+        return cls.convert_markdown_to_docx_bytes(md_text, metadata=metadata)
 
 
-# BẮT BUỘC COPY ĐẾN DÒNG NÀY ĐỂ TRÁNH LỖI CANNOT IMPORT
 def export_word(markdown_text_or_cache) -> bytes:
     try:
+        # BỌC LỚP BẢO VỆ CUỐI CÙNG ĐỂ GỌI SESSION STATE TỪ MỌI NƠI
+        metadata = {}
         if isinstance(markdown_text_or_cache, dict):
-            return WordExportEngine.export_to_word(markdown_text_or_cache)
-        elif isinstance(markdown_text_or_cache, str):
-            return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text_or_cache, metadata=None)
+            metadata = markdown_text_or_cache.copy()
+            md_text = metadata.get("ai_generated_content", "")
         else:
-            return WordExportEngine.convert_markdown_to_docx_bytes(str(markdown_text_or_cache), metadata=None)
+            md_text = str(markdown_text_or_cache)
+            
+        if "current_source_metadata" in st.session_state:
+            metadata["pages"] = st.session_state["current_source_metadata"].get("pages", [])
+            
+        return WordExportEngine.convert_markdown_to_docx_bytes(md_text, metadata=metadata)
+        
     except Exception as fatal_err:
         fallback_doc = Document()
         fallback_doc.add_paragraph("KẾ HOẠCH BÀI DẠY (BẢN PHỤC HỒI)")
