@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_chuyen_doi.py
 Nhiệm vụ: Trợ lý Xử lý, Làm sạch & Chuyển đổi Dữ liệu.
-NÂNG CẤP: Kết nối AIEngine2, Chuẩn hóa công thức Toán học, Xuất file Word.
+NÂNG CẤP BỘ PROMPT: Phục hồi cấu trúc Toán học bị dập nát do Copy/Paste.
 ============================================================
 """
 
@@ -32,13 +32,13 @@ def render_xd_chuyen_doi(ai_engine_cu=None):
         st.session_state["cd_loai"] = ""
 
     st.markdown("### 🔄 Trợ lý Xử lý, Làm sạch & Chuyển đổi Dữ liệu")
-    st.info("💡 **Góc chuyên gia:** Sử dụng AI để định dạng lại các văn bản lộn xộn, chuyển văn bản thành bảng biểu, viết lại câu chữ chuyên nghiệp hoặc **chuẩn hóa công thức Toán/Lý/Hóa bị lỗi copy từ ChatGPT**.")
+    st.info("💡 **Góc chuyên gia:** Sử dụng AI để định dạng lại các văn bản lộn xộn, chuyển văn bản thành bảng biểu, viết lại câu chữ chuyên nghiệp hoặc **phục hồi và chuẩn hóa công thức Toán/Lý/Hóa bị dập nát khi copy từ ChatGPT**.")
     
     with st.container(border=True):
         loai_chuyen_doi = st.radio(
             "Chọn thao tác mong muốn:",
             [
-                "Chuẩn hóa Công thức Toán học (Sửa lỗi copy từ ChatGPT về chuẩn $...$)", 
+                "Chuẩn hóa và Phục hồi Công thức Toán học (Lỗi copy từ ChatGPT)", 
                 "Chuyển đoạn văn thô thành Bảng dữ liệu (Markdown)", 
                 "Làm sạch văn bản (Xóa khoảng trắng thừa, sửa lỗi gõ phím, lỗi font)", 
                 "Chuyển đổi văn phong (Từ nôm na sang Hành chính/Sư phạm)"
@@ -48,7 +48,7 @@ def render_xd_chuyen_doi(ai_engine_cu=None):
         van_ban_goc = st.text_area(
             "Dán văn bản gốc cần xử lý vào đây:", 
             height=250, 
-            placeholder="Ví dụ: Dán một đoạn chứa công thức lỗi \\( x^2 + y^2 \\), hoặc văn bản lủng củng..."
+            placeholder="Ví dụ dán đoạn toán bị lỗi: x = -b ± b2 - 4ac2a ..."
         )
         
         btn_chuyen_doi = st.button("⚙️ THỰC THI CHUYỂN ĐỔI BẰNG AI", type="primary", use_container_width=True)
@@ -66,12 +66,22 @@ def render_xd_chuyen_doi(ai_engine_cu=None):
                 # Cấu trúc Prompt tùy biến theo lựa chọn của người dùng
                 if "Toán học" in loai_chuyen_doi:
                     prompt_task = r"""
-BẠN LÀ CHUYÊN GIA BIÊN TẬP VÀ ĐỊNH DẠNG TOÁN HỌC.
-Nhiệm vụ: Chuyển đổi toàn bộ các định dạng toán học bị lỗi trong văn bản dưới đây về chuẩn.
-- Các công thức copy từ ChatGPT thường bị kẹp giữa `\( ... \)` hoặc `\[ ... \]`. Hãy biến TẤT CẢ chúng thành `$ ... $` (nếu trên cùng dòng) hoặc `$$ ... $$` (nếu đứng độc lập).
-- Chỉnh sửa các công thức bị lỗi ký tự.
-- TUYỆT ĐỐI KHÔNG SỬ DỤNG DẤU NHÁY NGƯỢC (backtick `) ĐỂ BỌC CÔNG THỨC TOÁN.
-- Giữ nguyên vẹn toàn bộ phần văn bản chữ (không làm thay đổi nội dung câu văn).
+BẠN LÀ CHUYÊN GIA TOÁN HỌC VÀ LATEX SIÊU VIỆT.
+Nhiệm vụ: Chuyển đổi và PHỤC HỒI toàn bộ các công thức toán học bị lỗi định dạng (do copy/paste từ ChatGPT dạng plain-text) về chuẩn LaTeX hoàn chỉnh.
+
+[CÁC LỖI THƯỜNG GẶP CẦN PHỤC HỒI BẮT BUỘC]:
+1. Lỗi mất số mũ/chỉ số: `b2` phải sửa thành `b^2`, `x1` thành `x_1`, `x2` thành `x_2`.
+2. Lỗi mất phân số: `-b/2a` hoặc `-b2a` phải sửa thành `\frac{-b}{2a}`. Mẫu số và tử số phải được bọc trong ngoặc nhọn `{}`.
+3. Lỗi mất dấu căn: `b2-4ac` trong công thức nghiệm phải có căn, sửa thành `\sqrt{b^2-4ac}`.
+4. Lỗi ký hiệu Unicode thô: Thay `Δ` bằng `\Delta`, thay `±` bằng `\pm`, thay `·` bằng `\cdot`.
+
+[QUY TẮC ĐÓNG GÓI - KỶ LUẬT THÉP]:
+- MỌI công thức, biến số (dù là một chữ cái như a, b, c, \Delta) ĐỀU PHẢI được bọc trong dấu `$ ... $` (nếu nằm trong dòng) hoặc `$$ ... $$` (nếu đứng độc lập thành 1 dòng).
+- TUYỆT ĐỐI KHÔNG dùng dấu ngoặc `\( ... \)` hay `\[ ... \]`.
+- TUYỆT ĐỐI KHÔNG dùng dấu nháy ngược (`) để bọc công thức.
+- KHÔNG giải thích, chỉ xuất ra nội dung đã được xử lý hoàn chỉnh.
+
+Hãy viết lại toàn bộ văn bản dưới đây, giữ nguyên lời văn, nhưng phục hồi 100% công thức Toán học theo đúng cú pháp LaTeX.
 """
                 elif "Bảng dữ liệu" in loai_chuyen_doi:
                     prompt_task = """
@@ -94,7 +104,7 @@ Nhiệm vụ: Viết lại đoạn văn bản sau sang văn phong Hành chính /
 {van_ban_goc}
 """
                 try:
-                    # Khởi tạo AIEngine2 và chạy (Ưu tiên dùng Pro cho logic Toán học/Format)
+                    # Khởi tạo AIEngine2 (Dùng Pro để khả năng suy luận logic Toán học cao nhất)
                     engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
                     result = engine_v2.generate_text(prompt)
                     
@@ -103,7 +113,7 @@ Nhiệm vụ: Viết lại đoạn văn bản sau sang văn phong Hành chính /
                     else:
                         st.session_state["cd_result"] = result
                         st.session_state["cd_loai"] = loai_chuyen_doi.split("(")[0].strip()
-                        st.success("✅ Dữ liệu đã được xử lý xong!")
+                        st.success("✅ Dữ liệu đã được phục hồi và xử lý xong!")
                         
                 except Exception as e:
                     st.error(f"❌ Lỗi hệ thống: {e}")
