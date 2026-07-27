@@ -1,355 +1,595 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
-FILE: views/xd_khbd_data.py
-(Bản chuẩn hóa Kỷ luật AI về Bảng Biểu và Hình Ảnh)
+MODULE: export/export_word.py
+Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
+thành file Word (.docx) chuẩn 5512.
+(Bản hoàn chỉnh không bị cắt cụt, bắt buộc kéo copy đến dòng cuối cùng)
 ============================================================
 """
 
-import streamlit as st
-import os
+import io
 import re
 import json
 import logging
-import base64
+from typing import List, Dict, Any, Optional
+
+import docx
 from docx import Document
-from io import BytesIO
+from docx.shared import Pt, Inches, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 logger = logging.getLogger(__name__)
 
-NLS_GV_VAN_BAN_MAC_DINH = "Thông tư 18/2026/TT-BGDĐT"
-
-MODE_LABELS = {
-    "chinh_sua": "Chỉnh sửa và nâng cấp giáo án gốc",
-    "tu_dong": "Tự động soạn từ SGK",
-}
-
-MIN_SOURCE_CHARS = 100
-
-def init_session_state():
-    defaults = {
-        "khbd_mode": "tu_dong",
-        "khbd_result": None,
-        "khbd_nls_list": [],
-        "khbd_hoat_dong_list": [],
-        "khbd_processing": False,
-        "khbd_nls_noi_dung": "",
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-def reset_ket_qua():
-    st.session_state["khbd_result"] = None
-
-def reset_toan_bo_khbd():
-    st.session_state["khbd_result"] = None
-    st.session_state["khbd_nls_list"] = []
-    st.session_state["khbd_hoat_dong_list"] = []
-    st.session_state["khbd_nls_noi_dung"] = ""
-    st.session_state["khbd_mode"] = "tu_dong"
-    st.session_state["khbd_processing"] = False
-
-def set_mode(mode: str):
-    if mode not in MODE_LABELS:
-        raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
-    st.session_state.khbd_mode = mode
-
-KHUNG_NLS_GV = {
-    "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
-        "1.1. Dạy học và giáo dục trong môi trường số": {
-            "Cơ bản": "Sử dụng được các chức năng và công cụ cơ bản của nền tảng quản lí học tập (LMS).",
-            "Thành thạo": "Xây dựng được kế hoạch bài dạy theo tiếp cận công nghệ, thiết kế hoạt động kết hợp.",
-            "Nâng cao": "Sáng tạo và đổi mới các mô hình dạy học ứng dụng công nghệ số."
-        }
-    },
-    "2. KIỂM TRA, ĐÁNH GIÁ": {
-        "2.1. Phương thức đánh giá": {
-            "Cơ bản": "Sử dụng công cụ tạo bài kiểm tra online đơn giản.",
-            "Thành thạo": "Sử dụng các công cụ số phổ biến để đánh giá quá trình và tổng kết."
-        }
-    }
-}
-
-KHUNG_NLS_HS = {
-    "1. Sử dụng thông tin và dữ liệu số": {
-        "1.1. Tìm kiếm và chọn lọc": {
-            "Mức 1": "Biết sử dụng công cụ tìm kiếm cơ bản để thu thập thông tin học tập.",
-            "Mức 2": "Biết đánh giá độ tin cậy và nguồn gốc thông tin trên Internet."
-        }
-    },
-    "2. Giao tiếp và hợp tác trực tuyến": {
-        "2.1. Tương tác qua môi trường số": {
-            "Mức 1": "Biết sử dụng email, chat để trao đổi học tập.",
-            "Mức 2": "Biết sử dụng hiệu quả các nền tảng học tập nhóm."
-        }
-    },
-    "3. Sáng tạo nội dung số": {
-        "3.1. Phát triển nội dung số": {
-            "Mức 1": "Biết soạn thảo văn bản và trình chiếu cơ bản.",
-            "Mức 2": "Biết thiết kế học liệu số đơn giản phục vụ học tập."
-        }
-    },
-    "4. An toàn trong môi trường số": {
-        "4.1. Bảo vệ thiết bị và dữ liệu cá nhân": {
-            "Mức 1": "Biết đặt mật khẩu mạnh và bảo vệ tài khoản.",
-            "Mức 2": "Biết nhận diện nguy cơ mất an toàn thông tin và lừa đảo trực tuyến."
-        }
-    },
-    "5. Giải quyết vấn đề bằng công nghệ số": {
-        "5.1. Sáng tạo giải pháp học tập": {
-            "Mức 1": "Biết sử dụng công cụ số giải quyết nhiệm vụ.",
-            "Mức 2": "Ứng dụng công nghệ giải quyết vấn đề thực tiễn."
-        }
-    }
-}
-
-def get_nls_framework(loai_khung): 
-    return KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
-
-def get_nls_domains(loai_khung): 
-    return list(get_nls_framework(loai_khung).keys())
-
-def get_nls_components(loai_khung, linh_vuc): 
-    return list(get_nls_framework(loai_khung).get(linh_vuc, {}).keys())
-
-def get_nls_levels(loai_khung, linh_vuc, thanh_phan): 
-    return list(get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).keys())
-
-def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do): 
-    return get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).get(muc_do, "")
-
-def add_nls():
-    linh_vuc = safe_text(st.session_state.get("khbd_nls_linh_vuc", ""))
-    thanh_phan = safe_text(st.session_state.get("khbd_nls_thanh_phan", ""))
-    muc_do = safe_text(st.session_state.get("khbd_nls_muc_do", ""))
-    noi_dung = safe_text(st.session_state.get("khbd_nls_noi_dung", ""))
-    
-    if not noi_dung: 
-        return
-        
-    van_ban = NLS_GV_VAN_BAN_MAC_DINH if st.session_state.get("khbd_loai_khung_nls") == "Giáo viên (Thông tư 18)" else "Khung DigComp"
-    item = {"van_ban": van_ban, "linh_vuc": linh_vuc, "thanh_phan": thanh_phan, "muc_do": muc_do, "noi_dung": noi_dung}
-    if item not in st.session_state.khbd_nls_list: 
-        st.session_state.khbd_nls_list.append(item)
-
-def format_nls():
-    items = st.session_state.get("khbd_nls_list", [])
-    if not items:
-        return "- Năng lực 1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ > 1.1. Dạy học và giáo dục trong môi trường số (Thành thạo): Xây dựng kế hoạch bài dạy theo tiếp cận công nghệ."
-    return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
-
-def safe_text(value):
-    if value is None: 
-        return ""
-    text = str(value).replace("\x00", "").replace("\ufeff", "").replace("\u200b", "")
-    text = text.replace("\r", "").replace("\t", " ")
-    return re.sub(r"[ ]{2,}", " ", text).strip()
-
-def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
-    text = safe_text(text)
-    if len(text) < MIN_SOURCE_CHARS:
-        return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ."}
-    return {"status": "valid", "message": "Dữ liệu hợp lệ."}
-
-def parse_pdf_structured(uploaded_file, range_str=""):
-    if uploaded_file is None:
-        return {"source_name": "unknown", "pages": []}
-    content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
-    file_name = getattr(uploaded_file, 'name', 'document.pdf')
-    pages_data = []
+# ============================================================
+# NẠP CÁC MODULE TRONG HỆ THỐNG EXPORT
+# ============================================================
+try:
+    from .markdown_tokenizer import MarkdownTokenizer
+except ImportError:
     try:
-        import fitz
-        doc = fitz.open(stream=content, filetype="pdf")
-        target_pages = set()
-        if range_str.strip():
-            for part in range_str.split(','):
-                if '-' in part:
-                    try:
-                        start, end = map(int, part.split('-'))
-                        for p in range(start, end + 1): 
-                            target_pages.add(p - 1)
-                    except: 
-                        pass
-                else:
-                    try: 
-                        target_pages.add(int(part.strip()) - 1)
-                    except: 
-                        pass
-        for i in range(len(doc)):
-            if target_pages and i not in target_pages: 
+        from export.markdown_tokenizer import MarkdownTokenizer
+    except ImportError:
+        MarkdownTokenizer = None
+
+try:
+    from .word_math import insert_math_to_paragraph
+except ImportError:
+    try:
+        from export.word_math import insert_math_to_paragraph
+    except ImportError:
+        insert_math_to_paragraph = None
+
+try:
+    from .word_tables import process_and_draw_markdown_table
+except ImportError:
+    try:
+        from export.word_tables import process_and_draw_markdown_table
+    except ImportError:
+        process_and_draw_markdown_table = None
+
+try:
+    from .word_images import insert_image_to_paragraph, insert_image_to_docx
+except ImportError:
+    try:
+        from export.word_images import insert_image_to_paragraph, insert_image_to_docx
+    except ImportError:
+        insert_image_to_paragraph = None
+        insert_image_to_docx = None
+
+try:
+    from .template_loader import get_word_document
+except ImportError:
+    def get_word_document(): 
+        return Document()
+
+
+# ============================================================
+# TẦNG 2 — HÀM SANITIZER VÀ AUTO-FIX GOM TRỌN TOÁN HỌC
+# ============================================================
+def _sanitize_and_fix_math(text: str) -> str:
+    if not text: return ""
+
+    # Khử đột biến | thành \
+    text = re.sub(r'\|(sqrt|frac|approx|times|sin|cos|tan|cot|lim|log|ln|alpha|beta|gamma|Delta|pi)\b', r'\\\1', text)
+
+    protected = []
+    def protect_math(match):
+        protected.append(match.group(0))
+        return f"@@MATH_PROTECTED_{len(protected) - 1}@@"
+
+    text = re.sub(r"\$\$[\s\S]*?\$\$", protect_math, text)
+    text = re.sub(r"\$(?!\$)[^$\n]+?\$(?!\$)", protect_math, text)
+
+    formula_regex = r"(?<![\w$])((?:[a-zA-Z][a-zA-Z0-9_]*\vert{}\d+)\^\{?[^{}\n]+\}?\s*(?:=\vert{}<\vert{}>\vert{}\\le\vert{}\\ge\vert{}\\approx\vert{}\\neq)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s\vert{}$))|[A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+)\s*=\s*(?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}\s*(?:=|\\approx)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$)))(?![\w$])"
+    formula_pattern = re.compile(formula_regex)
+
+    def wrap_formula(match):
+        formula = match.group(1).strip()
+        formula = re.sub(r"\b([A-Za-z])(\d{1,3})\b", r"\1_{\2}", formula)
+        return f"${formula}$"
+
+    text = formula_pattern.sub(wrap_formula, text)
+    text = re.sub(r"(?<![$\w])([a-zA-Z]\^\{?[^{}\n\s]+\}?)(?![$])", r"$\1$", text)
+    text = re.sub(r"(?<![$\\])(\\frac\s*\{[^{}\n]*\}\s*\{[^{}\n]*\})(?![$])", r"$\1$", text)
+    text = re.sub(r"(?<![$\\])(\\sqrt(?:\[[^\]]*\])?\s*\{[^{}\n]*\})(?![$])", r"$\1$", text)
+
+    for idx, original in enumerate(protected):
+        text = text.replace(f"@@MATH_PROTECTED_{idx}@@", original)
+
+    return text
+
+
+def _parse_inline_with_math_and_images(text: str) -> List[Dict[str, Any]]:
+    tokens = []
+    pattern_str = r'(\$\$(.*?)\$\$)|(\$([^$]+?)\$)|(\[IMAGE\s*(?:-\s*ID:\s*)?:?\s*([^\]]+)\])|(\*\*([^*]+?)\*\*)|(\*([^*]+?)\*)'
+    pattern = re.compile(pattern_str)
+    last_idx = 0
+    
+    for match in pattern.finditer(text):
+        if match.start() > last_idx:
+            tokens.append({"type": "text", "content": text[last_idx:match.start()]})
+        
+        if match.group(1):
+            tokens.append({"type": "block_math", "content": match.group(2)})
+        elif match.group(3):
+            tokens.append({"type": "inline_math", "content": match.group(4)})
+        elif match.group(5):
+            tokens.append({"type": "image", "content": match.group(6).strip()})
+        elif match.group(7):
+            tokens.append({"type": "bold", "content": match.group(8)})
+        elif match.group(9):
+            tokens.append({"type": "italic", "content": match.group(10)})
+        last_idx = match.end()
+        
+    if last_idx < len(text):
+        tokens.append({"type": "text", "content": text[last_idx:]})
+    return tokens
+
+
+def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
+    ast_nodes = []
+    lines = (markdown_text or "").splitlines()
+    table_buffer = []
+    in_code = False
+    code_lang = ""
+    code_buffer = []
+
+    def flush_table():
+        if table_buffer:
+            ast_nodes.append({"type": "table_raw_lines", "lines": list(table_buffer)})
+            table_buffer.clear()
+
+    for line in lines:
+        s_line = line.strip()
+        if s_line.startswith("```"):
+            if in_code:
+                in_code = False
+                ast_nodes.append({"type": "code", "language": code_lang, "text": "\n".join(code_buffer)})
+                code_buffer.clear()
+            else:
+                flush_table()
+                in_code = True
+                code_lang = s_line.lstrip("`").strip()
+            continue
+        
+        if in_code:
+            code_buffer.append(line)
+            continue
+            
+        if s_line.startswith("|"):
+            table_buffer.append(s_line)
+            continue
+        else:
+            flush_table()
+            
+        if not s_line:
+            continue
+        
+        if s_line.startswith("$$") and s_line.endswith("$$") and len(s_line) > 4:
+            ast_nodes.append({"type": "block_math", "content": s_line[2:-2].strip()})
+            continue
+            
+        if s_line.startswith("#"):
+            match = re.match(r'^(#{1,6})\s+(.*)', s_line)
+            if match:
+                ast_nodes.append({
+                    "type": "heading", 
+                    "level": len(match.group(1)), 
+                    "text": match.group(2), 
+                    "tokens": _parse_inline_with_math_and_images(match.group(2))
+                })
                 continue
-            page = doc[i]
-            page_text = safe_text(page.get_text("text"))
-            
-            page_images = []
-            for img_idx, img in enumerate(page.get_images(full=True)):
-                try:
-                    base_image = doc.extract_image(img[0])
-                    page_images.append({
-                        "id": f"IMG_P{i+1}_{img_idx+1}",
-                        "page": i + 1,
-                        "ext": base_image["ext"],
-                        "base64": base64.b64encode(base_image["image"]).decode("utf-8")
-                    })
-                except: 
-                    pass
                 
-            page_tables = []
-            try:
-                tabs = page.find_tables()
-                if tabs and tabs.tables:
-                    for t_idx, tab in enumerate(tabs.tables):
-                        extracted_df = tab.extract()
-                        if extracted_df and len(extracted_df) > 0:
-                            page_tables.append({
-                                "id": f"TAB_P{i+1}_{t_idx+1}",
-                                "page": i + 1,
-                                "headers": [str(c) if c is not None else "" for c in extracted_df[0]],
-                                "rows": [[str(c) if c is not None else "" for c in r] for r in extracted_df[1:]]
-                            })
-            except: 
-                pass
+        if s_line.startswith("- ") or s_line.startswith("* "):
+            ast_nodes.append({
+                "type": "list_item", 
+                "style": "bullet", 
+                "level": 1, 
+                "tokens": _parse_inline_with_math_and_images(s_line[2:].strip())
+            })
+            continue
             
-            pages_data.append({"page_number": i + 1, "text": page_text, "images": page_images, "tables": page_tables, "figures": [], "charts": []})
-    except Exception as e:
-        logger.error(f"Lỗi đọc cấu trúc PDF: {e}")
-    return {"source_name": file_name, "pages": pages_data}
+        num_match = re.match(r'^\d+\.\s+(.*)', s_line)
+        if num_match:
+            ast_nodes.append({
+                "type": "list_item", 
+                "style": "number", 
+                "level": 1, 
+                "tokens": _parse_inline_with_math_and_images(num_match.group(1))
+            })
+            continue
 
-def parse_docx_structured(uploaded_file):
-    if uploaded_file is None: 
-        return {"source_name": "unknown", "pages": []}
-    file_name = getattr(uploaded_file, 'name', 'document.docx')
-    paragraphs_text = []
-    tables_data = []
-    try:
-        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
-        doc = Document(BytesIO(source))
-        for p in doc.paragraphs:
-            if p.text.strip(): 
-                paragraphs_text.append(p.text.strip())
-        for t_idx, table in enumerate(doc.tables):
-            rows_raw = [[cell.text.strip().replace('\n', ' ') for cell in row.cells] for row in table.rows]
-            if rows_raw:
-                tables_data.append({"id": f"TAB_DOCX_{t_idx+1}", "page": 1, "headers": rows_raw[0], "rows": rows_raw[1:] if len(rows_raw) > 1 else []})
-    except Exception as e:
-        logger.error(f"Lỗi đọc cấu trúc DOCX: {e}")
-    return {"source_name": file_name, "pages": [{"page_number": 1, "text": "\n".join(paragraphs_text), "images": [], "tables": tables_data, "figures": [], "charts": []}]}
+        img_match = re.match(r'^\[IMAGE\s*(?:-\s*ID:\s*)?:?\s*([^\]]+)\]$', s_line)
+        if img_match:
+            ast_nodes.append({"type": "image", "content": img_match.group(1).strip()})
+            continue
+            
+        tbl_match = re.match(r'^\[TABLE\s*(?:-\s*ID:\s*)?:?\s*([^\]]+)\]$', s_line)
+        if tbl_match:
+            ast_nodes.append({"type": "table_ref", "id": tbl_match.group(1).strip()})
+            continue
+            
+        img_match_md = re.match(r'^!\[(.*?)\]\((.*?)\)', s_line)
+        if img_match_md:
+            ast_nodes.append({"type": "image", "content": img_match_md.group(2)})
+            continue
 
-def build_intermediate_knowledge_source(structured_data):
-    """
-    ÉP CÚ PHÁP CHUẨN [IMAGE: ID] và [TABLE: ID] ĐỂ AI COPY ĐÚNG NHẤT.
-    """
-    if not structured_data or not structured_data.get("pages"): 
-        return "Không có dữ liệu nguồn."
-    source_lines = []
-    for page in structured_data["pages"]:
-        p_num = page["page_number"]
-        source_lines.append(f"=== TRANG {p_num} ===")
-        if page["text"]: 
-            source_lines.append(f"[TEXT - Trang {p_num}]\n{page['text']}")
-        for tab in page.get("tables", []):
-            source_lines.append(f"BẢNG DỮ LIỆU [TABLE: {tab['id']}]\nHeaders: {' | '.join(tab['headers'])}\nRows:\n" + "\n".join([' | '.join(r) for r in tab['rows']]))
-        for img in page.get("images", []): 
-            source_lines.append(f"HÌNH MINH HỌA [IMAGE: {img['id']}]")
-    return "\n\n".join(source_lines)
+        ast_nodes.append({"type": "paragraph", "text": s_line, "tokens": _parse_inline_with_math_and_images(s_line)})
 
-def read_pdf(uploaded_file, range_str=""): 
-    return "\n".join([p["text"] for p in parse_pdf_structured(uploaded_file, range_str)["pages"]])
+    flush_table()
+    return ast_nodes
 
-def read_docx_ordered(source): 
-    return "\n".join([p["text"] for p in parse_docx_structured(source)["pages"]])
 
-def read_multiple_files(files, range_str="", is_pdf_target=False):
-    combined = {"source_name": "multi_files", "pages": []}
-    offset = 0
-    for f in files or []:
-        if f.name.lower().endswith('.pdf'):
-            parsed = parse_pdf_structured(f, range_str) 
+class WordExportEngine:
+
+    @staticmethod
+    def _set_font(run, font_name="Times New Roman"):
+        try:
+            rPr = run._element.get_or_add_rPr()
+            rFonts = rPr.find(qn("w:rFonts"))
+            if rFonts is None:
+                rFonts = OxmlElement("w:rFonts")
+                rPr.append(rFonts)
+            rFonts.set(qn('w:ascii'), font_name)
+            rFonts.set(qn('w:hAnsi'), font_name)
+            rFonts.set(qn('w:cs'), font_name)
+        except Exception:
+            pass
+
+    @classmethod
+    def _render_inline_tokens(cls, p, tokens: List[Dict[str, Any]], export_errors: List[Dict[str, Any]], data_cache: dict = None):
+        if not tokens:
+            return
+
+        for idx, token in enumerate(tokens):
+            try:
+                ttype = token.get("type", "text")
+                content = token.get("content") or token.get("text") or ""
+
+                if ttype in ["text", "bold", "italic", "underline", "strike", "highlight", "inline_code", "code"]:
+                    if ttype in ["inline_code", "code"]:
+                        run = p.add_run(content)
+                        cls._set_font(run, "Courier New")
+                        run.font.size = Pt(11)
+                    else:
+                        sub_tokens = _parse_inline_with_math_and_images(_sanitize_and_fix_math(content))
+                        if len(sub_tokens) > 1 or (sub_tokens and sub_tokens[0].get("type") != "text"):
+                            cls._render_inline_tokens(p, sub_tokens, export_errors, data_cache)
+                        else:
+                            run = p.add_run(content)
+                            cls._set_font(run, "Times New Roman")
+                            run.font.size = Pt(13)
+                            
+                            if ttype == "bold": 
+                                run.bold = True
+                            elif ttype == "italic": 
+                                run.italic = True
+                            elif ttype == "underline": 
+                                run.underline = True
+                            elif ttype == "strike": 
+                                run.font.strike = True
+                            elif ttype == "highlight": 
+                                run.font.color.rgb = RGBColor(199, 37, 78)
+                    continue
+
+                if ttype in ["inline_math", "math_inline", "math", "math_block", "block_math"]:
+                    if insert_math_to_paragraph:
+                        is_block = (ttype in ["math_block", "block_math"])
+                        insert_math_to_paragraph(p, content, is_block=is_block)
+                    else:
+                        run = p.add_run(f" {content} ")
+                        cls._set_font(run, "Cambria Math")
+                        run.italic = True
+
+                elif ttype == "image":
+                    img_id = content
+                    img_src = None
+                    if data_cache and "pages" in data_cache:
+                        for page in data_cache["pages"]:
+                            for img in page.get("images", []):
+                                if img.get("id") == img_id:
+                                    img_src = {"base64": img.get("base64"), "caption": img_id}
+                                    break
+                            if img_src: break
+                            
+                    if insert_image_to_paragraph: 
+                        if img_src:
+                            insert_image_to_paragraph(p, img_src)
+                        else:
+                            insert_image_to_paragraph(p, img_id)
+                    else: 
+                        run_img = p.add_run(f"[Hình ảnh: {img_id}]")
+                        run_img.italic = True
+
+                else:
+                    run = p.add_run(str(content))
+                    cls._set_font(run, "Times New Roman")
+                    run.font.size = Pt(13)
+
+            except Exception as e:
+                export_errors.append({"type": "inline_token", "index": idx, "token": token, "error": str(e)})
+                try: 
+                    fallback_text = str(token.get("content") or token.get("text") or "")
+                    p.add_run(fallback_text)
+                except Exception: 
+                    pass
+
+    @classmethod
+    def _render_khbd_header(cls, doc: Document, metadata: dict):
+        try:
+            table = doc.add_table(rows=1, cols=2)
+            tblPr = table._element.xpath('w:tblPr')
+            if tblPr:
+                tblBorders = OxmlElement('w:tblBorders')
+                for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+                    border = OxmlElement(f'w:{border_name}')
+                    border.set(qn('w:val'), 'none')
+                    tblBorders.append(border)
+                tblPr[0].append(tblBorders)
+
+            c0 = table.cell(0, 0)
+            p0 = c0.paragraphs[0]
+            p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r0 = p0.add_run("TRƯỜNG: ....................................\nTỔ: ........................................")
+            r0.bold = True
+            cls._set_font(r0)
+
+            c1 = table.cell(0, 1)
+            p1 = c1.paragraphs[0]
+            p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            mon = str(metadata.get('mon', '.......')).upper()
+            lop = str(metadata.get('lop', '.......'))
+            r1 = p1.add_run(f"HỌ VÀ TÊN GIÁO VIÊN: ..........................\nMÔN: {mon}\nLỚP: {lop}")
+            r1.bold = True
+            cls._set_font(r1)
+            doc.add_paragraph()
+
+            p_title = doc.add_paragraph()
+            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title = str(metadata.get('title', '.........................')).upper()
+            rt = p_title.add_run(f"TÊN BÀI DẠY: {title}")
+            rt.bold = True
+            rt.font.size = Pt(16)
+            cls._set_font(rt)
+
+            p_time = doc.add_paragraph()
+            p_time.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            so_tiet = str(metadata.get('so_tiet', '...'))
+            r_time = p_time.add_run(f"Môn học/Hoạt động giáo dục: {mon}; Thời gian thực hiện: {so_tiet} tiết")
+            r_time.font.italic = True
+            cls._set_font(r_time)
+            doc.add_paragraph()
+        except Exception:
+            pass
+
+    @classmethod
+    def convert_markdown_to_docx_bytes(cls, markdown_text: str, metadata: dict = None) -> bytes:
+        export_errors = []
+        doc = get_word_document()
+
+        markdown_text = _sanitize_and_fix_math(markdown_text or "")
+
+        ast_nodes = []
+        if MarkdownTokenizer and hasattr(MarkdownTokenizer, 'parse'):
+            try:
+                ast_nodes = MarkdownTokenizer.parse(markdown_text)
+            except Exception as tok_err:
+                export_errors.append({"type": "tokenizer_error", "error": str(tok_err)})
+                ast_nodes = _fallback_parse_markdown(markdown_text)
         else:
-            parsed = parse_docx_structured(f)
-        for p in parsed["pages"]:
-            p["page_number"] += offset
-            combined["pages"].append(p)
-        offset += len(parsed["pages"])
-    return build_intermediate_knowledge_source(combined)
+            ast_nodes = _fallback_parse_markdown(markdown_text)
 
-def generate_ai(client, prompt, model_name="3.5 Flash"):
-    system_instruction = r"""
-[KỶ LUẬT THÉP - BẮT BUỘC TUÂN THỦ 100% ĐỂ TRÁNH LỖI XUẤT FILE WORD]:
+        for node_idx, node in enumerate(ast_nodes):
+            try:
+                ntype = node.get("type", "paragraph")
 
-1. KỶ LUẬT VỀ HÌNH ẢNH VÀ BẢNG BIỂU (QUAN TRỌNG NHẤT):
-- Trong Nguồn Kiến Thức, nếu có HÌNH MINH HỌA [IMAGE: ID...] hoặc BẢNG DỮ LIỆU [TABLE: ID...], bạn KHÔNG ĐƯỢC BỎ QUA.
-- Khi hoạt động cần dùng hình/bảng đó, bạn BẮT BUỘC viết chính xác thẻ `[IMAGE: ID]` hoặc `[TABLE: ID]` TRÊN MỘT DÒNG ĐỘC LẬP.
-- KHÔNG tự vẽ lại bảng Markdown (vì Word sẽ làm việc đó). CHỈ CẦN GHI THẺ `[TABLE: ID]`.
-- Ví dụ ĐÚNG: 
-  Học sinh quan sát hình dưới đây:
-  [IMAGE: IMG_P1_1]
-  Hoàn thành số liệu vào bảng:
-  [TABLE: TAB_P1_1]
-- SAI: Giáo viên chiếu Hình 5.1 (Sẽ bị mất ảnh vì thiếu thẻ [IMAGE: IMG_P1_1]).
+                if ntype == "paragraph":
+                    raw_text = str(node.get("text", "")).strip()
 
-2. KỶ LUẬT TUYỆT ĐỐI VỀ CÔNG THỨC TOÁN - LÝ - HÓA (CHỐNG ĐỘT BIẾN KÝ TỰ):
-- LƯU Ý LỖI HAY GẶP CỦA AI: Số mũ thường bị viết sai thành số thường (vd: 108 thay vì 10^8). Bạn BẮT BUỘC rà soát lại và viết đúng dạng $10^8$.
-- BẮT BUỘC dùng dấu gạch chéo ngược \ cho các lệnh LaTeX. CẤM dùng | (CẤM |sqrt, |frac).
-- MỌI biểu thức, biến số, phép tính phải được GOM TRỌN VẸN VÀO MỘT CẶP DẤU $...$.
-- SAI: $n_{21}$ = $\frac{\sin i}{\sin r}$ (Bị tách rời)
-- SAI: n21 = \frac{\sin i}{\sin r} (Thiếu $)
-- ĐÚNG: $n_{21} = \frac{\sin i}{\sin r}$
-- ĐÚNG: $c = 3 \times 10^8 \text{ m/s}$
+                    img_match = re.match(r'^\[IMAGE\s*(?:-\s*ID:\s*)?:?\s*([^\]]+)\]$', raw_text)
+                    if img_match:
+                        p = doc.add_paragraph()
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        img_id = img_match.group(1).strip()
+                        img_src = None
+                        if metadata and "pages" in metadata:
+                            for page in metadata["pages"]:
+                                for img in page.get("images", []):
+                                    if img.get("id") == img_id:
+                                        img_src = {"base64": img.get("base64"), "caption": img_id}
+                                        break
+                                if img_src: break
+                        if insert_image_to_paragraph: insert_image_to_paragraph(p, img_src if img_src else img_id)
+                        else: p.add_run(f"[Hình ảnh: {img_id}]").italic = True
+                        continue
+                        
+                    tbl_match = re.match(r'^\[TABLE\s*(?:-\s*ID:\s*)?:?\s*([^\]]+)\]$', raw_text)
+                    if tbl_match:
+                        tbl_id = tbl_match.group(1).strip()
+                        tbl_data = None
+                        if metadata and "pages" in metadata:
+                            for page in metadata["pages"]:
+                                for tab in page.get("tables", []):
+                                    if tab.get("id") == tbl_id:
+                                        tbl_data = tab
+                                        break
+                                if tbl_data: break
+                        
+                        if tbl_data:
+                            lines = []
+                            lines.append("| " + " | ".join(tbl_data["headers"]) + " |")
+                            lines.append("|" + "|".join(["---"] * len(tbl_data["headers"])) + "|")
+                            for row in tbl_data["rows"]:
+                                lines.append("| " + " | ".join(row) + " |")
+                            if process_and_draw_markdown_table:
+                                process_and_draw_markdown_table(doc, lines, metadata=metadata)
+                        else:
+                            p = doc.add_paragraph()
+                            p.add_run(f"[Hệ thống: Không tìm thấy dữ liệu bảng {tbl_id}]").italic = True
+                        continue
 
-3. KỶ LUẬT VỀ VĂN PHONG:
-- CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-- TUYỆT ĐỐI CẤM các câu văn chung chung (Học sinh thực hiện nhiệm vụ, Thảo luận...). Phải nêu CỤ THỂ học sinh làm gì, đọc phần nào, tính toán gì.
-"""
-    full_prompt = system_instruction + "\n\n" + prompt
-    api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
-    
-    try: 
-        api_key = api_key or st.secrets.get("GEMINI_API_KEY", "").strip()
-    except: 
-        pass
+                    p = doc.add_paragraph()
+                    p.paragraph_format.space_after = Pt(4)
+                    tokens = node.get("tokens", [])
+                    if tokens:
+                        cls._render_inline_tokens(p, tokens, export_errors, metadata)
+                    elif raw_text:
+                        inline_tokens = _parse_inline_with_math_and_images(_sanitize_and_fix_math(raw_text))
+                        cls._render_inline_tokens(p, inline_tokens, export_errors, metadata)
 
-    text_out = ""
+                elif ntype == "table_ref":
+                    tbl_id = node.get("id")
+                    tbl_data = None
+                    if metadata and "pages" in metadata:
+                        for page in metadata["pages"]:
+                            for tab in page.get("tables", []):
+                                if tab.get("id") == tbl_id:
+                                    tbl_data = tab
+                                    break
+                            if tbl_data: break
+                    if tbl_data:
+                        lines = []
+                        lines.append("| " + " | ".join(tbl_data["headers"]) + " |")
+                        lines.append("|" + "|".join(["---"] * len(tbl_data["headers"])) + "|")
+                        for row in tbl_data["rows"]:
+                            lines.append("| " + " | ".join(row) + " |")
+                        if process_and_draw_markdown_table:
+                            process_and_draw_markdown_table(doc, lines, metadata=metadata)
+                    else:
+                        p = doc.add_paragraph()
+                        p.add_run(f"[Hệ thống: Không tìm thấy dữ liệu bảng {tbl_id}]").italic = True
+
+                elif ntype == "heading":
+                    level = min(max(node.get("level", 1), 1), 6)
+                    p = doc.add_paragraph()
+                    p.paragraph_format.space_before = Pt(10)
+                    p.paragraph_format.space_after = Pt(4)
+                    p.paragraph_format.keep_with_next = True
+                    
+                    if level == 1:
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    else:
+                        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+                    tokens = node.get("tokens", [])
+                    if tokens:
+                        cls._render_inline_tokens(p, tokens, export_errors, metadata)
+                    else:
+                        inline_tokens = _parse_inline_with_math_and_images(_sanitize_and_fix_math(str(node.get("text") or "")))
+                        cls._render_inline_tokens(p, inline_tokens, export_errors, metadata)
+
+                    for r in p.runs:
+                        r.bold = True
+                        cls._set_font(r, "Times New Roman")
+                        if level == 1: r.font.size = Pt(16)
+                        elif level == 2: r.font.size = Pt(14)
+                        else: r.font.size = Pt(13)
+
+                elif ntype in ["block_math", "math_block"]:
+                    math_content = node.get("content") or node.get("text") or ""
+                    p = doc.add_paragraph()
+                    p.paragraph_format.space_before = Pt(6)
+                    p.paragraph_format.space_after = Pt(6)
+                    if insert_math_to_paragraph:
+                        insert_math_to_paragraph(p, math_content, is_block=True)
+                    else:
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        r = p.add_run(math_content)
+                        cls._set_font(r, "Cambria Math")
+                        r.italic = True
+
+                elif ntype in ["list_item", "bullet_list", "numbered_list"]:
+                    style_name = 'List Number' if (node.get("style") == "number" or ntype == "numbered_list") else 'List Bullet'
+                    level = node.get("level", 1)
+                    p = doc.add_paragraph(style=style_name)
+                    p.paragraph_format.left_indent = Inches(0.25 * level + 0.25)
+                    p.paragraph_format.first_line_indent = Inches(-0.25)
+                    p.paragraph_format.space_after = Pt(3)
+
+                    tokens = node.get("tokens", [])
+                    if tokens:
+                        cls._render_inline_tokens(p, tokens, export_errors, metadata)
+                    else:
+                        inline_tokens = _parse_inline_with_math_and_images(_sanitize_and_fix_math(str(node.get("text") or "")))
+                        cls._render_inline_tokens(p, inline_tokens, export_errors, metadata)
+
+                elif ntype == "image":
+                    p = doc.add_paragraph()
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    img_id = node.get("content") or node.get("url") or node.get("path")
+                    img_src = None
+                    if metadata and "pages" in metadata:
+                        for page in metadata["pages"]:
+                            for img in page.get("images", []):
+                                if img.get("id") == img_id:
+                                    img_src = {"base64": img.get("base64"), "caption": img_id}
+                                    break
+                            if img_src: break
+                    if insert_image_to_paragraph: insert_image_to_paragraph(p, img_src if img_src else img_id)
+                    else: p.add_run(f"[Hình ảnh: {img_id}]").italic = True
+
+                elif ntype in ["table", "table_raw_lines"]:
+                    lines = node.get("lines", [])
+                    if process_and_draw_markdown_table and lines:
+                        process_and_draw_markdown_table(doc, lines, metadata=metadata)
+                    else:
+                        for line in lines:
+                            p = doc.add_paragraph()
+                            p.add_run(str(line))
+
+                elif ntype in ["code", "code_block"]:
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = Inches(0.4)
+                    r = p.add_run(node.get("text", ""))
+                    cls._set_font(r, "Courier New")
+                    r.font.size = Pt(10.5)
+
+                elif ntype in ["hr", "horizontal_rule"]:
+                    p = doc.add_paragraph()
+                    pPr = p._element.get_or_add_pPr()
+                    pb = OxmlElement("w:pBdr")
+                    bottom = OxmlElement("w:bottom")
+                    bottom.set(qn("w:val"), "single")
+                    bottom.set(qn("w:sz"), "8")
+                    bottom.set(qn("w:color"), "CCCCCC")
+                    pb.append(bottom)
+                    pPr.append(pb)
+
+                elif ntype == "page_break":
+                    doc.add_page_break()
+
+            except Exception as node_err:
+                export_errors.append({"type": "ast_node", "node_index": node_idx, "node": node, "error": str(node_err)})
+
+        output_stream = io.BytesIO()
+        doc.save(output_stream)
+        output_stream.seek(0)
+        return output_stream.getvalue()
+
+    @classmethod
+    def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
+        if not isinstance(data_cache, dict):
+            return cls.convert_markdown_to_docx_bytes(str(data_cache))
+        return cls.convert_markdown_to_docx_bytes(data_cache.get("ai_generated_content", ""), metadata=data_cache)
+
+
+# BẮT BUỘC COPY ĐẾN DÒNG NÀY ĐỂ TRÁNH LỖI CANNOT IMPORT
+def export_word(markdown_text_or_cache) -> bytes:
     try:
-        if api_key.startswith("sk-") or "proj-" in api_key:
-            import openai
-            oai_client = openai.OpenAI(api_key=api_key)
-            response = oai_client.chat.completions.create(
-                model="gpt-4o" if "Pro" in model_name else "gpt-4o-mini",
-                messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}],
-                max_tokens=8192
-            )
-            text_out = response.choices[0].message.content.strip()
+        if isinstance(markdown_text_or_cache, dict):
+            return WordExportEngine.export_to_word(markdown_text_or_cache)
+        elif isinstance(markdown_text_or_cache, str):
+            return WordExportEngine.convert_markdown_to_docx_bytes(markdown_text_or_cache, metadata=None)
         else:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key or "AIzaSy_dummy")
-            model = genai.GenerativeModel(model_name="gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash")
-            response = model.generate_content(full_prompt)
-            text_out = getattr(response, "text", "").strip()
-    except Exception as e:
-        logger.error(f"AI Generation Error: {e}")
-        raise RuntimeError(f"Lỗi kết nối AI: {e}")
-
-    if not text_out: 
-        raise RuntimeError("Không thể nhận phản hồi từ AI.")
-        
-    if "# TÊN BÀI HỌC:" in text_out: 
-        text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
-        
-    text_out = text_out.replace("**", "")
-    text_out = re.sub(r'([^\n])\s*([a-d]\)\s+)', r'\1\n\n\2', text_out)
-    text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao nhiệm vụ học tập|Thực hiện nhiệm vụ học tập|Báo cáo kết quả và thảo luận|Kết luận)[^:\n]*:)', r'\1\n\n\2', text_out)
-    
-    return text_out
-
-def validate_khbd_result(text):
-    if not text or len(text) < 500: 
-        return False, "Nội dung giáo án quá ngắn hoặc trống."
-    return True, "Hợp lệ"
-
-def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:35000]
-    ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
-    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\nNHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY {so_tiet} TIẾT BÁM SÁT NGUỒN SAU:\n\n--- NGUỒN KIẾN THỨC TRUNG GIAN (CHỨA TEXT, ẢNH VÀ BẢNG) ---\n{source}\n\n{ga_block}"
+            return WordExportEngine.convert_markdown_to_docx_bytes(str(markdown_text_or_cache), metadata=None)
+    except Exception as fatal_err:
+        fallback_doc = Document()
+        fallback_doc.add_paragraph("KẾ HOẠCH BÀI DẠY (BẢN PHỤC HỒI)")
+        fallback_doc.add_paragraph(f"Lỗi: {fatal_err}")
+        bio = io.BytesIO()
+        fallback_doc.save(bio)
+        bio.seek(0)
+        return bio.getvalue()
