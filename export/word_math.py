@@ -2,216 +2,607 @@
 """
 ============================================================
 MODULE: export/word_math.py
-============================================================
+
+BỘ BIÊN DỊCH CÔNG THỨC KHOA HỌC SANG OMML NATIVE CỦA MICROSOFT WORD
 
 Mục tiêu:
-- Chuẩn hóa công thức Toán học.
-- Chuẩn hóa công thức Vật lý.
-- Chuẩn hóa công thức Hóa học.
-- Không làm mất nội dung LaTeX khi xuất Word.
-- Xử lý phân số, căn, số mũ, chỉ số dưới, ký hiệu Hy Lạp,
-  vectơ, góc, đạo hàm, tích phân, đơn vị đo...
-- Hỗ trợ công thức inline và công thức display.
+- Toán học: phân số, căn, căn bậc n, số mũ, chỉ số,
+  chỉ số + số mũ, ký hiệu Hy Lạp, toán tử, ngoặc.
+- Vật lý: công thức và đơn vị vật lý.
+- Hóa học: công thức hóa học, điện tích ion, đồng vị,
+  chỉ số nguyên tử, phân tử nước kết tinh.
+- Chèn công thức trực tiếp vào Word dưới dạng OMML Native.
+- Không để lọt các chuỗi $...$, \( ... \), \[ ... \] ra văn bản.
+- Không dùng Unicode superscript/subscript làm phương án chính.
+- Tương thích với python-docx.
 
-Lưu ý kiến trúc:
-- Module này KHÔNG dùng MathML/OMML vì python-docx không hỗ trợ
-  trực tiếp việc tạo công thức Word native một cách ổn định.
-- Công thức được chuyển thành Unicode + superscript/subscript
-  để Word hiển thị ổn định, không bị mất nội dung.
-- Không được xóa toàn bộ ký hiệu '$' trước khi tokenizer xử lý.
 ============================================================
 """
 
 from __future__ import annotations
 
+import html
+import logging
 import re
-from typing import Tuple, Optional
+from typing import List, Optional, Tuple
 
-from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
 
 
+logger = logging.getLogger("WordMath")
+
+
+MATH_NS = (
+    "http://schemas.openxmlformats.org/"
+    "officeDocument/2006/math"
+)
+
+
 # ============================================================
-# 1. NORMALIZER
+# 1. BẢNG KÝ HIỆU LATEX → UNICODE
 # ============================================================
 
-class ScienceNormalizer:
-    """
-    Bộ chuẩn hóa công thức khoa học.
+SYMBOLS = {
+    # Greek
+    "alpha": "α",
+    "beta": "β",
+    "gamma": "γ",
+    "delta": "δ",
+    "epsilon": "ε",
+    "varepsilon": "ε",
+    "zeta": "ζ",
+    "eta": "η",
+    "theta": "θ",
+    "vartheta": "ϑ",
+    "iota": "ι",
+    "kappa": "κ",
+    "lambda": "λ",
+    "mu": "μ",
+    "nu": "ν",
+    "xi": "ξ",
+    "omicron": "ο",
+    "pi": "π",
+    "varpi": "ϖ",
+    "rho": "ρ",
+    "varrho": "ϱ",
+    "sigma": "σ",
+    "varsigma": "ς",
+    "tau": "τ",
+    "upsilon": "υ",
+    "phi": "φ",
+    "varphi": "ϕ",
+    "chi": "χ",
+    "psi": "ψ",
+    "omega": "ω",
 
-    Phạm vi:
-    - Toán học
-    - Vật lý
-    - Hóa học
+    # Uppercase Greek
+    "Gamma": "Γ",
+    "Delta": "Δ",
+    "Theta": "Θ",
+    "Lambda": "Λ",
+    "Xi": "Ξ",
+    "Pi": "Π",
+    "Sigma": "Σ",
+    "Upsilon": "Υ",
+    "Phi": "Φ",
+    "Psi": "Ψ",
+    "Omega": "Ω",
+
+    # Relations
+    "le": "≤",
+    "leq": "≤",
+    "ge": "≥",
+    "geq": "≥",
+    "neq": "≠",
+    "ne": "≠",
+    "approx": "≈",
+    "equiv": "≡",
+    "sim": "∼",
+    "simeq": "≃",
+    "cong": "≅",
+    "propto": "∝",
+
+    # Operators
+    "pm": "±",
+    "mp": "∓",
+    "times": "×",
+    "cdot": "·",
+    "div": "÷",
+    "ast": "∗",
+    "star": "⋆",
+    "circ": "∘",
+    "bullet": "•",
+
+    # Sets / logic
+    "in": "∈",
+    "notin": "∉",
+    "subset": "⊂",
+    "subseteq": "⊆",
+    "supset": "⊃",
+    "supseteq": "⊇",
+    "cup": "∪",
+    "cap": "∩",
+    "emptyset": "∅",
+    "infty": "∞",
+    "forall": "∀",
+    "exists": "∃",
+    "nexists": "∄",
+
+    # Geometry
+    "perp": "⊥",
+    "parallel": "∥",
+    "angle": "∠",
+    "triangle": "△",
+    "square": "□",
+
+    # Arrows
+    "rightarrow": "→",
+    "to": "→",
+    "leftarrow": "←",
+    "leftrightarrow": "↔",
+    "Rightarrow": "⇒",
+    "Leftarrow": "⇐",
+    "Leftrightarrow": "⇔",
+    "uparrow": "↑",
+    "downarrow": "↓",
+
+    # Calculus / algebra
+    "sum": "∑",
+    "prod": "∏",
+    "int": "∫",
+    "oint": "∮",
+    "partial": "∂",
+    "nabla": "∇",
+
+    # Text spacing
+    "quad": " ",
+    "qquad": "  ",
+    "enspace": " ",
+    "thinspace": " ",
+    ",": " ",
+    ";": " ",
+    ":": " ",
+    "!": "",
+
+    # Named functions
+    "sin": "sin",
+    "cos": "cos",
+    "tan": "tan",
+    "cot": "cot",
+    "sec": "sec",
+    "csc": "csc",
+    "arcsin": "arcsin",
+    "arccos": "arccos",
+    "arctan": "arctan",
+    "log": "log",
+    "ln": "ln",
+    "lim": "lim",
+    "max": "max",
+    "min": "min",
+}
+
+
+# ============================================================
+# 2. HÀM TIỆN ÍCH
+# ============================================================
+
+def escape_xml(text: str) -> str:
+    """
+    Escape XML an toàn cho OMML.
     """
 
-    SUB_TRANSLATION = str.maketrans(
-        "0123456789+-=()",
-        "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
+    if text is None:
+        return ""
+
+    return html.escape(
+        str(text),
+        quote=True
     )
 
-    SUP_TRANSLATION = str.maketrans(
-        "0123456789+-=()",
-        "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+
+def _empty_math_run() -> str:
+    return (
+        "<m:r>"
+        "<m:t xml:space=\"preserve\"></m:t>"
+        "</m:r>"
     )
 
-    # ========================================================
-    # KÝ HIỆU LATEX → UNICODE
-    # ========================================================
 
-    TRANSLATION_MAP = {
+def _normalize_math_input(value: str) -> str:
+    """
+    Loại bỏ các lớp delimiter bên ngoài nhưng không phá
+    các delimiter nằm bên trong biểu thức.
+    """
 
-        # Toán tử
-        r"\times": "×",
-        r"\cdot": "·",
-        r"\div": "÷",
-        r"\pm": "±",
-        r"\mp": "∓",
+    if not value:
+        return ""
 
-        # Quan hệ
-        r"\neq": "≠",
-        r"\ne": "≠",
-        r"\leq": "≤",
-        r"\le": "≤",
-        r"\geq": "≥",
-        r"\ge": "≥",
-        r"\approx": "≈",
-        r"\equiv": "≡",
-        r"\sim": "∼",
-        r"\cong": "≅",
-        r"\propto": "∝",
+    s = str(value).strip()
 
-        # Hình học
-        r"\perp": "⊥",
-        r"\parallel": "∥",
-        r"\angle": "∠",
-        r"\triangle": "△",
-        r"\circ": "°",
+    # $$ ... $$
+    if len(s) >= 4 and s.startswith("$$") and s.endswith("$$"):
+        return s[2:-2].strip()
 
-        # Mũi tên
-        r"\rightarrow": "→",
-        r"\to": "→",
-        r"\leftarrow": "←",
-        r"\Rightarrow": "⇒",
-        r"\Leftarrow": "⇐",
-        r"\Leftrightarrow": "⇔",
-        r"\leftrightarrow": "↔",
-        r"\uparrow": "↑",
-        r"\downarrow": "↓",
+    # $ ... $
+    if len(s) >= 2 and s.startswith("$") and s.endswith("$"):
+        return s[1:-1].strip()
 
-        # Tập hợp
-        r"\in": "∈",
-        r"\notin": "∉",
-        r"\subset": "⊂",
-        r"\subseteq": "⊆",
-        r"\supset": "⊃",
-        r"\supseteq": "⊇",
-        r"\cup": "∪",
-        r"\cap": "∩",
-        r"\emptyset": "∅",
+    # \[ ... \]
+    if len(s) >= 4 and s.startswith(r"\[") and s.endswith(r"\]"):
+        return s[2:-2].strip()
 
-        # Logic
-        r"\forall": "∀",
-        r"\exists": "∃",
-        r"\land": "∧",
-        r"\lor": "∨",
-        r"\neg": "¬",
+    # \( ... \)
+    if len(s) >= 4 and s.startswith(r"\(") and s.endswith(r"\)"):
+        return s[2:-2].strip()
 
-        # Số học / giải tích
-        r"\infty": "∞",
-        r"\partial": "∂",
-        r"\nabla": "∇",
-        r"\sum": "∑",
-        r"\prod": "∏",
-        r"\int": "∫",
+    return s
 
-        # Hy Lạp
-        r"\alpha": "α",
-        r"\beta": "β",
-        r"\gamma": "γ",
-        r"\delta": "δ",
-        r"\epsilon": "ε",
-        r"\varepsilon": "ϵ",
-        r"\zeta": "ζ",
-        r"\eta": "η",
-        r"\theta": "θ",
-        r"\vartheta": "ϑ",
-        r"\iota": "ι",
-        r"\kappa": "κ",
-        r"\lambda": "λ",
-        r"\mu": "μ",
-        r"\nu": "ν",
-        r"\xi": "ξ",
-        r"\pi": "π",
-        r"\varpi": "ϖ",
-        r"\rho": "ρ",
-        r"\sigma": "σ",
-        r"\tau": "τ",
-        r"\upsilon": "υ",
-        r"\phi": "φ",
-        r"\varphi": "ϕ",
-        r"\chi": "χ",
-        r"\psi": "ψ",
-        r"\omega": "ω",
 
-        # Hy Lạp viết hoa
-        r"\Gamma": "Γ",
-        r"\Delta": "Δ",
-        r"\Theta": "Θ",
-        r"\Lambda": "Λ",
-        r"\Xi": "Ξ",
-        r"\Pi": "Π",
-        r"\Sigma": "Σ",
-        r"\Phi": "Φ",
-        r"\Psi": "Ψ",
-        r"\Omega": "Ω",
+# ============================================================
+# 3. LATEX PARSER
+# ============================================================
 
-        # Đơn vị thường gặp
-        r"\degree": "°",
-        r"\ohm": "Ω",
+class LatexParser:
+    """
+    Parser đệ quy đơn giản nhưng an toàn cho LaTeX giáo dục.
 
-        # Khoảng trắng LaTeX
-        r"\,": " ",
-        r"\;": " ",
-        r"\:": " ",
-        r"\!": "",
-    }
+    AST node:
 
-    # ========================================================
-    # PARSE BRACE
-    # ========================================================
+        ("text", "x")
+        ("group", [...])
+        ("frac", numerator, denominator)
+        ("sqrt", expression)
+        ("root", degree, expression)
+        ("sup", base, exponent)
+        ("sub", base, subscript)
+        ("subsup", base, subscript, exponent)
+        ("normal_text", [...])
+        ("accent", accent, expression)
+    """
 
-    @classmethod
-    def _parse_braced_content(
-        cls,
-        text: str,
-        opening_index: int
-    ) -> Tuple[str, int]:
+    def __init__(self, source: str):
+        self.source = source or ""
+        self.pos = 0
+        self.length = len(self.source)
 
-        if (
-            opening_index >= len(text)
-            or text[opening_index] != "{"
-        ):
-            return "", opening_index
+    # --------------------------------------------------------
+    # CORE
+    # --------------------------------------------------------
 
-        depth = 0
-        content = []
+    def peek(self) -> str:
+        if self.pos >= self.length:
+            return ""
 
-        for index in range(
-            opening_index,
-            len(text)
-        ):
+        return self.source[self.pos]
 
-            char = text[index]
+    def get(self) -> str:
+        char = self.peek()
+
+        if char:
+            self.pos += 1
+
+        return char
+
+    def parse(self) -> list:
+        nodes = []
+
+        while self.pos < self.length:
+
+            char = self.peek()
+
+            # ------------------------------------------------
+            # COMMAND
+            # ------------------------------------------------
+
+            if char == "\\":
+                command_node = self.parse_command()
+
+                if command_node is not None:
+                    nodes.append(command_node)
+
+                continue
+
+            # ------------------------------------------------
+            # GROUP
+            # ------------------------------------------------
 
             if char == "{":
+                nodes.append(
+                    (
+                        "group",
+                        self.parse_group_content()
+                    )
+                )
+                continue
 
+            # ------------------------------------------------
+            # KẾT THÚC GROUP
+            # ------------------------------------------------
+
+            if char == "}":
+                break
+
+            # ------------------------------------------------
+            # SUPERSCRIPT
+            # ------------------------------------------------
+
+            if char == "^":
+                self.get()
+
+                exponent = self.parse_argument()
+
+                if nodes:
+                    base = nodes.pop()
+                    nodes.append(
+                        (
+                            "sup",
+                            base,
+                            exponent
+                        )
+                    )
+
+                continue
+
+            # ------------------------------------------------
+            # SUBSCRIPT
+            # ------------------------------------------------
+
+            if char == "_":
+                self.get()
+
+                subscript = self.parse_argument()
+
+                if nodes:
+
+                    base = nodes.pop()
+
+                    if base[0] == "sup":
+
+                        nodes.append(
+                            (
+                                "subsup",
+                                base[1],
+                                subscript,
+                                base[2]
+                            )
+                        )
+
+                    else:
+
+                        nodes.append(
+                            (
+                                "sub",
+                                base,
+                                subscript
+                            )
+                        )
+
+                continue
+
+            # ------------------------------------------------
+            # NORMAL CHARACTER
+            # ------------------------------------------------
+
+            nodes.append(
+                (
+                    "text",
+                    self.get()
+                )
+            )
+
+        return self.combine_text_nodes(nodes)
+
+    # --------------------------------------------------------
+    # COMMAND
+    # --------------------------------------------------------
+
+    def parse_command(self) -> Optional[tuple]:
+
+        self.get()
+
+        if self.pos >= self.length:
+            return ("text", "\\")
+
+        match = re.match(
+            r"[A-Za-z]+|.",
+            self.source[self.pos:]
+        )
+
+        if not match:
+            return ("text", "\\")
+
+        command = match.group(0)
+        self.pos += len(command)
+
+        # ----------------------------------------------------
+        # FRACTION
+        # ----------------------------------------------------
+
+        if command == "frac":
+
+            numerator = self.parse_argument()
+            denominator = self.parse_argument()
+
+            return (
+                "frac",
+                numerator,
+                denominator
+            )
+
+        # ----------------------------------------------------
+        # SQUARE ROOT / NTH ROOT
+        # ----------------------------------------------------
+
+        if command == "sqrt":
+
+            degree = None
+
+            if self.peek() == "[":
+                self.get()
+
+                degree = self.parse_until("]")
+
+            expression = self.parse_argument()
+
+            if degree is not None:
+
+                return (
+                    "root",
+                    degree,
+                    expression
+                )
+
+            return (
+                "sqrt",
+                expression
+            )
+
+        # ----------------------------------------------------
+        # TEXT
+        # ----------------------------------------------------
+
+        if command in (
+            "text",
+            "mbox"
+        ):
+
+            return (
+                "normal_text",
+                self.parse_argument()
+            )
+
+        # ----------------------------------------------------
+        # FONT / GROUPING COMMANDS
+        # ----------------------------------------------------
+
+        if command in (
+            "mathrm",
+            "mathbf",
+            "mathit",
+            "mathsf",
+            "mathtt",
+            "operatorname",
+            "boldsymbol",
+            "bm"
+        ):
+
+            return (
+                "group",
+                self.parse_argument()
+            )
+
+        # ----------------------------------------------------
+        # ACCENTS
+        # ----------------------------------------------------
+
+        if command in (
+            "widehat",
+            "hat",
+            "bar",
+            "vec",
+            "overline",
+            "underline"
+        ):
+
+            return (
+                "accent",
+                command,
+                self.parse_argument()
+            )
+
+        # ----------------------------------------------------
+        # DELIMITER CONTROL
+        # ----------------------------------------------------
+
+        if command in (
+            "left",
+            "right"
+        ):
+
+            delimiter = self.parse_delimiter()
+
+            return (
+                "text",
+                delimiter
+            )
+
+        # ----------------------------------------------------
+        # SYMBOL
+        # ----------------------------------------------------
+
+        if command in SYMBOLS:
+
+            return (
+                "text",
+                SYMBOLS[command]
+            )
+
+        # ----------------------------------------------------
+        # UNKNOWN COMMAND
+        # ----------------------------------------------------
+
+        return (
+            "text",
+            "\\" + command
+        )
+
+    # --------------------------------------------------------
+    # ARGUMENT
+    # --------------------------------------------------------
+
+    def parse_argument(self) -> list:
+
+        while self.peek() in (
+            " ",
+            "\t",
+            "\n",
+            "\r"
+        ):
+
+            self.get()
+
+        if not self.peek():
+            return []
+
+        if self.peek() == "{":
+
+            return self.parse_group_content()
+
+        if self.peek() == "\\":
+
+            node = self.parse_command()
+
+            return [node] if node else []
+
+        return [
+            (
+                "text",
+                self.get()
+            )
+        ]
+
+    # --------------------------------------------------------
+    # GROUP
+    # --------------------------------------------------------
+
+    def parse_group_content(self) -> list:
+
+        if self.peek() != "{":
+            return []
+
+        self.get()
+
+        start = self.pos
+        depth = 1
+
+        while self.pos < self.length:
+
+            char = self.get()
+
+            if char == "{":
                 depth += 1
-
-                if depth > 1:
-                    content.append(char)
 
             elif char == "}":
 
@@ -219,406 +610,540 @@ class ScienceNormalizer:
 
                 if depth == 0:
 
-                    return (
-                        "".join(content),
-                        index
-                    )
+                    content = self.source[
+                        start:self.pos - 1
+                    ]
 
-                content.append(char)
+                    return LatexParser(
+                        content
+                    ).parse()
+
+        # Không có dấu đóng:
+        # vẫn giữ nội dung thay vì làm mất công thức.
+        content = self.source[start:self.pos]
+
+        return LatexParser(
+            content
+        ).parse()
+
+    # --------------------------------------------------------
+    # UNTIL
+    # --------------------------------------------------------
+
+    def parse_until(self, end_char: str) -> list:
+
+        start = self.pos
+
+        while (
+            self.pos < self.length
+            and self.peek() != end_char
+        ):
+
+            self.get()
+
+        content = self.source[
+            start:self.pos
+        ]
+
+        if self.peek() == end_char:
+            self.get()
+
+        return LatexParser(
+            content
+        ).parse()
+
+    # --------------------------------------------------------
+    # DELIMITER
+    # --------------------------------------------------------
+
+    def parse_delimiter(self) -> str:
+
+        if not self.peek():
+            return ""
+
+        if self.peek() == "\\":
+
+            self.get()
+
+            match = re.match(
+                r"[A-Za-z]+|.",
+                self.source[self.pos:]
+            )
+
+            if match:
+
+                delimiter = match.group(0)
+                self.pos += len(delimiter)
+
+                return {
+                    "lbrace": "{",
+                    "rbrace": "}",
+                    "langle": "⟨",
+                    "rangle": "⟩",
+                    "vert": "|",
+                    "Vert": "‖",
+                }.get(
+                    delimiter,
+                    SYMBOLS.get(
+                        delimiter,
+                        delimiter
+                    )
+                )
+
+        return self.get()
+
+    # --------------------------------------------------------
+    # COMBINE TEXT
+    # --------------------------------------------------------
+
+    @staticmethod
+    def combine_text_nodes(nodes: list) -> list:
+
+        result = []
+        buffer = []
+
+        for node in nodes:
+
+            if node[0] == "text":
+
+                buffer.append(
+                    node[1]
+                )
 
             else:
 
-                content.append(char)
+                if buffer:
+
+                    result.append(
+                        (
+                            "text",
+                            "".join(buffer)
+                        )
+                    )
+
+                    buffer = []
+
+                result.append(node)
+
+        if buffer:
+
+            result.append(
+                (
+                    "text",
+                    "".join(buffer)
+                )
+            )
+
+        return result
+
+
+# ============================================================
+# 4. OMML RENDERER
+# ============================================================
+
+def render_omml(nodes: list) -> str:
+
+    if not nodes:
+        return ""
+
+    xml_parts = []
+
+    for node in nodes:
+
+        node_type = node[0]
+
+        # ----------------------------------------------------
+        # TEXT
+        # ----------------------------------------------------
+
+        if node_type == "text":
+
+            xml_parts.append(
+                "<m:r>"
+                "<m:t xml:space=\"preserve\">"
+                f"{escape_xml(node[1])}"
+                "</m:t>"
+                "</m:r>"
+            )
+
+        # ----------------------------------------------------
+        # NORMAL TEXT
+        # ----------------------------------------------------
+
+        elif node_type == "normal_text":
+
+            content = render_omml(
+                node[1]
+            )
+
+            content = content.replace(
+                "<m:r>",
+                (
+                    "<m:r>"
+                    "<m:rPr>"
+                    "<m:nor/>"
+                    "</m:rPr>"
+                )
+            )
+
+            xml_parts.append(content)
+
+        # ----------------------------------------------------
+        # GROUP
+        # ----------------------------------------------------
+
+        elif node_type == "group":
+
+            xml_parts.append(
+                render_omml(
+                    node[1]
+                )
+            )
+
+        # ----------------------------------------------------
+        # FRACTION
+        # ----------------------------------------------------
+
+        elif node_type == "frac":
+
+            numerator = (
+                render_omml(node[1])
+                or _empty_math_run()
+            )
+
+            denominator = (
+                render_omml(node[2])
+                or _empty_math_run()
+            )
+
+            xml_parts.append(
+                "<m:f>"
+                f"<m:num>{numerator}</m:num>"
+                f"<m:den>{denominator}</m:den>"
+                "</m:f>"
+            )
+
+        # ----------------------------------------------------
+        # SQUARE ROOT
+        # ----------------------------------------------------
+
+        elif node_type == "sqrt":
+
+            expression = (
+                render_omml(node[1])
+                or _empty_math_run()
+            )
+
+            xml_parts.append(
+                "<m:rad>"
+                "<m:deg/>"
+                f"<m:e>{expression}</m:e>"
+                "</m:rad>"
+            )
+
+        # ----------------------------------------------------
+        # NTH ROOT
+        # ----------------------------------------------------
+
+        elif node_type == "root":
+
+            degree = (
+                render_omml(node[1])
+                or _empty_math_run()
+            )
+
+            expression = (
+                render_omml(node[2])
+                or _empty_math_run()
+            )
+
+            xml_parts.append(
+                "<m:rad>"
+                f"<m:deg>{degree}</m:deg>"
+                f"<m:e>{expression}</m:e>"
+                "</m:rad>"
+            )
+
+        # ----------------------------------------------------
+        # SUPERSCRIPT
+        # ----------------------------------------------------
+
+        elif node_type == "sup":
+
+            base = render_omml(
+                [node[1]]
+            ) or _empty_math_run()
+
+            exponent = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            xml_parts.append(
+                "<m:sSup>"
+                f"<m:e>{base}</m:e>"
+                f"<m:sup>{exponent}</m:sup>"
+                "</m:sSup>"
+            )
+
+        # ----------------------------------------------------
+        # SUBSCRIPT
+        # ----------------------------------------------------
+
+        elif node_type == "sub":
+
+            base = render_omml(
+                [node[1]]
+            ) or _empty_math_run()
+
+            subscript = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            xml_parts.append(
+                "<m:sSub>"
+                f"<m:e>{base}</m:e>"
+                f"<m:sub>{subscript}</m:sub>"
+                "</m:sSub>"
+            )
+
+        # ----------------------------------------------------
+        # SUB + SUP
+        # ----------------------------------------------------
+
+        elif node_type == "subsup":
+
+            base = render_omml(
+                [node[1]]
+            ) or _empty_math_run()
+
+            subscript = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            exponent = render_omml(
+                node[3]
+            ) or _empty_math_run()
+
+            xml_parts.append(
+                "<m:sSubSup>"
+                f"<m:e>{base}</m:e>"
+                f"<m:sub>{subscript}</m:sub>"
+                f"<m:sup>{exponent}</m:sup>"
+                "</m:sSubSup>"
+            )
+
+        # ----------------------------------------------------
+        # ACCENT
+        # ----------------------------------------------------
+
+        elif node_type == "accent":
+
+            accent_name = node[1]
+
+            expression = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            accent_map = {
+                "widehat": "^",
+                "hat": "^",
+                "bar": "¯",
+                "overline": "¯",
+                "underline": "_",
+                "vec": "→",
+            }
+
+            accent_char = accent_map.get(
+                accent_name,
+                "^"
+            )
+
+            xml_parts.append(
+                "<m:acc>"
+                "<m:accPr>"
+                f"<m:chr m:val=\"{escape_xml(accent_char)}\"/>"
+                "</m:accPr>"
+                f"<m:e>{expression}</m:e>"
+                "</m:acc>"
+            )
+
+    return "".join(xml_parts)
+
+
+# ============================================================
+# 5. LATEX → OMML
+# ============================================================
+
+def latex_to_omml_xml(
+    latex_str: str
+) -> str:
+
+    s = _normalize_math_input(
+        latex_str
+    )
+
+    if not s:
 
         return (
-            "".join(content),
-            len(text) - 1
+            f'<m:oMath xmlns:m="{MATH_NS}">'
+            f"{_empty_math_run()}"
+            "</m:oMath>"
         )
 
-    # ========================================================
-    # REMOVE LATEX DELIMITERS
-    # ========================================================
+    try:
 
-    @classmethod
-    def strip_math_delimiters(
-        cls,
-        text: str
-    ) -> str:
+        parser = LatexParser(
+            s
+        )
 
-        if not text:
-            return ""
+        nodes = parser.parse()
 
-        text = text.strip()
+        body = render_omml(
+            nodes
+        )
 
-        # $$ ... $$
-        if (
-            text.startswith("$$")
-            and text.endswith("$$")
-        ):
-            text = text[2:-2]
+        if not body:
+            body = _empty_math_run()
 
-        # \( ... \)
-        elif (
-            text.startswith(r"\(")
-            and text.endswith(r"\)")
-        ):
-            text = text[2:-2]
+        return (
+            f'<m:oMath xmlns:m="{MATH_NS}">'
+            f"{body}"
+            "</m:oMath>"
+        )
 
-        # \[ ... \]
-        elif (
-            text.startswith(r"\[")
-            and text.endswith(r"\]")
-        ):
-            text = text[2:-2]
+    except Exception as exc:
 
-        # $ ... $
-        elif (
-            text.startswith("$")
-            and text.endswith("$")
-        ):
-            text = text[1:-1]
+        logger.exception(
+            "Lỗi biên dịch OMML: %s | %s",
+            exc,
+            latex_str
+        )
 
-        return text.strip()
+        safe_text = escape_xml(
+            s
+        )
 
-    # ========================================================
-    # FRAC
-    # ========================================================
+        return (
+            f'<m:oMath xmlns:m="{MATH_NS}">'
+            "<m:r>"
+            f'<m:t xml:space="preserve">'
+            f"{safe_text}"
+            "</m:t>"
+            "</m:r>"
+            "</m:oMath>"
+        )
 
-    @classmethod
-    def convert_frac_recursive(
-        cls,
-        text: str
-    ) -> str:
 
-        if not text:
-            return ""
+# ============================================================
+# 6. CHÈN OMML VÀO WORD
+# ============================================================
 
-        while r"\frac{" in text:
+def insert_math_to_paragraph(
+    paragraph,
+    latex_content: str,
+    is_block: bool = False
+):
+    """
+    Chèn công thức OMML native vào Paragraph.
 
-            start = text.find(
-                r"\frac{"
+    Không dùng add_run cho công thức nếu có thể biên dịch OMML.
+    """
+
+    if not latex_content:
+        return
+
+    content = str(
+        latex_content
+    ).strip()
+
+    if not content:
+        return
+
+    try:
+
+        if is_block:
+
+            paragraph.alignment = (
+                WD_ALIGN_PARAGRAPH.CENTER
             )
 
-            numerator_start = start + len(
-                r"\frac"
-            )
-
-            numerator, numerator_end = (
-                cls._parse_braced_content(
-                    text,
-                    numerator_start
-                )
-            )
-
-            denominator_start = numerator_end + 1
-
-            if (
-                denominator_start >= len(text)
-                or text[denominator_start] != "{"
-            ):
-                break
-
-            denominator, denominator_end = (
-                cls._parse_braced_content(
-                    text,
-                    denominator_start
-                )
-            )
-
-            numerator = cls.convert_frac_recursive(
-                numerator
-            )
-
-            denominator = cls.convert_frac_recursive(
-                denominator
-            )
-
-            replacement = (
-                f"({numerator})"
-                f"⁄"
-                f"({denominator})"
-            )
-
-            text = (
-                text[:start]
-                + replacement
-                + text[denominator_end + 1:]
-            )
-
-        return text
-
-    # ========================================================
-    # SQRT
-    # ========================================================
-
-    @classmethod
-    def convert_sqrt(
-        cls,
-        text: str
-    ) -> str:
-
-        pattern = re.compile(
-            r"\\sqrt(?:\[(.*?)\])?\{([^{}]*)\}"
+        xml_string = latex_to_omml_xml(
+            content
         )
 
-        def replace(match):
-
-            index = match.group(1)
-            content = match.group(2)
-
-            if index:
-
-                return (
-                    f"√[{index}]"
-                    f"({content})"
-                )
-
-            return f"√({content})"
-
-        previous = None
-
-        while previous != text:
-
-            previous = text
-
-            text = pattern.sub(
-                replace,
-                text
-            )
-
-        return text
-
-    # ========================================================
-    # TEXT COMMANDS
-    # ========================================================
-
-    @classmethod
-    def convert_text_commands(
-        cls,
-        text: str
-    ) -> str:
-
-        # \text{abc} → abc
-        text = re.sub(
-            r"\\text\{([^{}]*)\}",
-            r"\1",
-            text
+        omml_element = parse_xml(
+            xml_string
         )
 
-        # \mathrm{abc} → abc
-        text = re.sub(
-            r"\\mathrm\{([^{}]*)\}",
-            r"\1",
-            text
+        paragraph._p.append(
+            omml_element
         )
 
-        # \mathbf{abc} → abc
-        text = re.sub(
-            r"\\mathbf\{([^{}]*)\}",
-            r"\1",
-            text
+    except Exception as exc:
+
+        logger.exception(
+            "Không thể chèn OMML: %s",
+            exc
         )
 
-        # \operatorname{sin} → sin
-        text = re.sub(
-            r"\\operatorname\{([^{}]*)\}",
-            r"\1",
-            text
+        run = paragraph.add_run(
+            f" {content} "
         )
 
-        return text
-
-    # ========================================================
-    # SUPERSCRIPT
-    # ========================================================
-
-    @classmethod
-    def convert_superscript(
-        cls,
-        text: str
-    ) -> str:
-
-        # x^{2} → x²
-        text = re.sub(
-            r"\^\{([^{}]+)\}",
-            lambda m: cls._to_superscript(
-                m.group(1)
-            ),
-            text
+        run.font.name = (
+            "Cambria Math"
         )
 
-        # x^2 → x²
-        text = re.sub(
-            r"\^([0-9+\-=()]+)",
-            lambda m: cls._to_superscript(
-                m.group(1)
-            ),
-            text
+        run.italic = True
+
+
+# ============================================================
+# 7. API TƯƠNG THÍCH NGƯỢC
+# ============================================================
+
+class MathRenderer:
+    """
+    API tương thích với các module cũ.
+    """
+
+    @staticmethod
+    def render_inline_math(
+        paragraph,
+        latex_str: str
+    ):
+
+        insert_math_to_paragraph(
+            paragraph,
+            latex_str,
+            is_block=False
         )
 
-        # H^+ → H⁺
-        text = re.sub(
-            r"([A-Za-zΑ-Ωα-ω\)])\^([+\-])",
-            lambda m:
-            m.group(1)
-            + cls._to_superscript(
-                m.group(2)
-            ),
-            text
+    @staticmethod
+    def render_display_math(
+        doc,
+        latex_str: str
+    ):
+
+        paragraph = doc.add_paragraph()
+
+        insert_math_to_paragraph(
+            paragraph,
+            latex_str,
+            is_block=True
         )
 
-        return text
+        return paragraph
 
-    # ========================================================
-    # SUBSCRIPT
-    # ========================================================
 
-    @classmethod
-    def convert_subscript(
-        cls,
-        text: str
-    ) -> str:
+class ScienceNormalizer:
+    """
+    Tương thích ngược với code cũ.
 
-        # H_{2}O → H₂O
-        text = re.sub(
-            r"_\{([^{}]+)\}",
-            lambda m: cls._to_subscript(
-                m.group(1)
-            ),
-            text
-        )
-
-        # H_2O → H₂O
-        text = re.sub(
-            r"_([0-9]+)",
-            lambda m: cls._to_subscript(
-                m.group(1)
-            ),
-            text
-        )
-
-        return text
-
-    # ========================================================
-    # UNICODE SUP / SUB
-    # ========================================================
-
-    @classmethod
-    def _to_superscript(
-        cls,
-        value: str
-    ) -> str:
-
-        return value.translate(
-            cls.SUP_TRANSLATION
-        )
-
-    @classmethod
-    def _to_subscript(
-        cls,
-        value: str
-    ) -> str:
-
-        return value.translate(
-            cls.SUB_TRANSLATION
-        )
-
-    # ========================================================
-    # CHEMISTRY
-    # ========================================================
-
-    @classmethod
-    def normalize_chemistry(
-        cls,
-        text: str
-    ) -> str:
-
-        if not text:
-            return ""
-
-        # CuSO4.5H2O → CuSO₄·5H₂O
-        text = re.sub(
-            r"([A-Za-z0-9\]\)])"
-            r"\s*\.\s*"
-            r"(\d*[A-Z][a-z]?)",
-            r"\1·\2",
-            text
-        )
-
-        # Fe^3+ → Fe³⁺
-        text = re.sub(
-            r"([A-Za-z0-9\)\]])"
-            r"\^"
-            r"([0-9]*[+\-])",
-            lambda m:
-            m.group(1)
-            + cls._to_superscript(
-                m.group(2)
-            ),
-            text
-        )
-
-        # Ca(OH)2 → Ca(OH)₂
-        text = re.sub(
-            r"(\)|[A-Z][a-z]?)(\d+)",
-            lambda m:
-            m.group(1)
-            + cls._to_subscript(
-                m.group(2)
-            ),
-            text
-        )
-
-        # H2SO4 → H₂SO₄
-        text = re.sub(
-            r"([A-Z][a-z]?)(\d+)",
-            lambda m:
-            m.group(1)
-            + cls._to_subscript(
-                m.group(2)
-            ),
-            text
-        )
-
-        return text
-
-    # ========================================================
-    # VECTOR / GEOMETRY
-    # ========================================================
-
-    @classmethod
-    def normalize_geometry(
-        cls,
-        text: str
-    ) -> str:
-
-        # \vec{AB} → \u0305AB
-        text = re.sub(
-            r"\\vec\{([A-Za-z]+)\}",
-            r"\1⃗",
-            text
-        )
-
-        # \overline{AB} → AB
-        text = re.sub(
-            r"\\overline\{([^{}]+)\}",
-            r"\1",
-            text
-        )
-
-        # \widehat{ABC} → ∠ABC
-        text = re.sub(
-            r"\\widehat\{([A-Za-z]+)\}",
-            lambda m:
-            "∠" + m.group(1),
-            text
-        )
-
-        return text
-
-    # ========================================================
-    # MASTER NORMALIZE
-    # ========================================================
+    Lưu ý:
+    Không còn dùng normalize() để biến công thức thành Unicode
+    trước khi chèn vào Word. Công thức chính thức phải đi qua
+    OMML.
+    """
 
     @classmethod
     def normalize(
@@ -626,307 +1151,9 @@ class ScienceNormalizer:
         text: str
     ) -> str:
 
-        if text is None:
+        if not text:
             return ""
 
-        text = str(text)
-
-        if not text.strip():
-            return ""
-
-        # Không được xóa tùy tiện các ký tự '$'
-        text = cls.strip_math_delimiters(
+        return _normalize_math_input(
             text
         )
-
-        # Chuẩn hóa khoảng trắng
-        text = re.sub(
-            r"\s+",
-            " ",
-            text
-        ).strip()
-
-        # Xử lý lệnh phức tạp trước
-        text = cls.convert_frac_recursive(
-            text
-        )
-
-        text = cls.convert_sqrt(
-            text
-        )
-
-        text = cls.convert_geometry(
-            text
-        )
-
-        text = cls.convert_text_commands(
-            text
-        )
-
-        text = cls.convert_superscript(
-            text
-        )
-
-        text = cls.convert_subscript(
-            text
-        )
-
-        text = cls.normalize_chemistry(
-            text
-        )
-
-        # Thay thế các ký hiệu đơn
-        for latex, symbol in sorted(
-            cls.TRANSLATION_MAP.items(),
-            key=lambda item: len(item[0]),
-            reverse=True
-        ):
-
-            text = text.replace(
-                latex,
-                symbol
-            )
-
-        # Xóa các cặp ngoặc LaTeX còn sót lại
-        text = re.sub(
-            r"\\left",
-            "",
-            text
-        )
-
-        text = re.sub(
-            r"\\right",
-            "",
-            text
-        )
-
-        # Xóa escape backslash trước ký tự thông thường
-        text = re.sub(
-            r"\\([{}[\]()])",
-            r"\1",
-            text
-        )
-
-        # Dọn ngoặc thừa ở đầu/cuối
-        text = text.strip()
-
-        return text
-
-    # Alias tương thích
-    convert = normalize
-
-    # Alias sửa lỗi tương thích với bản cũ
-    @classmethod
-    def convert_geometry(
-        cls,
-        text: str
-    ) -> str:
-
-        return cls.normalize_geometry(
-            text
-        )
-
-
-# ============================================================
-# 2. MATH RENDERER
-# ============================================================
-
-class MathRenderer:
-    """
-    Bộ kết xuất công thức vào Word.
-
-    Công thức inline:
-        p = document.add_paragraph()
-        MathRenderer.render_inline_math(
-            p,
-            r"F = ma"
-        )
-
-    Công thức display:
-        MathRenderer.render_display_math(
-            doc,
-            r"E = mc^2"
-        )
-    """
-
-    DEFAULT_FONT = "Cambria Math"
-
-    # ========================================================
-    # FONT
-    # ========================================================
-
-    @staticmethod
-    def _set_font_safely(
-        run,
-        font_name: str = DEFAULT_FONT
-    ):
-
-        run.font.name = font_name
-
-        rPr = run._element.get_or_add_rPr()
-
-        rFonts = rPr.find(
-            qn("w:rFonts")
-        )
-
-        if rFonts is None:
-
-            rFonts = OxmlElement(
-                "w:rFonts"
-            )
-
-            rPr.append(
-                rFonts
-            )
-
-        for attr in (
-            "ascii",
-            "hAnsi",
-            "eastAsia",
-            "cs"
-        ):
-
-            rFonts.set(
-                qn(f"w:{attr}"),
-                font_name
-            )
-
-    # ========================================================
-    # INLINE
-    # ========================================================
-
-    @classmethod
-    def render_inline_math(
-        cls,
-        paragraph,
-        latex_str: str
-    ):
-
-        clean_text = ScienceNormalizer.normalize(
-            latex_str
-        )
-
-        if not clean_text:
-            return None
-
-        run = paragraph.add_run(
-            clean_text
-        )
-
-        cls._set_font_safely(
-            run,
-            cls.DEFAULT_FONT
-        )
-
-        run.font.size = Pt(13)
-
-        # Công thức inline thường dùng dạng nghiêng
-        # nhưng không ép nghiêng các ký hiệu đã chuyển Unicode.
-        run.font.italic = True
-
-        return run
-
-    # ========================================================
-    # DISPLAY
-    # ========================================================
-
-    @classmethod
-    def render_display_math(
-        cls,
-        doc,
-        latex_str: str
-    ):
-
-        paragraph = doc.add_paragraph()
-
-        paragraph.alignment = (
-            WD_ALIGN_PARAGRAPH.CENTER
-        )
-
-        paragraph.paragraph_format.space_before = Pt(4)
-        paragraph.paragraph_format.space_after = Pt(6)
-
-        clean_text = ScienceNormalizer.normalize(
-            latex_str
-        )
-
-        if not clean_text:
-            return paragraph
-
-        run = paragraph.add_run(
-            clean_text
-        )
-
-        cls._set_font_safely(
-            run,
-            cls.DEFAULT_FONT
-        )
-
-        run.font.size = Pt(14)
-        run.font.italic = True
-
-        return paragraph
-
-    # ========================================================
-    # RENDER WITH OPTIONAL DISPLAY
-    # ========================================================
-
-    @classmethod
-    def render(
-        cls,
-        doc,
-        latex_str: str,
-        display: bool = False,
-        paragraph=None
-    ):
-
-        if display:
-
-            return cls.render_display_math(
-                doc,
-                latex_str
-            )
-
-        if paragraph is None:
-
-            paragraph = doc.add_paragraph()
-
-        return cls.render_inline_math(
-            paragraph,
-            latex_str
-        )
-
-
-# ============================================================
-# 3. API TƯƠNG THÍCH NGƯỢC
-# ============================================================
-
-def normalize_science_formula(
-    formula: str
-) -> str:
-
-    return ScienceNormalizer.normalize(
-        formula
-    )
-
-
-def render_inline_math(
-    paragraph,
-    formula: str
-):
-
-    return MathRenderer.render_inline_math(
-        paragraph,
-        formula
-    )
-
-
-def render_display_math(
-    doc,
-    formula: str
-):
-
-    return MathRenderer.render_display_math(
-        doc,
-        formula
-    )
