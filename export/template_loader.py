@@ -1,47 +1,45 @@
 # -*- coding: utf-8 -*-
+"""
+============================================================
+MODULE: export/template_loader.py
+Nhiệm vụ: Tải Template KHBD chuẩn của trường làm nền tảng.
+Chỉ tạo Document trống nếu template vật lý bị mất.
+============================================================
+"""
+
 import os
+import logging
 from docx import Document
-from .word_utils import clean_xml_forbidden_chars
+from .word_styles import apply_standard_margins, setup_document_styles
 
-class TemplateLoader:
-    """Bộ nạp và trích xuất dữ liệu biến số động trên tệp biểu mẫu (.docx)."""
+logger = logging.getLogger(__name__)
+
+TEMPLATE_PATH = "templates/khbd_mau.docx"
+
+def get_word_document() -> Document:
+    """
+    Tải file template Word gốc để giữ nguyên Header/Footer và Cấu trúc.
+    Đồng thời áp dụng các chuẩn hóa lề, font, justify.
+    """
+    doc = None
     
-    @classmethod
-    def load(cls, template_path: str = None) -> Document:
-        """Đọc tệp tin mẫu từ đường dẫn lưu trữ, nếu trống sẽ tạo văn bản sạch."""
-        if template_path and os.path.exists(template_path) and template_path.lower().endswith('.docx'):
-            return Document(template_path)
-        return Document()
-
-    @classmethod
-    def inject_variables(cls, doc: Document, context_vars: dict):
-        """Thay thế hàng loạt các biến nhãn dán dạng {{tên_biến}} xuất hiện trong văn bản."""
-        if not context_vars:
-            return doc
-            
-        def replace_text_in_paragraph(p):
-            for run in p.runs:
-                for key, val in context_vars.items():
-                    placeholder = f"{{{{{key}}}}}"
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, clean_xml_forbidden_chars(str(val)))
-
-        # Quét và thay đổi trên hệ thống Paragraph chính
-        for paragraph in doc.paragraphs:
-            replace_text_in_paragraph(paragraph)
-            
-        # Quét dọn nội dung bên trong các bảng hiện hữu trên Template
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        replace_text_in_paragraph(paragraph)
-                        
-        # Quét dọn thông tin trên tiêu đề trang (Header/Footer)
-        for section in doc.sections:
-            for paragraph in section.header.paragraphs:
-                replace_text_in_paragraph(paragraph)
-            for paragraph in section.footer.paragraphs:
-                replace_text_in_paragraph(paragraph)
-                
-        return doc
+    # 1. Tải Template nếu tồn tại
+    if os.path.exists(TEMPLATE_PATH):
+        try:
+            doc = Document(TEMPLATE_PATH)
+            logger.info(f"Đã tải thành công template: {TEMPLATE_PATH}")
+        except Exception as e:
+            logger.error(f"Lỗi khi đọc file template {TEMPLATE_PATH}: {e}. Đang dùng Document trống.")
+    
+    # 2. Khởi tạo Document trống nếu không có template
+    if doc is None:
+        logger.warning("Khởi tạo Document Word trống (Không tìm thấy Template).")
+        doc = Document()
+    
+    # 3. Chuẩn hóa Lề và Font (Quét qua các section để ép lề 2.0 - 1.5 cm)
+    for section in doc.sections:
+        apply_standard_margins(section)
+        
+    setup_document_styles(doc)
+    
+    return doc
