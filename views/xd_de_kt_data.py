@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (ĐA TẦNG DỰ PHÒNG API & TEMPLATE)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
 FILE: views/xd_khbd_data.py
 ============================================================
 """
@@ -12,9 +12,7 @@ import re
 import json
 import logging
 import base64
-import pandas as pd
 from docx import Document
-from pathlib import Path
 from io import BytesIO
 
 logger = logging.getLogger(__name__)
@@ -60,124 +58,49 @@ def set_mode(mode: str):
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
-            "Cơ bản": "Sử dụng được các chức năng và công cụ cơ bản của nền tảng quản lí học tập (LMS). Sử dụng được các công cụ hỗ trợ dạy học trực tuyến để triển khai các phiên học trực tuyến, cung cấp tài liệu học tập và tổ chức các hoạt động dạy học đơn giản.",
-            "Thành thạo": "Xây dựng được kế hoạch bài dạy theo tiếp cận công nghệ. Thiết kế và triển khai được các hoạt động dạy học theo mô hình kết hợp (blended learning) hiệu quả. Lựa chọn và áp dụng được các công cụ và tài nguyên số phù hợp với mục tiêu dạy học. Hướng dẫn và triển khai được phương pháp dạy học theo dự án trực tuyến, lớp học đảo ngược trên nền tảng quản lí học tập LMS.",
-            "Nâng cao": "Sáng tạo và đổi mới các mô hình dạy học ứng dụng công nghệ số. Hướng dẫn được đồng nghiệp trong việc thiết kế các trải nghiệm học tập số hóa tiên tiến."
-        },
-        "1.2. Hướng dẫn, hỗ trợ học tập": {
-            "Cơ bản": "Sử dụng được các kênh giao tiếp số (email, diễn đàn) để trả lời câu hỏi và hỗ trợ người học khi cần thiết.",
-            "Thành thạo": "Sử dụng được các kênh giao tiếp số (diễn đàn, LMS, nhóm chat...) để tương tác, giải đáp thắc mắc, cung cấp tài liệu hỗ trợ người học. Sử dụng được dữ liệu học tập số để xác định người học cần hỗ trợ và lựa chọn biện pháp can thiệp phù hợp. Thiết lập được các hoạt động, môi trường số cho phép tương tác, hỗ trợ cá nhân hóa và kịp thời cho người học.",
-            "Nâng cao": "Hướng dẫn được đồng nghiệp xây dựng văn hóa hỗ trợ học tập tích cực trên nền tảng số. Sáng tạo, thử nghiệm, phát triển được các công cụ/phương pháp hỗ trợ dạy học thông minh trên nền tảng số."
-        },
-        "1.3. Cá nhân hóa người học": {
-            "Cơ bản": "Xác định được các nhu cầu, sự khác biệt của người học trong sử dụng công nghệ số. Lựa chọn, điều chỉnh được các công cụ và nội dung số phù hợp với nhu cầu của người học.",
-            "Thành thạo": "Sử dụng được công nghệ số để thiết kế lộ trình học tập linh hoạt, cho phép người học tự chủ về tốc độ, nội dung và cách thức học tập dựa trên nền tảng số. Thiết kế được các nhiệm vụ học tập phân hóa theo trình độ, năng lực và sở thích của người học trong môi trường trực tuyến. Tích hợp đa dạng, linh hoạt các công cụ số hỗ trợ hoạt động học tập thích ứng, điều chỉnh theo kết quả học tập của người học.",
-            "Nâng cao": "Thiết kế được môi trường học tập số cá nhân hóa, cung cấp công cụ cập nhật cho người học tự định hướng, tự điều chỉnh quá trình học tập. Đánh giá được hiệu quả của các chiến lược dạy học cá nhân hóa bằng công nghệ."
-        },
-        "1.4. Học tập cộng tác": {
-            "Cơ bản": "Sử dụng được công cụ số cơ bản để tổ chức cho người học làm việc nhóm đơn giản. Thiết kế được các nhiệm vụ học tập, chia sẻ tài liệu, ý tưởng trên nền tảng số.",
-            "Thành thạo": "Thiết kế được các nhiệm vụ học tập yêu cầu người học sử dụng đa dạng công cụ số để cùng xây dựng nội dung, kiến thức. Hướng dẫn được người học kĩ năng giao tiếp, hợp tác hiệu quả trong môi trường số. Sử dụng được công nghệ để quản lý và đánh giá hiệu quả làm việc nhóm, đánh giá quá trình và sản phẩm cộng tác của nhóm.",
-            "Nâng cao": "Xây dựng được các dự án cộng tác phức tạp, kết nối người học theo mô hình học tập cộng tác trên nền tảng số. Xây dựng và quản lí được các cộng đồng học tập trực tuyến. Hướng dẫn được đồng nghiệp triển khai học tập cộng tác dựa trên công nghệ số trong nhà trường."
+            "Cơ bản": "Sử dụng được các chức năng và công cụ cơ bản của nền tảng quản lí học tập (LMS).",
+            "Thành thạo": "Xây dựng được kế hoạch bài dạy theo tiếp cận công nghệ, thiết kế hoạt động kết hợp.",
+            "Nâng cao": "Sáng tạo và đổi mới các mô hình dạy học ứng dụng công nghệ số."
         }
     },
     "2. KIỂM TRA, ĐÁNH GIÁ": {
         "2.1. Phương thức đánh giá": {
-            "Cơ bản": "Sử dụng được hình thức kiểm tra, đánh giá truyền thống, có thể nhập điểm vào hệ thống số. Áp dụng được một số công cụ tạo bài kiểm tra online đơn giản trong hoạt động dạy học.",
-            "Thành thạo": "Sử dụng được các công cụ số phổ biến để tạo bài kiểm tra, khảo sát nhằm đánh giá quá trình và đánh giá tổng kết. Kết hợp được một số hình thức đánh giá số đơn giản vào quá trình dạy học. Thiết kế và áp dụng được các hình thức đa dạng, công cụ đánh giá số phù hợp với mục tiêu và nội dung học tập.",
-            "Nâng cao": "Sáng tạo triển khai các phương pháp, mô hình đánh giá số tiên tiến, đáp ứng yêu cầu đánh giá năng lực phức hợp. Hướng dẫn được đồng nghiệp xây dựng và áp dụng các chiến lược đánh giá số hiệu quả, công bằng trong nhà trường."
-        },
-        "2.2. Phân tích kết quả học tập": {
-            "Cơ bản": "Sử dụng được các chức năng cơ bản của LMS/công cụ đánh giá để xem báo cáo về hoạt động, kết quả của người học.",
-            "Thành thạo": "Phân tích được dữ liệu từ các hệ thống đánh giá số để nhận diện quá trình tiến bộ và thành tích học tập của người học. Sử dụng được dữ liệu, công cụ trực quan hóa dữ liệu để xây dựng báo cáo đánh giá sự tiến bộ của người học. Xây dựng được các bảng điều khiển tự động (dashboard) dữ liệu học tập trực quan.",
-            "Nâng cao": "Áp dụng được các kĩ thuật phân tích dữ liệu học tập nâng cao để dự đoán xu hướng, phát hiện sớm các vấn đề và đề xuất can thiệp. Hướng dẫn được đồng nghiệp về cách khai thác và diễn giải dữ liệu để cải tiến dạy học."
-        },
-        "2.3. Phản hồi và đánh giá cải tiến": {
-            "Cơ bản": "Sử dụng được các chức năng cung cấp phản hồi trên hệ thống LMS. Cung cấp phản hồi kịp thời cho người học bằng văn bản hoặc điểm số thông qua các nền tảng số.",
-            "Thành thạo": "Sử dụng được đa dạng công cụ số (ghi âm, video ngắn, bình luận trực tiếp trên tài liệu) để đưa ra phản hồi chi tiết, kịp thời. Thiết kế được các qui trình phản hồi và đánh giá cải tiến có sự tham gia của người học (tự đánh giá, đánh giá chéo) bằng công nghệ.",
-            "Nâng cao": "Sử dụng được dữ liệu phân tích để điều chỉnh kế hoạch bài dạy, phương pháp và cung cấp nhiệm vụ học tập hỗ trợ cá nhân người học. Hướng dẫn được đồng nghiệp sử dụng phản hồi bằng công cụ số và dữ liệu học tập để cải tiến liên tục chương trình và hoạt động giáo dục."
-        }
-    },
-    "3. TRAO QUYỀN CHO NGƯỜI HỌC": {
-        "3.1. Tiếp cận và hòa nhập": {
-            "Cơ bản": "Sử dụng được các công cụ số cơ bản để hỗ trợ người học gặp khó khăn trong học tập. Lựa chọn và sử dụng được các công cụ, tài nguyên số có tính đến sự đa dạng của người học (đa dạng ngôn ngữ, phong cách học, người học khuyết tật). Đảm bảo mọi người học có cơ hội sử dụng thiết bị, hạ tầng số của nhà trường khi cần thiết.",
-            "Thành thạo": "Khai thác, lựa chọn và điều chỉnh được tài nguyên, đa dạng hóa công cụ số để đáp ứng nhu cầu đặc biệt của người học. Thiết kế được nội dung, tài nguyên số đảm bảo tính tiếp cận và hòa nhập trong môi trường số.",
-            "Nâng cao": "Hướng dẫn được đồng nghiệp về chiến lược và công nghệ số hỗ trợ giáo dục hòa nhập."
-        },
-        "3.2. Giải quyết vấn đề": {
-            "Cơ bản": "Thiết kế được các nhiệm vụ học tập yêu cầu người học sử dụng Internet để tìm kiếm thông tin để trả lời câu hỏi hoặc giải quyết vấn đề học tập đơn giản.",
-            "Thành thạo": "Thiết kế được các nhiệm vụ dự án học tập yêu cầu người học sử dụng công nghệ số để xác định vấn đề, thu thập, phân tích thông tin và đề xuất giải pháp. Tổ chức được các hoạt động học tập dựa trên vấn đề (problem-based) hoặc dự án (project-based) phức tạp, trong đó công nghệ số là công cụ thiết yếu để nghiên cứu, hợp tác và tạo ra sản phẩm.",
-            "Nâng cao": "Hướng dẫn được đồng nghiệp xây dựng hệ sinh thái học tập số, kết nối người học với các chuyên gia và vấn đề thực tiễn bên ngoài nhà trường để giải quyết các vấn đề thực tế của cộng đồng."
-        },
-        "3.3. Khuyến khích sự tham gia tích cực của người học": {
-            "Cơ bản": "Sáng tạo và điều phối tương tác số đơn giản để thu hút sự chú ý và khuyến khích người học tham gia vào hoạt động học tập. Tích hợp được công nghệ số trong dạy học nhằm trực quan hóa và tăng hiệu quả trình bày nội dung dạy học.",
-            "Thành thạo": "Tích hợp được các yếu tố trò chơi hóa, tương tác và các công cụ sáng tạo nội dung để thúc đẩy người học chủ động, tích cực tham gia vào bài học. Thiết kế được hoạt động khuyến khích người học tự tạo ra nội dung số, chia sẻ kiến thức thông qua các nền tảng số, giải quyết vấn đề bằng mô phỏng, thí nghiệm ảo, thực tế ảo, thực tế ảo tăng cường.",
-            "Nâng cao": "Sử dụng được các công cụ để thiết kế môi trường học tập số năng động, lấy người học làm trung tâm. Hướng dẫn được đồng nghiệp sáng tạo triển khai các hoạt động học tập tích cực bằng công nghệ số."
-        }
-    },
-    "4. KĨ NĂNG CÔNG NGHỆ SỐ": {
-        "4.1. Kĩ năng thông tin và dữ liệu": {
-            "Cơ bản": "Sử dụng được công cụ tìm kiếm để tìm thông tin, tài liệu phục vụ bài giảng. Lưu trữ và sắp xếp một cách khoa học các dữ liệu trên máy tính hoặc đám mây.",
-            "Thành thạo": "Đánh giá được độ tin cậy của nguồn tin trên Internet, mạng xã hội. Sử dụng được các kĩ thuật tìm kiếm nâng cao. Hướng dẫn được người học các kĩ năng tư duy phản biện khi tìm kiếm, xử lí, tiếp nhận thông tin số từ các nguồn khác nhau. Tổ chức được các nhiệm vụ học tập nâng cao cho phép người học chủ động tìm kiếm và xử lí thông tin trong môi trường số.",
-            "Nâng cao": "Sử dụng được công cụ để thu thập và trực quan hóa dữ liệu đơn giản, phân tích và đánh giá độ tin cậy của thông tin trong quá trình dạy học. Hướng dẫn được đồng nghiệp tích hợp phát triển năng lực thông tin vào chương trình dạy học."
-        },
-        "4.2. Sáng tạo nội dung số": {
-            "Cơ bản": "Sử dụng được các công cụ số phổ biến để tạo nội dung dạy học theo định dạng số khác nhau. Tích hợp được các định dạng số trong nội dung thực hiện nhiệm vụ của người học.",
-            "Thành thạo": "Tích hợp được công nghệ số trong hoạt động sáng tạo nội dung số, xây dựng kho học liệu số. Hướng dẫn được người học sử dụng các công cụ cơ bản để tạo nội dung số, thực hiện quyền tác giả, giấy phép, cách trích dẫn, sử dụng và chia sẻ tài nguyên số hợp pháp. Sử dụng được nền tảng, công cụ số đa dạng để tạo và chia sẻ nội dung hợp lệ.",
-            "Nâng cao": "Sử dụng thành thạo các công cụ chuyên dụng để tạo ra các học liệu số có tính tương tác cao. Hướng dẫn được đồng nghiệp phát triển nền tảng học tập tích hợp AI, thực tế ảo, thực tế ảo tăng cường trong sáng tạo nội dung số vào các môn học."
-        },
-        "4.3. An toàn": {
-            "Cơ bản": "Có hiểu biết về bảo vệ sức khỏe thể chất, tinh thần, đảm bảo an sinh số trong hoạt động dạy học. Bố trí, sắp xếp được không gian, thời gian sử dụng thiết bị, công cụ số hợp lí cho người học. Nhận diện và xử lí được các tình huống bắt nạt trực tuyến.",
-            "Thành thạo": "Tích hợp được kiến thức, kĩ năng nhận diện và phòng tránh các rủi ro phổ biến trên mạng trong quá trình dạy học. Áp dụng được các biện pháp bảo vệ dữ liệu cá nhân và của người học. Thực hiện được các biện pháp cơ bản đảm bảo an toàn thiết bị, tài khoản trong lớp học và hướng dẫn người học cách bảo vệ dữ liệu cá nhân, định danh số, quản lí dấu vết số.",
-            "Nâng cao": "Thực hiện được các biện pháp đảm bảo an toàn sức khỏe, áp dụng các phương pháp dạy học giảm căng thăng trong môi trường số cho người học. Cập nhật và phổ biến các xu hướng, mối đe dọa mới và cách phòng chống cho cộng đồng giáo viên, phụ huynh. Hướng dẫn được đồng nghiệp xây dựng môi trường học tập số an toàn, lành mạnh trong lớp học và nhà trường."
-        }
-    },
-    "5. PHÁT TRIỂN CHUYÊN MÔN": {
-        "5.1. Giao tiếp trong tổ chức": {
-            "Cơ bản": "Sử dụng được email, nhóm chat của trường/tổ để trao đổi thông tin công việc và giao tiếp với phụ huynh.",
-            "Thành thạo": "Sử dụng hiệu quả các kênh giao tiếp số chính thức của trường để tương tác với các bên liên quan, phù hợp với từng đối tượng và mục đích giáo dục. Sử dụng được công cụ số cơ bản để giao tiếp, chia sẻ thông tin, dữ liệu và tham gia hoạt động chuyên môn với đồng nghiệp.",
-            "Nâng cao": "Xây dựng và quản lí được chiến lược truyền thông số, các kênh truyền thông số chính thức của trường để chia sẻ và kết nối cộng đồng. Hướng dẫn được đồng nghiệp đổi mới cách thức giao tiếp trong tổ chức bằng công nghệ số tăng cường tính minh bạch, sự tham gia của các bên liên quan."
-        },
-        "5.2. Hợp tác phát triển chuyên môn": {
-            "Cơ bản": "Chủ động tham gia các cộng đồng học tập trực tuyến. Tự đánh giá được khó khăn, thách thức và thuận lợi ứng dụng công nghệ số trong công việc.",
-            "Thành thạo": "Xây dựng được kế hoạch cải tiến, đổi mới ứng dụng công nghệ số trong hoạt động chuyên môn. Chủ động tìm kiếm và tham gia các khóa học cơ bản để cập nhật kiến thức, kĩ năng số. Tự đánh giá, cải tiến ứng dụng công nghệ số trong dạy học trong môi trường số. Tham gia chia sẻ, học tập và cập nhật kĩ năng ứng dụng công nghệ số với đồng nghiệp.",
-            "Nâng cao": "Cập nhật được các xu hướng công nghệ và phương pháp sư phạm số mới, áp dụng kiến thức, kĩ năng số vào thực tiễn dạy học. Hướng dẫn được đồng nghiệp xây dựng các yêu cầu về dạy học trong môi trường số, phát triển các công cụ, phương pháp hỗ trợ tự phản ánh về năng lực số."
-        },
-        "5.3. Phát triển, sử dụng, chia sẻ và quản lí học liệu số": {
-            "Cơ bản": "Sử dụng được các công cụ tìm kiếm phổ biến để tìm kiếm tài nguyên, kho học liệu số, thư viện trực tuyến, tài nguyên giáo dục mở (OER). Lựa chọn được tài nguyên phù hợp với mục tiêu bài học.",
-            "Thành thạo": "Lựa chọn và sử dụng được tài nguyên, học liệu số phù hợp với đối tượng đa dạng của người học. Tạo được tài nguyên số phục vụ cho môn học dựa từ các nguồn có sẵn. Tổ chức lưu trữ, quản lí và chia sẻ được kho học liệu số cá nhân một cách khoa học, an toàn. Đánh giá được chất lượng, độ tin cậy, tính pháp lí và sư phạm của tài nguyên, học liệu số.",
-            "Nâng cao": "Xây dựng và quản trị được các hệ thống quản lí, chia sẻ tài nguyên số cho tổ/trường. Hướng dẫn được đồng nghiệp xây dựng và quản trị kho học liệu số mở của nhà trường."
-        }
-    },
-    "6. ỨNG DỤNG TRÍ TUỆ NHÂN TẠO (AI)": {
-        "6.1. Tư duy lấy con người làm trung tâm": {
-            "Cơ bản": "Nhận diện được cách vận hành của AI và các công nghệ có tích hợp AI.",
-            "Thành thạo": "Thiết kế được các hoạt động dạy học tích hợp AI một cách sáng tạo và có trách nhiệm.",
-            "Nâng cao": "Triển khai đổi mới phương pháp dạy học mới có tích hợp sâu AI đáp ứng cá nhân hóa và dạy học thích ứng. Hướng dẫn, lựa chọn và đề xuất sử dụng các công cụ AI phù hợp cho đồng nghiệp."
-        },
-        "6.2. Đạo đức AI": {
-            "Cơ bản": "Nhận diện được các khả năng tích hợp sử dụng AI trong hỗ trợ hoạt động dạy học. Sử dụng được các công cụ AI đơn giản (chủ yếu là AI tạo sinh) để hỗ trợ dạy học và kiểm tra đánh giá. Nhận diện được khả năng thu thập dữ liệu và thông tin cá nhân khi sử dụng công cụ AI, những tiềm ẩn rủi ro khi sử dụng AI không đúng cách. Thể hiện sự cẩn trọng và có trách nhiệm đối với quyền riêng tư của người học, có trách nhiệm khi sử dụng công cụ AI trong dạy học, kiểm tra đánh giá. Thiết kế các hoạt động giáo dục tích hợp AI, cân bằng giữa tương tác công nghệ và tương tác xã hội, phát triển tư duy phản biện.",
-            "Thành thạo": "Khai thác hiệu quả các công cụ AI chuyên biệt cho giáo dục để tạo học liệu số tương tác đa dạng, cá nhân hóa một phần nội dung/bài tập, hỗ trợ chấm điểm tự động. Hướng dẫn được người học sử dụng AI có trách nhiệm, nhận biết ưu/nhược điểm và các rủi ro liên quan khi sử dụng AI. Thực hiện được các biện pháp cần thiết phòng ngừa rủi ro và về các vấn đề đạo đức cơ bản khi sử dụng AI. Lựa chọn, đánh giá được các ứng dụng AI dựa trên tiêu chí về đạo đức, chính sách bảo mật, sự công bằng trong tiếp cận và tác động khác trong dạy học, kiểm tra đánh giá. Thiết kế và tích hợp hoạt động hướng dẫn người học sử dụng AI an toàn và có đạo đức trong hoạt động học tập.",
-            "Nâng cao": "Đánh giá được ưu/nhược điểm và các vấn đề đạo đức của công cụ AI trong giáo dục, cập nhật, hướng dẫn và chia sẻ với đồng nghiệp các vấn đề về đạo đức sử dụng AI. Tham gia xây dựng chính sách, hướng dẫn về sử dụng AI có đạo đức trong nhà trường."
-        },
-        "6.3. Sư phạm AI": {
-            "Cơ bản": "Nhận diện được khả năng tích hợp AI theo hướng cá nhân hóa và lấy người học làm trung tâm. Có hiểu biết về lợi ích sư phạm của công cụ AI để hỗ trợ dạy học.",
-            "Thành thạo": "Ứng dụng được công cụ AI linh hoạt trong các bước dạy học đảm bảo nguyên tắc lấy người học làm trung tâm, giáo dục hòa nhập. Lựa chọn và ứng dụng được các hệ thống, công cụ AI phù hợp, giảm thiểu rủi ro trong thiết kế dạy học, kiểm tra đánh giá. Tổ chức và quản lý được hoạt động tương tác 3 chiều giữa giáo viên, người học với các công cụ AI trong dạy học.",
-            "Nâng cao": "Xây dựng được nguyên tắc sư phạm sử dụng AI trong hoạt động dạy học. Hướng dẫn được đồng nghiệp thiết kế và sử dụng AI theo tiếp cận đồng sáng tạo, lấy con người làm trung tâm trong các hoạt động sư phạm."
-        },
-        "6.4. AI cho phát triển chuyên môn": {
-            "Cơ bản": "Nhận diện được sự cân bằng giữa vai trò của người giáo viên và nhiệm vụ phát triển năng lực số, năng lực AI trong dạy học. Sử dụng được công cụ AI phù hợp để lập kế hoạch, theo dõi và phân tích quá trình phát triển chuyên môn của bản thân.",
-            "Thành thạo": "Sử dụng được các công cụ AI đơn giản (chủ yếu là AI tạo sinh) để hỗ trợ học tập suốt đời và phát triển chuyên môn nghiệp vụ bản thân. Đề xuất được các hướng sử dụng hiệu quả các nền tảng AI để tìm kiếm tài nguyên, tham gia cộng đồng thực hành hỗ trợ phát triển bản thân. Đánh giá được các rủi ro đạo đức từ các nền tảng AI và triển khai các biện pháp phòng ngừa giảm thiểu tác động tiêu cực.",
-            "Nâng cao": "Hướng dẫn đổi mới sáng tạo cho đồng nghiệp dựa trên các nền tảng AI phù hợp và tiếp cận sư phạm số. Xây dựng hoặc sử dụng được các bộ công cụ AI tạo sinh hỗ trợ phát triển chuyên môn của đồng nghiệp."
+            "Cơ bản": "Sử dụng công cụ tạo bài kiểm tra online đơn giản.",
+            "Thành thạo": "Sử dụng các công cụ số phổ biến để đánh giá quá trình và tổng kết."
         }
     }
 }
 
 KHUNG_NLS_HS = {
     "1. Sử dụng thông tin và dữ liệu số": {
-        "1.1. Tìm kiếm và chọn lọc": {"Mức 1": "Biết sử dụng công cụ tìm kiếm cơ bản.", "Mức 2": "Biết đánh giá độ tin cậy của thông tin."}
+        "1.1. Tìm kiếm và chọn lọc": {
+            "Mức 1": "Biết sử dụng công cụ tìm kiếm cơ bản để thu thập thông tin học tập.",
+            "Mức 2": "Biết đánh giá độ tin cậy và nguồn gốc thông tin trên Internet."
+        }
     },
     "2. Giao tiếp và hợp tác trực tuyến": {
-        "2.1. Tương tác qua môi trường số": {"Mức 1": "Biết sử dụng email, chat để trao đổi học tập.", "Mức 2": "Biết sử dụng nền tảng làm việc nhóm (Padlet, Azota...)."}
+        "2.1. Tương tác qua môi trường số": {
+            "Mức 1": "Biết sử dụng email, chat để trao đổi học tập.",
+            "Mức 2": "Biết sử dụng hiệu quả các nền tảng học tập nhóm."
+        }
+    },
+    "3. Sáng tạo nội dung số": {
+        "3.1. Phát triển nội dung số": {
+            "Mức 1": "Biết soạn thảo văn bản và trình chiếu cơ bản.",
+            "Mức 2": "Biết thiết kế học liệu số đơn giản phục vụ học tập."
+        }
+    },
+    "4. An toàn trong môi trường số": {
+        "4.1. Bảo vệ thiết bị và dữ liệu cá nhân": {
+            "Mức 1": "Biết đặt mật khẩu mạnh và bảo vệ tài khoản.",
+            "Mức 2": "Biết nhận diện nguy cơ mất an toàn thông tin và lừa đảo trực tuyến."
+        }
+    },
+    "5. Giải quyết vấn đề bằng công nghệ số": {
+        "5.1. Sáng tạo giải pháp học tập": {
+            "Mức 1": "Biết sử dụng công cụ số giải quyết nhiệm vụ.",
+            "Mức 2": "Ứng dụng công nghệ giải quyết vấn đề thực tiễn."
+        }
     }
 }
 
@@ -198,8 +121,9 @@ def add_nls():
     if item not in st.session_state.khbd_nls_list: st.session_state.khbd_nls_list.append(item)
 
 def format_nls():
-    items = st.session_state.khbd_nls_list
-    if not items: return "Không yêu cầu tích hợp Năng lực số chuyên biệt."
+    items = st.session_state.get("khbd_nls_list", [])
+    if not items:
+        return "- Năng lực 1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ > 1.1. Dạy học và giáo dục trong môi trường số (Thành thạo): Xây dựng kế hoạch bài dạy theo tiếp cận công nghệ."
     return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
 
 def safe_text(value):
@@ -211,188 +135,181 @@ def safe_text(value):
 def diagnose_source_quality(text, source_name="Tài liệu nguồn"):
     text = safe_text(text)
     if len(text) < MIN_SOURCE_CHARS:
-        return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ. Vui lòng cung cấp file Word hoặc PDF chuẩn Text."}
+        return {"status": "insufficient", "message": f"{source_name} quá ngắn hoặc không đọc được chữ."}
     return {"status": "valid", "message": "Dữ liệu hợp lệ."}
 
-def read_pdf(uploaded_file, range_str=""):
-    if uploaded_file is None: return ""
+def parse_pdf_structured(uploaded_file, range_str=""):
+    if uploaded_file is None:
+        return {"source_name": "unknown", "pages": []}
     content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
-    extracted_text = ""
+    file_name = getattr(uploaded_file, 'name', 'document.pdf')
+    pages_data = []
     try:
         import fitz
         doc = fitz.open(stream=content, filetype="pdf")
-        extracted_text = "\n\n".join([doc[i].get_text("text").strip() for i in range(len(doc))])
-    except: pass
-    return safe_text(extracted_text)
+        target_pages = set()
+        if range_str.strip():
+            for part in range_str.split(','):
+                if '-' in part:
+                    try:
+                        start, end = map(int, part.split('-'))
+                        for p in range(start, end + 1): target_pages.add(p - 1)
+                    except: pass
+                else:
+                    try: target_pages.add(int(part.strip()) - 1)
+                    except: pass
+        for i in range(len(doc)):
+            if target_pages and i not in target_pages: continue
+            page = doc[i]
+            page_text = safe_text(page.get_text("text"))
+            page_images = []
+            for img_idx, img in enumerate(page.get_images(full=True)):
+                try:
+                    base_image = doc.extract_image(img[0])
+                    page_images.append({
+                        "id": f"IMG_P{i+1}_{img_idx+1}",
+                        "page": i + 1,
+                        "ext": base_image["ext"],
+                        "base64": base64.b64encode(base_image["image"]).decode("utf-8")
+                    })
+                except: pass
+            page_tables = []
+            try:
+                tabs = page.find_tables()
+                if tabs and tabs.tables:
+                    for t_idx, tab in enumerate(tabs.tables):
+                        extracted_df = tab.extract()
+                        if extracted_df and len(extracted_df) > 0:
+                            page_tables.append({
+                                "id": f"TAB_P{i+1}_{t_idx+1}",
+                                "page": i + 1,
+                                "headers": [str(c) for c in extracted_df[0]],
+                                "rows": [[str(c) for c in r] for r in extracted_df[1:]]
+                            })
+            except: pass
+            pages_data.append({"page_number": i + 1, "text": page_text, "images": page_images, "tables": page_tables, "figures": [], "charts": []})
+    except Exception as e:
+        logger.error(f"Lỗi đọc cấu trúc PDF: {e}")
+    return {"source_name": file_name, "pages": pages_data}
 
-def read_docx_ordered(source):
+def parse_docx_structured(uploaded_file):
+    if uploaded_file is None: return {"source_name": "unknown", "pages": []}
+    file_name = getattr(uploaded_file, 'name', 'document.docx')
+    paragraphs_text = []
+    tables_data = []
     try:
-        doc = Document(BytesIO(source.getvalue())) if hasattr(source, "getvalue") else Document(source)
-        return safe_text("\n".join([p.text for p in doc.paragraphs]))
-    except: return ""
+        source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        doc = Document(BytesIO(source))
+        for p in doc.paragraphs:
+            if p.text.strip(): paragraphs_text.append(p.text.strip())
+        for t_idx, table in enumerate(doc.tables):
+            rows_raw = [[cell.text.strip().replace('\n', ' ') for cell in row.cells] for row in table.rows]
+            if rows_raw:
+                tables_data.append({"id": f"TAB_DOCX_{t_idx+1}", "page": 1, "headers": rows_raw[0], "rows": rows_raw[1:] if len(rows_raw) > 1 else []})
+    except Exception as e:
+        logger.error(f"Lỗi đọc cấu trúc DOCX: {e}")
+    return {"source_name": file_name, "pages": [{"page_number": 1, "text": "\n".join(paragraphs_text), "images": [], "tables": tables_data, "figures": [], "charts": []}]}
 
+def build_intermediate_knowledge_source(structured_data):
+    if not structured_data or not structured_data.get("pages"): return "Không có dữ liệu nguồn."
+    source_lines = []
+    for page in structured_data["pages"]:
+        p_num = page["page_number"]
+        source_lines.append(f"=== TRANG {p_num} ===")
+        if page["text"]: source_lines.append(f"[TEXT - Trang {p_num}]\n{page['text']}")
+        for tab in page.get("tables", []):
+            source_lines.append(f"[TABLE - ID: {tab['id']} - Trang {p_num}]\nHeaders: {' | '.join(tab['headers'])}\nRows:\n" + "\n".join([' | '.join(r) for r in tab['rows']]))
+        for img in page.get("images", []): source_lines.append(f"[IMAGE - ID: {img['id']} - Trang {p_num}]")
+    return "\n\n".join(source_lines)
+
+def read_pdf(uploaded_file, range_str=""): return "\n".join([p["text"] for p in parse_pdf_structured(uploaded_file, range_str)["pages"]])
+def read_docx_ordered(source): return "\n".join([p["text"] for p in parse_docx_structured(source)["pages"]])
 def read_multiple_files(files, range_str="", is_pdf_target=False):
-    result = []
+    combined = {"source_name": "multi_files", "pages": []}
+    offset = 0
     for f in files or []:
-        file_name = getattr(f, 'name', '').lower()
-        if file_name.endswith('.pdf'): content = read_pdf(f)
-        else: content = read_docx_ordered(f)
-        if len(content) > 30: result.append(content)
-    return safe_text("\n".join(result))
+        parsed = parse_pdf_structured(f, range_str) if f.name.lower().endswith('.pdf') else parse_docx_structured(f)
+        for p in parsed["pages"]:
+            p["page_number"] += offset
+            combined["pages"].append(p)
+        offset += len(parsed["pages"])
+    return build_intermediate_knowledge_source(combined)
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     system_instruction = """
-[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - ĐỌC KỸ VÀ TUÂN THỦ 100%]:
+[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - CHỐNG CỤT NGỦN VÀ CHỐNG CHUNG CHUNG 100%]:
 1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-2. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CẤU TRÚC TEMPLATE SAU (Không được thiếu chữ nào):
-   I. MỤC TIÊU
-   1. Kiến thức
-   2. Năng lực
-      a) Năng lực chung:
-      b) Năng lực đặc thù:
-   3. Năng lực số và AI (Ghi toàn bộ nội dung Tích hợp TT18 và AI vào mục số 3 này)
-   4. Phẩm chất
-   II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-   1. Giáo viên:
-   2. Học sinh:
-   III. TIẾN TRÌNH DẠY HỌC
-   (Chia các HOẠT ĐỘNG: MỞ ĐẦU, HÌNH THÀNH KIẾN THỨC MỚI, LUYỆN TẬP, VẬN DỤNG)
-   PHỤ LỤC
-   PHIẾU HỌC TẬP
-3. QUY TẮC CỨNG Ở PHẦN "d) Tổ chức thực hiện": BẮT BUỘC dùng chính xác 4 gạch đầu dòng bắt đầu bằng dấu * như sau:
-   *Chuyển giao nhiệm vụ học tập: ...
-   *Thực hiện nhiệm vụ học tập: ...
-   *Báo cáo kết quả và thảo luận: ...
-   *Kết luận (hoặc *Đánh giá kết quả): ...
-4. QUY TẮC CHỐNG LƯỜI BIẾNG: BẮT BUỘC CHÉP NGUYÊN VĂN ĐỀ BÀI, CÂU HỎI vào phần "b) Nội dung" và GIẢI CHI TIẾT TỪNG BƯỚC vào phần "c) Sản phẩm".
-5. QUY TẮC TOÁN HỌC (XUẤT WORD CHUẨN oMATH):
-   - BẮT BUỘC sử dụng chuẩn cú pháp LaTeX cho mọi công thức Toán, Vật lý, Hóa học.
-   - Công thức inline bọc trong dấu `$`. VD: `$\sqrt{x}$`. 
-   - Công thức block bọc trong dấu `$$`.
-    """
-    full_prompt = system_instruction + "\n\n" + prompt
+2. BẠN PHẢI SỬ DỤNG TRỰC TIẾP VÀ CHÍNH XÁC DỮ LIỆU TỪ NGUỒN KIẾN THỨC TRUNG GIAN ĐƯỢC CUNG CẤP. 
+3. TUYỆT ĐỐI CẤM CÁC CÂU VĂN CHUNG CHUNG (Học sinh thực hiện nhiệm vụ, Thảo luận và trình bày kết quả, Giáo viên nhận xét kết luận...).
 
-    # ĐỊNH TUYẾN THÔNG MINH ĐA TẦNG DỰ PHÒNG
-    api_key = st.session_state.get("user_api_key", "")
-    if isinstance(api_key, str): api_key = api_key.strip()
-    if not api_key:
-        try: api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-        except: pass
-    if not api_key:
-        try: api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
-        except: pass
+5. KỶ LUẬT TUYỆT ĐỐI VỀ CÔNG THỨC TOÁN - VẬT LÝ - HÓA HỌC:
+- TUYỆT ĐỐI KHÔNG ĐƯỢC xuất hiện LaTeX trần ngoài dấu $...$ hoặc $$...$$.
+- MỌI biểu thức toán học, vật lý, hóa học phải được bao trọn trong một cặp dấu $...$ hoặc $$...$$.
+- Nếu một câu có công thức, phải bao trọn TOÀN BỘ BIỂU THỨC liên quan, không được tách rời các thành phần của cùng một công thức.
+
+SAI:
+Chiết suất tỉ đối n21 = \\frac{\\sin i}{\\sin r}.
+
+SAI:
+Chiết suất tỉ đối $n_{21}$ = $\\frac{\\sin i}{\\sin r}$.
+
+ĐÚNG:
+Chiết suất tỉ đối $n_{21} = \\frac{\\sin i}{\\sin r}$.
+
+ĐÚNG:
+Theo định luật khúc xạ ánh sáng, chiết suất tỉ đối được xác định bởi
+$$
+n_{21} = \\frac{\\sin i}{\\sin r}.
+$$
+
+Các quy tắc bắt buộc:
+- Chỉ số dưới: $n_{21}$, $H_2O$, $v_1$.
+- Số mũ: $x^2$, $10^8$.
+- Phân số: $\\frac{a}{b}$.
+- Căn thức: $\\sqrt{x}$.
+- Hàm lượng giác: $\\sin i$, $\\cos r$, $\\tan \\alpha$.
+- Đơn vị nằm trong công thức phải dùng \\text{}: $c = 3 \\times 10^8 \\text{ m/s}$.
+- Công thức hóa học phải đặt trong $...$: $H_2O$, $CO_2$.
+- Khi nêu hình ảnh từ nguồn, bắt buộc xuất dạng: ![Tên hình](ID_HÌNH) hoặc [IMAGE:ID_HÌNH].
+"""
+    full_prompt = system_instruction + "\n\n" + prompt
+    api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+    try: api_key = api_key or st.secrets.get("GEMINI_API_KEY", "").strip()
+    except: pass
 
     text_out = ""
-    
-    # TẦNG 1: Thử gọi trực tiếp client truyền vào nếu không phải Dummy
     try:
-        if client is not None and not isinstance(client, type(None)):
-            if hasattr(client, "generate_text") and "Dummy" not in type(client).__name__:
-                text_out = client.generate_text(full_prompt, model_name=model_name)
-            elif hasattr(client, "models") and hasattr(client.models, "generate_content"):
-                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-                response = client.models.generate_content(model=api_model, contents=full_prompt)
-                text_out = getattr(response, "text", "").strip()
-    except Exception as e:
-        logger.warning(f"Client default generation failed: {e}")
-
-    # TẦNG 2: Nếu chưa có text và có API Key trực tiếp
-    if not text_out and api_key:
-        try:
-            if api_key.startswith("sk-") or "proj-" in api_key:
-                import openai
-                oai_client = openai.OpenAI(api_key=api_key)
-                gpt_model = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
-                response = oai_client.chat.completions.create(
-                    model=gpt_model,
-                    messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=8192
-                )
-                text_out = response.choices[0].message.content.strip()
-            else:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-                model = genai.GenerativeModel(model_name=api_model)
-                response = model.generate_content(full_prompt)
-                text_out = getattr(response, "text", "").strip()
-        except Exception as ex:
-            logger.warning(f"Direct API call failed: {ex}")
-
-    # TẦNG 3: Nếu vẫn trống, thử ép gọi Google/OpenAI qua biến môi trường hoặc thư viện mặc định
-    if not text_out:
-        try:
+        if api_key.startswith("sk-") or "proj-" in api_key:
+            import openai
+            oai_client = openai.OpenAI(api_key=api_key)
+            response = oai_client.chat.completions.create(
+                model="gpt-4o" if "Pro" in model_name else "gpt-4o-mini",
+                messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}],
+                max_tokens=8192
+            )
+            text_out = response.choices[0].message.content.strip()
+        else:
             import google.generativeai as genai
-            # Thử tìm key ngầm trong môi trường
-            default_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
-            if default_key:
-                genai.configure(api_key=default_key)
-                model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                response = model.generate_content(full_prompt)
-                text_out = getattr(response, "text", "").strip()
-        except Exception as ex2:
-            logger.error(f"Fallback generation failed: {ex2}")
+            genai.configure(api_key=api_key or "AIzaSy_dummy")
+            model = genai.GenerativeModel(model_name="gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash")
+            response = model.generate_content(full_prompt)
+            text_out = getattr(response, "text", "").strip()
+    except Exception as e:
+        logger.error(f"AI Generation Error: {e}")
+        raise RuntimeError(f"Lỗi kết nối AI: {e}")
 
-    if not text_out:
-        raise RuntimeError("Không thể kết nối AI. Vui lòng nhập API Key hợp lệ ở menu bên trái!")
-
-    if "# TÊN BÀI HỌC:" in text_out:
-        text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
-        
-    text_out = re.sub(r'(?<!\n)\s*([a-d]\))', r'\n\1', text_out)
+    if not text_out: raise RuntimeError("Không thể nhận phản hồi từ AI.")
+    if "# TÊN BÀI HỌC:" in text_out: text_out = text_out[text_out.find("# TÊN BÀI HỌC:"):]
+    text_out = text_out.replace("**", "")
+    text_out = re.sub(r'([^\n])\s*([a-d]\)\s+)', r'\1\n\n\2', text_out)
+    text_out = re.sub(r'([^\n])\s*(\*(?:Chuyển giao nhiệm vụ học tập|Thực hiện nhiệm vụ học tập|Báo cáo kết quả và thảo luận|Kết luận)[^:\n]*:)', r'\1\n\n\2', text_out)
     return text_out
 
 def validate_khbd_result(text):
-    if len(text) < 500: return False, "Nội dung quá ngắn."
+    if not text or len(text) < 500: return False, "Nội dung giáo án quá ngắn hoặc trống."
     return True, "Hợp lệ"
 
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
-    source = safe_text(noi_dung_chinh)[:20000] 
+    source = safe_text(noi_dung_chinh)[:35000]
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
-    hoa_nhap_block = f"- Dạy học hòa nhập: Phương pháp cho HS: {safe_text(nhu_cau_hoa_nhap)}." if tich_hop_hoa_nhap else ""
-    ai_block = f"- Tích hợp AI: Đề xuất hoạt động ứng dụng AI." if tich_hop_ai else ""
-
-    nhiem_vu = f"""
-NHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY SIÊU CHI TIẾT TỪ NGUỒN CUNG CẤP.
-1. TRÍCH XUẤT NGUYÊN VĂN BÀI TẬP VÀ GIẢI CHI TIẾT. (DÙNG LATEX $...$ CHO TOÁN HỌC).
-2. Bài học kéo dài {so_tiet} tiết. Phân bổ kiến thức đều đặn.
-3. DÀN Ý BẮT BUỘC PHẢI KHỚP TUYỆT ĐỐI VỚI TEMPLATE DƯỚI ĐÂY:
-# TÊN BÀI HỌC: ...
-I. MỤC TIÊU
-1. Kiến thức
-2. Năng lực
-   a) Năng lực chung:
-   b) Năng lực đặc thù:
-3. Năng lực số và AI
-   [GHI NỘI DUNG TÍCH HỢP VÀO ĐÂY]: {nls_str} {ai_block} {hoa_nhap_block}
-4. Phẩm chất
-II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
-1. Giáo viên:
-2. Học sinh:
-III. TIẾN TRÌNH DẠY HỌC
-### TIẾT 1
-**Hoạt động 1: MỞ ĐẦU (Dự kiến: X phút)**
-a) Mục tiêu: ...
-b) Nội dung: [CHÉP NGUYÊN VĂN CÂU HỎI VÀ DÙNG $\LaTeX$ CHO TOÁN]
-c) Sản phẩm: [CHÉP NGUYÊN VĂN ĐÁP ÁN VÀ DÙNG $\LaTeX$ CHO TOÁN]
-d) Tổ chức thực hiện: 
-*Chuyển giao nhiệm vụ học tập: GV giao nhiệm vụ...
-*Thực hiện nhiệm vụ học tập: HS thực hiện...
-*Báo cáo kết quả và thảo luận: ...
-*Đánh giá kết quả: ...
-
-**Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI (Dự kiến: X phút)**
-(Viết lặp lại đầy đủ a,b,c,d siêu chi tiết)
-d) Tổ chức thực hiện:
-*Chuyển giao nhiệm vụ học tập: ...
-*Thực hiện nhiệm vụ học tập: ...
-*Báo cáo kết quả và thảo luận: ...
-*Kết luận: ...
-
-PHỤ LỤC
-PHIẾU HỌC TẬP
-"""
-    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\n{nhiem_vu}\n\n--- NGUỒN KIẾN THỨC ---\n{source}\n\n{ga_block}"
+    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\nNHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY {so_tiet} TIẾT BÁM SÁT NGUỒN SAU:\n\n--- NGUỒN KIẾN THỨC TRUNG GIAN ---\n{source}\n\n{ga_block}"
