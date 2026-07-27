@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 r"""
 ============================================================
-MODULE: views/xd_ma_tran_tu_de_view.py
+MODULE: views/xd_ma_tran_tu_de.py
 Nhiệm vụ: Giao diện Sinh Ma trận & Đặc tả từ Đề kiểm tra có sẵn.
-Chuẩn MVC - Giao diện tinh gọn, đẩy việc xử lý cho Data & Export_Word.
+Đã khôi phục đúng tên file để app.py gọi không bị lỗi.
 ============================================================
 """
 
@@ -21,9 +21,7 @@ except ImportError:
     export_word = None
 
 def render_xd_ma_tran_tu_de(ai_engine=None):
-    # Tham số ai_engine được giữ lại để app.py gọi không bị lỗi TypeError, 
-    # nhưng ta sẽ không dùng nó để tránh lỗi xác thực (KeyError).
-    
+    # Tham số ai_engine được giữ lại để app.py gọi không bị lỗi TypeError
     init_session_state_mt()
 
     st.markdown("## 🧩 Sinh Ma trận & Đặc tả từ Đề kiểm tra có sẵn")
