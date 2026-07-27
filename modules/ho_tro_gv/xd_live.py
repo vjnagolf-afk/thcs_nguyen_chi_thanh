@@ -3,8 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_live.py
 Nhiệm vụ: Trợ lý Kịch bản Tương tác Trực tiếp (Live).
-CẬP NHẬT: Tách biệt Prompt Tiếng Anh / Tiếng Việt vào các khung Code Block
-để người dùng dễ dàng Copy/Paste (1-Click).
+ĐÃ FIX LỖI SYNTAX: Xử lý triệt để lỗi "xé toạc" markdown khi copy.
 ============================================================
 """
 
@@ -69,7 +68,6 @@ def render_xd_live(ai_engine_cu=None):
         if not chu_de_live.strip():
             st.warning("⚠️ Vui lòng nhập Chủ đề bài học để AI có chất liệu sáng tạo.")
         else:
-            # Xóa prompt video cũ nếu tạo kịch bản mới
             st.session_state["video_prompts"] = None 
             
             with st.spinner("⏳ AI đang hóa thân thành Đạo diễn sân khấu & Giám khảo quyền lực để viết kịch bản..."):
@@ -128,7 +126,6 @@ HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phí
         st.markdown("### 🎭 KỊCH BẢN ĐIỀU PHỐI ĐỈNH CAO")
         st.markdown(st.session_state["live_result"], unsafe_allow_html=True)
         
-        # Nhóm tính năng Xuất file và Tạo Video
         col_down, col_video = st.columns([1, 1])
         with col_down:
             st.markdown("#### 📥 Tải Kịch bản (Bản in)")
@@ -154,21 +151,22 @@ HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phí
             btn_tao_video = st.button("🪄 2. Sinh bộ Prompt tạo AI Video (Veo/HeyGen)", use_container_width=True, type="secondary")
 
         # ========================================================
-        # XỬ LÝ: SINH PROMPT AI VIDEO
+        # XỬ LÝ: SINH PROMPT AI VIDEO (DÙNG BIẾN BQ ĐỂ FIX LỖI MARKDOWN)
         # ========================================================
         if btn_tao_video:
-            with st.spinner("⏳ AI đang phân rã kịch bản thành Storyboard và thiết kế bộ lệnh Prompt (Camera, Ánh sáng, Voice)..."):
+            with st.spinner("⏳ AI đang phân rã kịch bản thành Storyboard và thiết kế bộ lệnh Prompt..."):
+                bq = "```"
                 video_prompt = f"""
 Bạn là một Đạo diễn Phim & Chuyên gia AI Video (Google Veo, Sora, HeyGen, Midjourney).
 Dựa vào Kịch bản văn bản dưới đây, hãy "chuyển thể" nó thành bảng phân cảnh (Storyboard) chi tiết kèm các Prompt chuẩn xác nhất để nạp vào các cỗ máy tạo Video AI.
 
 [YÊU CẦU QUAN TRỌNG: TÍNH XUYÊN SUỐT VÀ NHẤT QUÁN]
-- Xác định 1 nhân vật MC (giáo viên ảo) duy nhất: Mô tả rõ giới tính, trang phục, phong cách (ví dụ: "nam giáo viên châu Á, 30 tuổi, mặc vest xanh navy lịch lãm"). BẮT BUỘC lặp lại mô tả này trong mọi phân cảnh để AI Video không đổi mặt nhân vật.
+- Xác định 1 nhân vật MC (giáo viên ảo) duy nhất: Mô tả rõ giới tính, trang phục, phong cách. BẮT BUỘC lặp lại mô tả này trong mọi phân cảnh để AI Video không đổi mặt nhân vật.
 - Xác định 1 bối cảnh xuyên suốt (ví dụ: "Lớp học tương lai", "Studio ánh sáng vàng").
 - Nếu có nhiều phân cảnh, phải giữ nguyên vẹn tone giọng và nhân vật.
 
 [KỶ LUẬT HIỂN THỊ ĐỂ NGƯỜI DÙNG DỄ COPY (BẮT BUỘC)]
-Bạn PHẢI sử dụng khung Code Block (dùng 3 dấu backtick ```text và ```) để bọc các phần Prompt lại. Việc này giúp người dùng dễ dàng ấn nút Copy.
+Bạn PHẢI sử dụng khung Code Block (dùng 3 dấu {bq}text và {bq}) để bọc các phần Prompt lại. Việc này giúp người dùng dễ dàng ấn nút Copy.
 
 Hãy chia thành các Phân cảnh (Scene 1, Scene 2...) và trình bày ĐÚNG cấu trúc sau cho mỗi cảnh bằng Markdown:
 
@@ -176,5 +174,52 @@ Hãy chia thành các Phân cảnh (Scene 1, Scene 2...) và trình bày ĐÚNG 
 **👤 Bối cảnh & Nhân vật (Giữ xuyên suốt):** [Mô tả ngắn gọn]
 
 **🎥 PROMPT TẠO VIDEO (TIẾNG ANH - Copy & Paste vào Veo/Sora/Midjourney):**
-```text
-[Chỉ viết nội dung prompt tiếng Anh chuyên nghiệp: Góc máy (Medium shot, Close-up...), Ánh sáng, Hành động, Bối cảnh. Không giải thích thêm]
+{bq}text
+[Chỉ viết nội dung prompt tiếng Anh chuyên nghiệp: Góc máy, Ánh sáng, Hành động, Bối cảnh. Không giải thích thêm]
+{bq}
+
+**🎥 PROMPT TẠO VIDEO (TIẾNG VIỆT - Dành cho AI nội địa/Kling/Hải螺):**
+{bq}text
+[Bản dịch chuẩn xác và mượt mà của prompt tiếng Anh ở trên. Không giải thích thêm]
+{bq}
+
+**🗣️ LỜI THOẠI MC (Copy & Paste vào HeyGen/D-ID/TTS):**
+{bq}text
+[Trích xuất chính xác lời thoại tiếng Việt của MC trong kịch bản để lồng tiếng]
+{bq}
+
+**🖱️ ĐIỂM CHẠM TƯƠNG TÁC (Dành cho Edpuzzle/H5P):**
+[Chỉ định rõ: Tại giây này/khúc này, chèn hiệu ứng pop-up câu hỏi gì, yêu cầu học sinh bấm vào đâu]
+---
+
+--- KỊCH BẢN GỐC ---
+{st.session_state["live_result"]}
+"""
+                try:
+                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
+                    video_result = engine_v2.generate_text(video_prompt, temperature=0.5)
+                    
+                    if video_result.startswith("❌") or video_result.startswith("⚠️"):
+                        st.error(video_result)
+                    else:
+                        st.session_state["video_prompts"] = video_result
+                        
+                except Exception as e:
+                    st.error(f"❌ Lỗi hệ thống khi sinh Prompt Video: {e}")
+
+        # Hiển thị bộ Prompt Video nếu đã tạo
+        if st.session_state.get("video_prompts"):
+            st.markdown("---")
+            st.success("✅ Đã thiết kế xong Bảng phân cảnh và Bộ lệnh Prompt AI Video!")
+            st.info("💡 **Mẹo:** Rê chuột vào góc trên cùng bên phải của các ô viền xám (Code Block) sẽ thấy biểu tượng **Copy**, bấm vào đó để sao chép nhanh Prompt và dán vào các công cụ AI!")
+            
+            with st.expander("🎞️ BỘ PROMPT AI VIDEO (Bấm để xem & Copy)", expanded=True):
+                st.markdown(st.session_state["video_prompts"], unsafe_allow_html=True)
+                
+                st.download_button(
+                    label="📋 Tải toàn bộ Bảng phân cảnh (.TXT)",
+                    data=st.session_state["video_prompts"],
+                    file_name="AI_Video_Prompts.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
