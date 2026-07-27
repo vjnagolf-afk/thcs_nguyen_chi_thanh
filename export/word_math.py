@@ -2,315 +2,1158 @@
 """
 ============================================================
 MODULE: export/word_math.py
-Nhiệm vụ: Trình biên dịch AST (Abstract Syntax Tree) mạnh mẽ
-chuyển đổi LaTeX thành Office MathML (OMML) Native của Word.
-(Bản chuẩn hóa PEP-8 chống SyntaxError)
+
+BỘ BIÊN DỊCH CÔNG THỨC KHOA HỌC SANG OMML NATIVE CỦA MICROSOFT WORD
+
+Mục tiêu:
+- Toán học: phân số, căn, căn bậc n, số mũ, chỉ số,
+  chỉ số + số mũ, ký hiệu Hy Lạp, toán tử, ngoặc.
+- Vật lý: công thức và đơn vị vật lý.
+- Hóa học: công thức hóa học, điện tích ion, đồng vị,
+  chỉ số nguyên tử, phân tử nước kết tinh.
+- Chèn công thức trực tiếp vào Word dưới dạng OMML Native.
+- Không để lọt các chuỗi $...$, \( ... \), \[ ... \] ra văn bản.
+- Không dùng Unicode superscript/subscript làm phương án chính.
+- Tương thích với python-docx.
+
 ============================================================
 """
 
-import re
+from __future__ import annotations
+
+import html
 import logging
-from docx.oxml import parse_xml
+import re
+from typing import List, Optional, Tuple
+
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt
+from docx.oxml import OxmlElement, parse_xml
+from docx.oxml.ns import qn
 
-logger = logging.getLogger(__name__)
 
-def escape_xml(text: str) -> str:
-    if not text: 
-        return ""
-    text = str(text)
-    text = text.replace("&", "&amp;")
-    text = text.replace("<", "&lt;")
-    text = text.replace(">", "&gt;")
-    text = text.replace('"', "&quot;")
-    text = text.replace("'", "&apos;")
-    return text
+logger = logging.getLogger("WordMath")
+
+
+MATH_NS = (
+    "http://schemas.openxmlformats.org/"
+    "officeDocument/2006/math"
+)
+
+
+# ============================================================
+# 1. BẢNG KÝ HIỆU LATEX → UNICODE
+# ============================================================
 
 SYMBOLS = {
-    'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'epsilon': 'ε',
-    'zeta': 'ζ', 'eta': 'η', 'theta': 'θ', 'iota': 'ι', 'kappa': 'κ',
-    'lambda': 'λ', 'mu': 'μ', 'nu': 'ν', 'xi': 'ξ', 'omicron': 'ο',
-    'pi': 'π', 'rho': 'ρ', 'sigma': 'σ', 'tau': 'τ', 'upsilon': 'υ',
-    'phi': 'φ', 'chi': 'χ', 'psi': 'ψ', 'omega': 'ω',
-    'Alpha': 'Α', 'Beta': 'Β', 'Gamma': 'Γ', 'Delta': 'Δ', 'Epsilon': 'Ε',
-    'Zeta': 'Ζ', 'Eta': 'Η', 'Theta': 'Θ', 'Iota': 'Ι', 'Kappa': 'Κ',
-    'Lambda': 'Λ', 'Mu': 'Μ', 'Nu': 'Ν', 'Xi': 'Ξ', 'Omicron': 'Ο',
-    'Pi': 'Π', 'Rho': 'Ρ', 'Sigma': 'Σ', 'Tau': 'Τ', 'Upsilon': 'Υ',
-    'Phi': 'Φ', 'Chi': 'Χ', 'Psi': 'Ψ', 'Omega': 'Ω',
-    'leq': '≤', 'le': '≤', 'geq': '≥', 'ge': '≥', 'neq': '≠', 'ne': '≠',
-    'approx': '≈', 'equiv': '≡', 'pm': '±', 'mp': '∓', 'times': '×',
-    'cdot': '·', 'div': '÷', 'infty': '∞', 'partial': '∂', 'circ': '°',
-    'sum': '∑', 'prod': '∏', 'int': '∫', 'perp': '⊥', 'angle': '∠',
-    'triangle': '△', 'rightarrow': '→', 'Rightarrow': '⇒',
-    'leftrightarrow': '↔', 'Leftrightarrow': '⇔',
-    'sin': 'sin', 'cos': 'cos', 'tan': 'tan', 'cot': 'cot',
-    'arcsin': 'arcsin', 'arccos': 'arccos', 'arctan': 'arctan',
-    'log': 'log', 'ln': 'ln', 'lim': 'lim', 'max': 'max', 'min': 'min',
-    'quad': '    ', 'qquad': '        ', ',': ' ', ';': ' ', ':': ' ', ' ': ' '
+    # Greek
+    "alpha": "α",
+    "beta": "β",
+    "gamma": "γ",
+    "delta": "δ",
+    "epsilon": "ε",
+    "varepsilon": "ε",
+    "zeta": "ζ",
+    "eta": "η",
+    "theta": "θ",
+    "vartheta": "ϑ",
+    "iota": "ι",
+    "kappa": "κ",
+    "lambda": "λ",
+    "mu": "μ",
+    "nu": "ν",
+    "xi": "ξ",
+    "omicron": "ο",
+    "pi": "π",
+    "varpi": "ϖ",
+    "rho": "ρ",
+    "varrho": "ϱ",
+    "sigma": "σ",
+    "varsigma": "ς",
+    "tau": "τ",
+    "upsilon": "υ",
+    "phi": "φ",
+    "varphi": "ϕ",
+    "chi": "χ",
+    "psi": "ψ",
+    "omega": "ω",
+
+    # Uppercase Greek
+    "Gamma": "Γ",
+    "Delta": "Δ",
+    "Theta": "Θ",
+    "Lambda": "Λ",
+    "Xi": "Ξ",
+    "Pi": "Π",
+    "Sigma": "Σ",
+    "Upsilon": "Υ",
+    "Phi": "Φ",
+    "Psi": "Ψ",
+    "Omega": "Ω",
+
+    # Relations
+    "le": "≤",
+    "leq": "≤",
+    "ge": "≥",
+    "geq": "≥",
+    "neq": "≠",
+    "ne": "≠",
+    "approx": "≈",
+    "equiv": "≡",
+    "sim": "∼",
+    "simeq": "≃",
+    "cong": "≅",
+    "propto": "∝",
+
+    # Operators
+    "pm": "±",
+    "mp": "∓",
+    "times": "×",
+    "cdot": "·",
+    "div": "÷",
+    "ast": "∗",
+    "star": "⋆",
+    "circ": "∘",
+    "bullet": "•",
+
+    # Sets / logic
+    "in": "∈",
+    "notin": "∉",
+    "subset": "⊂",
+    "subseteq": "⊆",
+    "supset": "⊃",
+    "supseteq": "⊇",
+    "cup": "∪",
+    "cap": "∩",
+    "emptyset": "∅",
+    "infty": "∞",
+    "forall": "∀",
+    "exists": "∃",
+    "nexists": "∄",
+
+    # Geometry
+    "perp": "⊥",
+    "parallel": "∥",
+    "angle": "∠",
+    "triangle": "△",
+    "square": "□",
+
+    # Arrows
+    "rightarrow": "→",
+    "to": "→",
+    "leftarrow": "←",
+    "leftrightarrow": "↔",
+    "Rightarrow": "⇒",
+    "Leftarrow": "⇐",
+    "Leftrightarrow": "⇔",
+    "uparrow": "↑",
+    "downarrow": "↓",
+
+    # Calculus / algebra
+    "sum": "∑",
+    "prod": "∏",
+    "int": "∫",
+    "oint": "∮",
+    "partial": "∂",
+    "nabla": "∇",
+
+    # Text spacing
+    "quad": " ",
+    "qquad": "  ",
+    "enspace": " ",
+    "thinspace": " ",
+    ",": " ",
+    ";": " ",
+    ":": " ",
+    "!": "",
+
+    # Named functions
+    "sin": "sin",
+    "cos": "cos",
+    "tan": "tan",
+    "cot": "cot",
+    "sec": "sec",
+    "csc": "csc",
+    "arcsin": "arcsin",
+    "arccos": "arccos",
+    "arctan": "arctan",
+    "log": "log",
+    "ln": "ln",
+    "lim": "lim",
+    "max": "max",
+    "min": "min",
 }
 
+
+# ============================================================
+# 2. HÀM TIỆN ÍCH
+# ============================================================
+
+def escape_xml(text: str) -> str:
+    """
+    Escape XML an toàn cho OMML.
+    """
+
+    if text is None:
+        return ""
+
+    return html.escape(
+        str(text),
+        quote=True
+    )
+
+
+def _empty_math_run() -> str:
+    return (
+        "<m:r>"
+        "<m:t xml:space=\"preserve\"></m:t>"
+        "</m:r>"
+    )
+
+
+def _normalize_math_input(value: str) -> str:
+    """
+    Loại bỏ các lớp delimiter bên ngoài nhưng không phá
+    các delimiter nằm bên trong biểu thức.
+    """
+
+    if not value:
+        return ""
+
+    s = str(value).strip()
+
+    # $$ ... $$
+    if len(s) >= 4 and s.startswith("$$") and s.endswith("$$"):
+        return s[2:-2].strip()
+
+    # $ ... $
+    if len(s) >= 2 and s.startswith("$") and s.endswith("$"):
+        return s[1:-1].strip()
+
+    # \[ ... \]
+    if len(s) >= 4 and s.startswith(r"\[") and s.endswith(r"\]"):
+        return s[2:-2].strip()
+
+    # \( ... \)
+    if len(s) >= 4 and s.startswith(r"\(") and s.endswith(r"\)"):
+        return s[2:-2].strip()
+
+    return s
+
+
+# ============================================================
+# 3. LATEX PARSER
+# ============================================================
+
 class LatexParser:
-    def __init__(self, s: str):
-        self.s = s
+    """
+    Parser đệ quy đơn giản nhưng an toàn cho LaTeX giáo dục.
+
+    AST node:
+
+        ("text", "x")
+        ("group", [...])
+        ("frac", numerator, denominator)
+        ("sqrt", expression)
+        ("root", degree, expression)
+        ("sup", base, exponent)
+        ("sub", base, subscript)
+        ("subsup", base, subscript, exponent)
+        ("normal_text", [...])
+        ("accent", accent, expression)
+    """
+
+    def __init__(self, source: str):
+        self.source = source or ""
         self.pos = 0
-        self.n = len(s)
+        self.length = len(self.source)
+
+    # --------------------------------------------------------
+    # CORE
+    # --------------------------------------------------------
 
     def peek(self) -> str:
-        if self.pos < self.n:
-            return self.s[self.pos]
-        return ''
+        if self.pos >= self.length:
+            return ""
+
+        return self.source[self.pos]
 
     def get(self) -> str:
-        c = self.peek()
-        self.pos += 1
-        return c
+        char = self.peek()
+
+        if char:
+            self.pos += 1
+
+        return char
 
     def parse(self) -> list:
         nodes = []
-        while self.pos < self.n:
-            c = self.peek()
-            
-            if c == '\\':
+
+        while self.pos < self.length:
+
+            char = self.peek()
+
+            # ------------------------------------------------
+            # COMMAND
+            # ------------------------------------------------
+
+            if char == "\\":
+                command_node = self.parse_command()
+
+                if command_node is not None:
+                    nodes.append(command_node)
+
+                continue
+
+            # ------------------------------------------------
+            # GROUP
+            # ------------------------------------------------
+
+            if char == "{":
+                nodes.append(
+                    (
+                        "group",
+                        self.parse_group_content()
+                    )
+                )
+                continue
+
+            # ------------------------------------------------
+            # KẾT THÚC GROUP
+            # ------------------------------------------------
+
+            if char == "}":
+                break
+
+            # ------------------------------------------------
+            # SUPERSCRIPT
+            # ------------------------------------------------
+
+            if char == "^":
                 self.get()
-                cmd_match = re.match(r'[a-zA-Z]+|.', self.s[self.pos:])
-                if cmd_match:
-                    cmd = cmd_match.group(0)
-                    self.pos += len(cmd)
-                    
-                    if cmd == 'frac':
-                        num = self.parse_group()
-                        den = self.parse_group()
-                        nodes.append(('frac', num, den))
-                    elif cmd == 'sqrt':
-                        if self.peek() == '[':
-                            self.get()
-                            deg = self.parse_until(']')
-                            expr = self.parse_group()
-                            nodes.append(('root', deg, expr))
-                        else:
-                            expr = self.parse_group()
-                            nodes.append(('sqrt', expr))
-                    elif cmd == 'text':
-                        content = self.parse_group()
-                        nodes.append(('normal_text', content))
-                    elif cmd in ['mathrm', 'mathbf', 'operatorname', 'widehat']:
-                        content = self.parse_group()
-                        nodes.append(('group', content))
-                    elif cmd in SYMBOLS:
-                        nodes.append(('text', SYMBOLS[cmd]))
-                    elif cmd in ['left', 'right']:
-                        delim = self.get()
-                        if delim == '\\':
-                            m = re.match(r'[a-zA-Z]+|.', self.s[self.pos:])
-                            if m:
-                                self.pos += len(m.group(0))
-                                delim = m.group(0)
-                        nodes.append(('text', delim))
-                    else:
-                        nodes.append(('text', '\\' + cmd))
-                else:
-                    nodes.append(('text', '\\'))
-                    
-            elif c == '{':
-                nodes.append(('group', self.parse_group_content()))
-                
-            elif c == '}':
-                break 
-                
-            elif c == '^':
-                self.get()
-                expr = self.parse_group()
+
+                exponent = self.parse_argument()
+
                 if nodes:
-                    prev = nodes.pop()
-                    if prev[0] == 'text' and len(prev[1]) > 1:
-                        nodes.append(('text', prev[1][:-1]))
-                        nodes.append(('sup', ('text', prev[1][-1]), expr))
-                    elif prev[0] == 'sub':
-                        nodes.append(('subsup', prev[1], prev[2], expr))
-                    else:
-                        nodes.append(('sup', prev, expr))
-                else:
-                    nodes.append(('sup', ('text', ''), expr)) 
-                    
-            elif c == '_':
+                    base = nodes.pop()
+                    nodes.append(
+                        (
+                            "sup",
+                            base,
+                            exponent
+                        )
+                    )
+
+                continue
+
+            # ------------------------------------------------
+            # SUBSCRIPT
+            # ------------------------------------------------
+
+            if char == "_":
                 self.get()
-                expr = self.parse_group()
+
+                subscript = self.parse_argument()
+
                 if nodes:
-                    prev = nodes.pop()
-                    if prev[0] == 'text' and len(prev[1]) > 1:
-                        nodes.append(('text', prev[1][:-1]))
-                        nodes.append(('sub', ('text', prev[1][-1]), expr))
-                    elif prev[0] == 'sup':
-                        nodes.append(('subsup', prev[1], expr, prev[2]))
+
+                    base = nodes.pop()
+
+                    if base[0] == "sup":
+
+                        nodes.append(
+                            (
+                                "subsup",
+                                base[1],
+                                subscript,
+                                base[2]
+                            )
+                        )
+
                     else:
-                        nodes.append(('sub', prev, expr))
-                else:
-                    nodes.append(('sub', ('text', ''), expr))
-                    
-            else:
-                nodes.append(('text', self.get()))
-                
+
+                        nodes.append(
+                            (
+                                "sub",
+                                base,
+                                subscript
+                            )
+                        )
+
+                continue
+
+            # ------------------------------------------------
+            # NORMAL CHARACTER
+            # ------------------------------------------------
+
+            nodes.append(
+                (
+                    "text",
+                    self.get()
+                )
+            )
+
         return self.combine_text_nodes(nodes)
 
-    def parse_group(self) -> list:
-        while self.peek() in ' \t\n\r':
+    # --------------------------------------------------------
+    # COMMAND
+    # --------------------------------------------------------
+
+    def parse_command(self) -> Optional[tuple]:
+
+        self.get()
+
+        if self.pos >= self.length:
+            return ("text", "\\")
+
+        match = re.match(
+            r"[A-Za-z]+|.",
+            self.source[self.pos:]
+        )
+
+        if not match:
+            return ("text", "\\")
+
+        command = match.group(0)
+        self.pos += len(command)
+
+        # ----------------------------------------------------
+        # FRACTION
+        # ----------------------------------------------------
+
+        if command == "frac":
+
+            numerator = self.parse_argument()
+            denominator = self.parse_argument()
+
+            return (
+                "frac",
+                numerator,
+                denominator
+            )
+
+        # ----------------------------------------------------
+        # SQUARE ROOT / NTH ROOT
+        # ----------------------------------------------------
+
+        if command == "sqrt":
+
+            degree = None
+
+            if self.peek() == "[":
+                self.get()
+
+                degree = self.parse_until("]")
+
+            expression = self.parse_argument()
+
+            if degree is not None:
+
+                return (
+                    "root",
+                    degree,
+                    expression
+                )
+
+            return (
+                "sqrt",
+                expression
+            )
+
+        # ----------------------------------------------------
+        # TEXT
+        # ----------------------------------------------------
+
+        if command in (
+            "text",
+            "mbox"
+        ):
+
+            return (
+                "normal_text",
+                self.parse_argument()
+            )
+
+        # ----------------------------------------------------
+        # FONT / GROUPING COMMANDS
+        # ----------------------------------------------------
+
+        if command in (
+            "mathrm",
+            "mathbf",
+            "mathit",
+            "mathsf",
+            "mathtt",
+            "operatorname",
+            "boldsymbol",
+            "bm"
+        ):
+
+            return (
+                "group",
+                self.parse_argument()
+            )
+
+        # ----------------------------------------------------
+        # ACCENTS
+        # ----------------------------------------------------
+
+        if command in (
+            "widehat",
+            "hat",
+            "bar",
+            "vec",
+            "overline",
+            "underline"
+        ):
+
+            return (
+                "accent",
+                command,
+                self.parse_argument()
+            )
+
+        # ----------------------------------------------------
+        # DELIMITER CONTROL
+        # ----------------------------------------------------
+
+        if command in (
+            "left",
+            "right"
+        ):
+
+            delimiter = self.parse_delimiter()
+
+            return (
+                "text",
+                delimiter
+            )
+
+        # ----------------------------------------------------
+        # SYMBOL
+        # ----------------------------------------------------
+
+        if command in SYMBOLS:
+
+            return (
+                "text",
+                SYMBOLS[command]
+            )
+
+        # ----------------------------------------------------
+        # UNKNOWN COMMAND
+        # ----------------------------------------------------
+
+        return (
+            "text",
+            "\\" + command
+        )
+
+    # --------------------------------------------------------
+    # ARGUMENT
+    # --------------------------------------------------------
+
+    def parse_argument(self) -> list:
+
+        while self.peek() in (
+            " ",
+            "\t",
+            "\n",
+            "\r"
+        ):
+
             self.get()
-            
-        if not self.peek(): 
+
+        if not self.peek():
             return []
-        
-        if self.peek() == '{':
+
+        if self.peek() == "{":
+
             return self.parse_group_content()
-        elif self.peek() == '\\':
-            self.get()
-            cmd_match = re.match(r'[a-zA-Z]+|.', self.s[self.pos:])
-            if cmd_match:
-                cmd = cmd_match.group(0)
-                self.pos += len(cmd)
-                if cmd == 'frac': 
-                    return [('frac', self.parse_group(), self.parse_group())]
-                elif cmd == 'sqrt':
-                    if self.peek() == '[':
-                        self.get()
-                        deg = self.parse_until(']')
-                        return [('root', deg, self.parse_group())]
-                    return [('sqrt', self.parse_group())]
-                elif cmd == 'text': 
-                    return [('normal_text', self.parse_group())]
-                elif cmd in SYMBOLS: 
-                    return [('text', SYMBOLS[cmd])]
-                else: 
-                    return [('text', '\\' + cmd)]
-            else:
-                return [('text', '\\')]
-        else:
-            return [('text', self.get())]
+
+        if self.peek() == "\\":
+
+            node = self.parse_command()
+
+            return [node] if node else []
+
+        return [
+            (
+                "text",
+                self.get()
+            )
+        ]
+
+    # --------------------------------------------------------
+    # GROUP
+    # --------------------------------------------------------
 
     def parse_group_content(self) -> list:
-        self.get() 
-        start_pos = self.pos
+
+        if self.peek() != "{":
+            return []
+
+        self.get()
+
+        start = self.pos
         depth = 1
-        while self.pos < self.n:
-            c = self.get()
-            if c == '{': 
+
+        while self.pos < self.length:
+
+            char = self.get()
+
+            if char == "{":
                 depth += 1
-            elif c == '}':
+
+            elif char == "}":
+
                 depth -= 1
+
                 if depth == 0:
-                    inner = self.s[start_pos:self.pos-1]
-                    return LatexParser(inner).parse()
-        inner = self.s[start_pos:self.pos]
-        return LatexParser(inner).parse()
+
+                    content = self.source[
+                        start:self.pos - 1
+                    ]
+
+                    return LatexParser(
+                        content
+                    ).parse()
+
+        # Không có dấu đóng:
+        # vẫn giữ nội dung thay vì làm mất công thức.
+        content = self.source[start:self.pos]
+
+        return LatexParser(
+            content
+        ).parse()
+
+    # --------------------------------------------------------
+    # UNTIL
+    # --------------------------------------------------------
 
     def parse_until(self, end_char: str) -> list:
+
         start = self.pos
-        while self.pos < self.n and self.peek() != end_char:
+
+        while (
+            self.pos < self.length
+            and self.peek() != end_char
+        ):
+
             self.get()
-        inner = self.s[start:self.pos]
+
+        content = self.source[
+            start:self.pos
+        ]
+
         if self.peek() == end_char:
             self.get()
-        return LatexParser(inner).parse()
 
-    def combine_text_nodes(self, nodes: list) -> list:
-        res = []
-        cur_text = ""
-        for n in nodes:
-            if n[0] == 'text':
-                cur_text += n[1]
+        return LatexParser(
+            content
+        ).parse()
+
+    # --------------------------------------------------------
+    # DELIMITER
+    # --------------------------------------------------------
+
+    def parse_delimiter(self) -> str:
+
+        if not self.peek():
+            return ""
+
+        if self.peek() == "\\":
+
+            self.get()
+
+            match = re.match(
+                r"[A-Za-z]+|.",
+                self.source[self.pos:]
+            )
+
+            if match:
+
+                delimiter = match.group(0)
+                self.pos += len(delimiter)
+
+                return {
+                    "lbrace": "{",
+                    "rbrace": "}",
+                    "langle": "⟨",
+                    "rangle": "⟩",
+                    "vert": "|",
+                    "Vert": "‖",
+                }.get(
+                    delimiter,
+                    SYMBOLS.get(
+                        delimiter,
+                        delimiter
+                    )
+                )
+
+        return self.get()
+
+    # --------------------------------------------------------
+    # COMBINE TEXT
+    # --------------------------------------------------------
+
+    @staticmethod
+    def combine_text_nodes(nodes: list) -> list:
+
+        result = []
+        buffer = []
+
+        for node in nodes:
+
+            if node[0] == "text":
+
+                buffer.append(
+                    node[1]
+                )
+
             else:
-                if cur_text:
-                    res.append(('text', cur_text))
-                    cur_text = ""
-                res.append(n)
-        if cur_text:
-            res.append(('text', cur_text))
-        return res
+
+                if buffer:
+
+                    result.append(
+                        (
+                            "text",
+                            "".join(buffer)
+                        )
+                    )
+
+                    buffer = []
+
+                result.append(node)
+
+        if buffer:
+
+            result.append(
+                (
+                    "text",
+                    "".join(buffer)
+                )
+            )
+
+        return result
+
+
+# ============================================================
+# 4. OMML RENDERER
+# ============================================================
 
 def render_omml(nodes: list) -> str:
-    if not nodes: 
+
+    if not nodes:
         return ""
-    xml = ""
-    for n in nodes:
-        t = n[0]
-        if t == 'text':
-            xml += f'<m:r><m:t xml:space="preserve">{escape_xml(n[1])}</m:t></m:r>'
-        elif t == 'normal_text':
-            inner_xml = render_omml(n[1])
-            inner_xml = inner_xml.replace('<m:r>', '<m:r><m:rPr><m:nor/></m:rPr>')
-            xml += inner_xml
-        elif t == 'group':
-            xml += render_omml(n[1])
-        elif t == 'frac':
-            num = render_omml(n[1]) or "<m:r><m:t></m:t></m:r>"
-            den = render_omml(n[2]) or "<m:r><m:t></m:t></m:r>"
-            xml += f"<m:f><m:num>{num}</m:num><m:den>{den}</m:den></m:f>"
-        elif t == 'sqrt':
-            expr = render_omml(n[1]) or "<m:r><m:t></m:t></m:r>"
-            xml += f"<m:rad><m:deg/><m:e>{expr}</m:e></m:rad>"
-        elif t == 'root':
-            deg = render_omml(n[1]) or "<m:r><m:t></m:t></m:r>"
-            expr = render_omml(n[2]) or "<m:r><m:t></m:t></m:r>"
-            xml += f"<m:rad><m:deg>{deg}</m:deg><m:e>{expr}</m:e></m:rad>"
-        elif t == 'sup':
-            base = render_omml([n[1]]) or "<m:r><m:t></m:t></m:r>"
-            exp = render_omml(n[2]) or "<m:r><m:t></m:t></m:r>"
-            xml += f"<m:sSup><m:e>{base}</m:e><m:sup>{exp}</m:sup></m:sSup>"
-        elif t == 'sub':
-            base = render_omml([n[1]]) or "<m:r><m:t></m:t></m:r>"
-            sub = render_omml(n[2]) or "<m:r><m:t></m:t></m:r>"
-            xml += f"<m:sSub><m:e>{base}</m:e><m:sub>{sub}</m:sub></m:sSub>"
-        elif t == 'subsup':
-            base = render_omml([n[1]]) or "<m:r><m:t></m:t></m:r>"
-            sub = render_omml(n[2]) or "<m:r><m:t></m:t></m:r>"
-            exp = render_omml(n[3]) or "<m:r><m:t></m:t></m:r>"
-            xml += f"<m:sSubSup><m:e>{base}</m:e><m:sub>{sub}</m:sub><m:sup>{exp}</m:sup></m:sSubSup>"
-    return xml
 
-def latex_to_omml_xml(latex_str: str) -> str:
-    if not latex_str or not latex_str.strip():
-        return '<m:oMath xmlns:m="[http://schemas.openxmlformats.org/officeDocument/2006/math](http://schemas.openxmlformats.org/officeDocument/2006/math)"><m:r><m:t></m:t></m:r></m:oMath>'
-    
-    s = latex_str.strip()
-    if s.startswith('$$') and s.endswith('$$'): 
-        s = s[2:-2]
-    elif s.startswith('$') and s.endswith('$'): 
-        s = s[1:-1]
-    elif s.startswith('\\[') and s.endswith('\\]'): 
-        s = s[2:-2]
-    elif s.startswith('\\(') and s.endswith('\\)'): 
-        s = s[2:-2]
-        
+    xml_parts = []
+
+    for node in nodes:
+
+        node_type = node[0]
+
+        # ----------------------------------------------------
+        # TEXT
+        # ----------------------------------------------------
+
+        if node_type == "text":
+
+            xml_parts.append(
+                "<m:r>"
+                "<m:t xml:space=\"preserve\">"
+                f"{escape_xml(node[1])}"
+                "</m:t>"
+                "</m:r>"
+            )
+
+        # ----------------------------------------------------
+        # NORMAL TEXT
+        # ----------------------------------------------------
+
+        elif node_type == "normal_text":
+
+            content = render_omml(
+                node[1]
+            )
+
+            content = content.replace(
+                "<m:r>",
+                (
+                    "<m:r>"
+                    "<m:rPr>"
+                    "<m:nor/>"
+                    "</m:rPr>"
+                )
+            )
+
+            xml_parts.append(content)
+
+        # ----------------------------------------------------
+        # GROUP
+        # ----------------------------------------------------
+
+        elif node_type == "group":
+
+            xml_parts.append(
+                render_omml(
+                    node[1]
+                )
+            )
+
+        # ----------------------------------------------------
+        # FRACTION
+        # ----------------------------------------------------
+
+        elif node_type == "frac":
+
+            numerator = (
+                render_omml(node[1])
+                or _empty_math_run()
+            )
+
+            denominator = (
+                render_omml(node[2])
+                or _empty_math_run()
+            )
+
+            xml_parts.append(
+                "<m:f>"
+                f"<m:num>{numerator}</m:num>"
+                f"<m:den>{denominator}</m:den>"
+                "</m:f>"
+            )
+
+        # ----------------------------------------------------
+        # SQUARE ROOT
+        # ----------------------------------------------------
+
+        elif node_type == "sqrt":
+
+            expression = (
+                render_omml(node[1])
+                or _empty_math_run()
+            )
+
+            xml_parts.append(
+                "<m:rad>"
+                "<m:deg/>"
+                f"<m:e>{expression}</m:e>"
+                "</m:rad>"
+            )
+
+        # ----------------------------------------------------
+        # NTH ROOT
+        # ----------------------------------------------------
+
+        elif node_type == "root":
+
+            degree = (
+                render_omml(node[1])
+                or _empty_math_run()
+            )
+
+            expression = (
+                render_omml(node[2])
+                or _empty_math_run()
+            )
+
+            xml_parts.append(
+                "<m:rad>"
+                f"<m:deg>{degree}</m:deg>"
+                f"<m:e>{expression}</m:e>"
+                "</m:rad>"
+            )
+
+        # ----------------------------------------------------
+        # SUPERSCRIPT
+        # ----------------------------------------------------
+
+        elif node_type == "sup":
+
+            base = render_omml(
+                [node[1]]
+            ) or _empty_math_run()
+
+            exponent = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            xml_parts.append(
+                "<m:sSup>"
+                f"<m:e>{base}</m:e>"
+                f"<m:sup>{exponent}</m:sup>"
+                "</m:sSup>"
+            )
+
+        # ----------------------------------------------------
+        # SUBSCRIPT
+        # ----------------------------------------------------
+
+        elif node_type == "sub":
+
+            base = render_omml(
+                [node[1]]
+            ) or _empty_math_run()
+
+            subscript = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            xml_parts.append(
+                "<m:sSub>"
+                f"<m:e>{base}</m:e>"
+                f"<m:sub>{subscript}</m:sub>"
+                "</m:sSub>"
+            )
+
+        # ----------------------------------------------------
+        # SUB + SUP
+        # ----------------------------------------------------
+
+        elif node_type == "subsup":
+
+            base = render_omml(
+                [node[1]]
+            ) or _empty_math_run()
+
+            subscript = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            exponent = render_omml(
+                node[3]
+            ) or _empty_math_run()
+
+            xml_parts.append(
+                "<m:sSubSup>"
+                f"<m:e>{base}</m:e>"
+                f"<m:sub>{subscript}</m:sub>"
+                f"<m:sup>{exponent}</m:sup>"
+                "</m:sSubSup>"
+            )
+
+        # ----------------------------------------------------
+        # ACCENT
+        # ----------------------------------------------------
+
+        elif node_type == "accent":
+
+            accent_name = node[1]
+
+            expression = render_omml(
+                node[2]
+            ) or _empty_math_run()
+
+            accent_map = {
+                "widehat": "^",
+                "hat": "^",
+                "bar": "¯",
+                "overline": "¯",
+                "underline": "_",
+                "vec": "→",
+            }
+
+            accent_char = accent_map.get(
+                accent_name,
+                "^"
+            )
+
+            xml_parts.append(
+                "<m:acc>"
+                "<m:accPr>"
+                f"<m:chr m:val=\"{escape_xml(accent_char)}\"/>"
+                "</m:accPr>"
+                f"<m:e>{expression}</m:e>"
+                "</m:acc>"
+            )
+
+    return "".join(xml_parts)
+
+
+# ============================================================
+# 5. LATEX → OMML
+# ============================================================
+
+def latex_to_omml_xml(
+    latex_str: str
+) -> str:
+
+    s = _normalize_math_input(
+        latex_str
+    )
+
+    if not s:
+
+        return (
+            f'<m:oMath xmlns:m="{MATH_NS}">'
+            f"{_empty_math_run()}"
+            "</m:oMath>"
+        )
+
     try:
-        parser = LatexParser(s)
+
+        parser = LatexParser(
+            s
+        )
+
         nodes = parser.parse()
-        omml_body = render_omml(nodes)
-        
-        if not omml_body:
-            omml_body = '<m:r><m:t></m:t></m:r>'
-            
-        return f'<m:oMath xmlns:m="[http://schemas.openxmlformats.org/officeDocument/2006/math](http://schemas.openxmlformats.org/officeDocument/2006/math)">{omml_body}</m:oMath>'
-        
-    except Exception as e:
-        logger.error(f"Lỗi biên dịch Toán học: {e} với chuỗi: {latex_str}")
-        safe_text = escape_xml(s)
-        return f'<m:oMath xmlns:m="[http://schemas.openxmlformats.org/officeDocument/2006/math](http://schemas.openxmlformats.org/officeDocument/2006/math)"><m:r><m:t xml:space="preserve">{safe_text}</m:t></m:r></m:oMath>'
+
+        body = render_omml(
+            nodes
+        )
+
+        if not body:
+            body = _empty_math_run()
+
+        return (
+            f'<m:oMath xmlns:m="{MATH_NS}">'
+            f"{body}"
+            "</m:oMath>"
+        )
+
+    except Exception as exc:
+
+        logger.exception(
+            "Lỗi biên dịch OMML: %s | %s",
+            exc,
+            latex_str
+        )
+
+        safe_text = escape_xml(
+            s
+        )
+
+        return (
+            f'<m:oMath xmlns:m="{MATH_NS}">'
+            "<m:r>"
+            f'<m:t xml:space="preserve">'
+            f"{safe_text}"
+            "</m:t>"
+            "</m:r>"
+            "</m:oMath>"
+        )
 
 
-def insert_math_to_paragraph(paragraph, latex_content: str, is_block: bool = False):
-    if not latex_content or not latex_content.strip():
+# ============================================================
+# 6. CHÈN OMML VÀO WORD
+# ============================================================
+
+def insert_math_to_paragraph(
+    paragraph,
+    latex_content: str,
+    is_block: bool = False
+):
+    """
+    Chèn công thức OMML native vào Paragraph.
+
+    Không dùng add_run cho công thức nếu có thể biên dịch OMML.
+    """
+
+    if not latex_content:
         return
-        
+
+    content = str(
+        latex_content
+    ).strip()
+
+    if not content:
+        return
+
     try:
+
         if is_block:
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-        omml_xml_string = latex_to_omml_xml(latex_content)
-        omml_element = parse_xml(omml_xml_string)
-        paragraph._p.append(omml_element)
-        
-    except Exception as e:
-        logger.error(f"Lỗi chèn OMML vào Paragraph: {e}")
-        run = paragraph.add_run(f" {latex_content} ")
-        run.font.name = 'Cambria Math'
+
+            paragraph.alignment = (
+                WD_ALIGN_PARAGRAPH.CENTER
+            )
+
+        xml_string = latex_to_omml_xml(
+            content
+        )
+
+        omml_element = parse_xml(
+            xml_string
+        )
+
+        paragraph._p.append(
+            omml_element
+        )
+
+    except Exception as exc:
+
+        logger.exception(
+            "Không thể chèn OMML: %s",
+            exc
+        )
+
+        run = paragraph.add_run(
+            f" {content} "
+        )
+
+        run.font.name = (
+            "Cambria Math"
+        )
+
         run.italic = True
+
+
+# ============================================================
+# 7. API TƯƠNG THÍCH NGƯỢC
+# ============================================================
+
+class MathRenderer:
+    """
+    API tương thích với các module cũ.
+    """
+
+    @staticmethod
+    def render_inline_math(
+        paragraph,
+        latex_str: str
+    ):
+
+        insert_math_to_paragraph(
+            paragraph,
+            latex_str,
+            is_block=False
+        )
+
+    @staticmethod
+    def render_display_math(
+        doc,
+        latex_str: str
+    ):
+
+        paragraph = doc.add_paragraph()
+
+        insert_math_to_paragraph(
+            paragraph,
+            latex_str,
+            is_block=True
+        )
+
+        return paragraph
+
+
+class ScienceNormalizer:
+    """
+    Tương thích ngược với code cũ.
+
+    Lưu ý:
+    Không còn dùng normalize() để biến công thức thành Unicode
+    trước khi chèn vào Word. Công thức chính thức phải đi qua
+    OMML.
+    """
+
+    @classmethod
+    def normalize(
+        cls,
+        text: str
+    ) -> str:
+
+        if not text:
+            return ""
+
+        return _normalize_math_input(
+            text
+        )
