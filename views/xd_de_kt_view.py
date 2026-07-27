@@ -21,7 +21,7 @@ except ImportError:
     export_word = None
 
 
-def render_xd_de_kt():
+def render_xd_de_kt(ai_engine=None):
     init_session_state_de_kt()
 
     st.markdown("## 📝 Xây dựng Đề kiểm tra (Ma trận - Đặc tả - Đề - Đáp án)")
