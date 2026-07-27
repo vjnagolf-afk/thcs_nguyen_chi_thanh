@@ -3,7 +3,8 @@ r"""
 ============================================================
 MODULE: views/xd_de_kt_data.py
 Logic xử lý Xây dựng Đề kiểm tra (Đọc dữ liệu, Bóc tách Metadata, Gọi AI)
-Tích hợp Kỷ luật thép: Toán OMML ($), Ảnh [IMAGE:ID], Bảng [TABLE:ID].
+Tích hợp Kỷ luật thép: CV 7991/BGDĐT-GDTrH (3 Mức độ, 4 Dạng câu hỏi)
+Toán OMML ($), Ảnh [IMAGE:ID], Bảng [TABLE:ID].
 ============================================================
 """
 
@@ -160,51 +161,65 @@ def read_multiple_files_dkt(files):
     return "\n\n".join(source_lines)
 
 # ============================================================
-# 3. GỌI AI VỚI KỶ LUẬT THÉP
+# 3. GỌI AI VỚI KỶ LUẬT THÉP (CÔNG VĂN 7991 MỚI NHẤT)
 # ============================================================
-def get_prompt_template():
-    prompt_path = "prompt_de_kt.txt"
-    if os.path.exists(prompt_path):
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return "Bạn là chuyên gia giáo dục. Dựa vào tài liệu, hãy lập Ma trận, Bản đặc tả, Đề kiểm tra và Hướng dẫn chấm."
+def get_prompt_cv7991():
+    return r"""
+Bạn là chuyên gia xây dựng Đề kiểm tra và Ma trận. BẠN PHẢI TUÂN THỦ TUYỆT ĐỐI CÔNG VĂN 7991/BGDĐT-GDTrH.
+
+1. BẮT BUỘC 3 MỨC ĐỘ ĐÁNH GIÁ: Biết (Nhận biết), Hiểu (Thông hiểu), Vận dụng. CẤM tách thêm mức độ Vận dụng cao.
+2. BẮT BUỘC 4 DẠNG CÂU HỎI TRONG MA TRẬN VÀ ĐỀ:
+   - TNKQ Nhiều lựa chọn (4 đáp án, chọn 1).
+   - TNKQ Đúng - Sai (Mỗi câu bắt buộc có 4 ý a, b, c, d để chọn đúng/sai).
+   - Trả lời ngắn.
+   - Tự luận.
+
+BẠN PHẢI XUẤT RA 4 PHẦN CHÍNH (Sử dụng Heading #):
+
+# 1. MA TRẬN ĐỀ KIỂM TRA ĐỊNH KÌ
+Vẽ 1 Bảng Markdown chính xác các cột như sau:
+| TT | Chủ đề/Chương | Nội dung/đơn vị kiến thức | Nhiều lựa chọn (Biết) | Nhiều lựa chọn (Hiểu) | Nhiều lựa chọn (Vận dụng) | Đúng - Sai (Biết) | Đúng - Sai (Hiểu) | Đúng - Sai (Vận dụng) | Trả lời ngắn (Biết) | Trả lời ngắn (Hiểu) | Trả lời ngắn (Vận dụng) | Tự luận (Biết) | Tự luận (Hiểu) | Tự luận (Vận dụng) | Tổng |
+
+Bên dưới bảng, thêm 3 dòng Markdown:
+- Tổng số câu: ...
+- Tổng số điểm: ...
+- Tỉ lệ % điểm: ...
+
+# 2. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ
+Vẽ 1 Bảng Markdown với các cột:
+| TT | Chủ đề/Chương | Nội dung/đơn vị kiến thức | Yêu cầu cần đạt | Nhiều lựa chọn | Đúng - Sai | Trả lời ngắn | Tự luận |
+
+# 3. ĐỀ KIỂM TRA CHI TIẾT
+Tuân thủ đúng 4 phần:
+**PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn.** (Thí sinh trả lời từ câu 1 đến câu... Mỗi câu hỏi thí sinh chỉ chọn một phương án).
+**PHẦN II. Câu trắc nghiệm đúng sai.** (Thí sinh trả lời từ câu 1 đến câu... Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai).
+**PHẦN III. Câu trắc nghiệm trả lời ngắn.** (Thí sinh trả lời từ câu 1 đến câu...).
+**PHẦN IV. Câu tự luận.**
+
+# 4. HƯỚNG DẪN CHẤM VÀ BẢNG ĐÁP ÁN
+Cung cấp đáp án rõ ràng cho cả 4 phần trên. Đối với Phần II (Đúng/Sai), ghi rõ từng ý a, b, c, d là Đ (Đúng) hay S (Sai).
+
+---
+[KỶ LUẬT THÉP VỀ TOÁN HỌC VÀ HÌNH ẢNH]
+- CẤM TUYỆT ĐỐI dùng dấu backtick (`) cho công thức. MỌI biểu thức, số mũ, phân số BẮT BUỘC bọc trong cặp dấu $...$.
+- GOM TRỌN VẸN CÔNG THỨC: $x^2 = 49$, $\frac{a}{b}$, $H_2SO_4$. Cấm viết 108 thay cho $10^8$.
+- NẾU DÙNG HÌNH ẢNH HOẶC BẢNG LÀM CÂU HỎI: Bắt buộc nhúng thẻ `[IMAGE: ID]` hoặc `[TABLE: ID]` được trích xuất từ dữ liệu trung gian vào đề bài. 
+- Vd: Câu 1: Quan sát hình sau [IMAGE: IMG_DKT_P1_1] và cho biết...
+"""
 
 def generate_dkt_ai(model_name: str, config: dict, source_text: str):
     """
     config: dict chứa thông tin môn, lớp, thời gian, số lượng câu TN/TL, yêu cầu đặc biệt.
     """
-    base_prompt = get_prompt_template()
-    
-    # Thay thế các placeholder nếu trong prompt có
-    prompt = base_prompt.replace("{MON_HOC}", config.get("mon_hoc", ""))
-    prompt = prompt.replace("{LOP_HOC}", config.get("lop", ""))
-    prompt = prompt.replace("{THOI_GIAN}", str(config.get("thoi_gian", "")))
-    prompt = prompt.replace("{TY_LE}", config.get("ty_le", ""))
-    prompt = prompt.replace("{YEU_CAU}", config.get("yeu_cau_dac_biet", ""))
-    
-    ky_luat_thep = r"""
-[KỶ LUẬT THÉP CẤP ĐỘ CAO NHẤT ĐỐI VỚI ĐỀ KIỂM TRA]:
-
-1. KỶ LUẬT VỀ CÔNG THỨC TOÁN - LÝ - HÓA (CHỐNG SYNTAX ERROR):
-- CẤM TUYỆT ĐỐI dùng dấu backtick (`) cho công thức.
-- MỌI biểu thức, biến số, phép tính phải được bọc trong cặp dấu $...$. 
-- ĐÚNG: $\frac{\sin i}{\sin r}$, $x^2 = 49$, $H_2SO_4$.
-- LƯU Ý SỐ MŨ: Cấm viết liền số mũ (vd: không viết 108, phải viết $10^8$). Dùng dấu gạch chéo ngược \ (vd: \sqrt, \frac, \Delta). Cấm dùng dấu gạch đứng |.
-
-2. KỶ LUẬT VỀ HÌNH ẢNH VÀ BẢNG:
-- Nếu tài liệu nguồn có HÌNH MINH HỌA [IMAGE: ID...] hoặc BẢNG DỮ LIỆU [TABLE: ID...], khi lấy nội dung đó làm câu hỏi trắc nghiệm hoặc tự luận, bạn BẮT BUỘC chèn lại chính xác thẻ `[IMAGE: ID]` hoặc `[TABLE: ID]` vào đề bài.
-- Ví dụ: "Câu 1: Quan sát hình sau và cho biết... [IMAGE: IMG_DKT_P1_1]"
-
-3. MA TRẬN VÀ BẢN ĐẶC TẢ:
-- Trình bày dạng Bảng Markdown chuẩn (| Cột 1 | Cột 2 |). Hệ thống sẽ tự động vẽ bảng Word.
-- Không được gộp ô bằng HTML, chỉ dùng Markdown Table tiêu chuẩn.
-"""
+    prompt = get_prompt_cv7991()
     
     full_prompt = (
-        ky_luat_thep 
-        + f"\n\n--- THÔNG TIN CẤU HÌNH ĐỀ KIỂM TRA ---\nMôn: {config.get('mon_hoc')}\nLớp: {config.get('lop')}\nThời gian: {config.get('thoi_gian')} phút\nTỉ lệ TN/TL: {config.get('ty_le')}\nYêu cầu thêm: {config.get('yeu_cau_dac_biet')}\n\n"
-        + f"--- HƯỚNG DẪN BIÊN SOẠN ---\n{prompt}\n\n"
-        + f"--- NGUỒN TÀI LIỆU TRUNG GIAN ---\n{source_text[:40000]}"
+        f"--- THÔNG TIN CẤU HÌNH ĐỀ KIỂM TRA ---\n"
+        f"Môn: {config.get('mon_hoc')}\nLớp: {config.get('lop')}\n"
+        f"Thời gian: {config.get('thoi_gian')} phút\nTỉ lệ: {config.get('ty_le')}\n"
+        f"Yêu cầu thêm: {config.get('yeu_cau_dac_biet')}\n\n"
+        f"--- HƯỚNG DẪN BIÊN SOẠN (CÔNG VĂN 7991) ---\n{prompt}\n\n"
+        f"--- NGUỒN TÀI LIỆU TRUNG GIAN ĐỂ LẤY KIẾN THỨC VÀ ẢNH/BẢNG ---\n{source_text[:40000]}"
     )
 
     api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
@@ -220,7 +235,7 @@ def generate_dkt_ai(model_name: str, config: dict, source_text: str):
             oai_client = openai.OpenAI(api_key=api_key)
             response = oai_client.chat.completions.create(
                 model="gpt-4o" if "Pro" in model_name else "gpt-4o-mini",
-                messages=[{"role": "system", "content": "Bạn là chuyên gia xây dựng Đề kiểm tra, Ma trận và Đặc tả. Bạn tuân thủ tuyệt đối quy định định dạng công thức Toán học bằng $...$."}, 
+                messages=[{"role": "system", "content": "Bạn là chuyên gia xây dựng Đề kiểm tra chuẩn Công văn 7991."}, 
                           {"role": "user", "content": full_prompt}],
                 max_tokens=8192
             )
