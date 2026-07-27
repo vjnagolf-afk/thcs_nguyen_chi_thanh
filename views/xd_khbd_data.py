@@ -3,7 +3,7 @@
 ============================================================
 DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
 FILE: views/xd_khbd_data.py
-(Bản chuẩn hóa Kỷ luật AI về Bảng Biểu và Hình Ảnh)
+(Bản khóa chốt Metadata và Tiêm Kỷ luật thép tuyệt đối)
 ============================================================
 """
 
@@ -238,9 +238,6 @@ def parse_docx_structured(uploaded_file):
     return {"source_name": file_name, "pages": [{"page_number": 1, "text": "\n".join(paragraphs_text), "images": [], "tables": tables_data, "figures": [], "charts": []}]}
 
 def build_intermediate_knowledge_source(structured_data):
-    """
-    ÉP CÚ PHÁP CHUẨN [IMAGE: ID] và [TABLE: ID] ĐỂ AI COPY ĐÚNG NHẤT.
-    """
     if not structured_data or not structured_data.get("pages"): 
         return "Không có dữ liệu nguồn."
     source_lines = []
@@ -273,35 +270,36 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
             p["page_number"] += offset
             combined["pages"].append(p)
         offset += len(parsed["pages"])
+        
+    # LƯU TRỮ METADATA VÀO BỘ NHỚ TRUNG TÂM ĐỂ EXPORT_WORD SỬ DỤNG
+    st.session_state["current_source_metadata"] = combined
+    
     return build_intermediate_knowledge_source(combined)
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     system_instruction = r"""
-[KỶ LUẬT THÉP - BẮT BUỘC TUÂN THỦ 100% ĐỂ TRÁNH LỖI XUẤT FILE WORD]:
+[KỶ LUẬT THÉP CẤP ĐỘ CAO NHẤT - HỦY BỎ MỌI THÓI QUEN CỦA AI]:
 
-1. KỶ LUẬT VỀ HÌNH ẢNH VÀ BẢNG BIỂU (QUAN TRỌNG NHẤT):
-- Trong Nguồn Kiến Thức, nếu có HÌNH MINH HỌA [IMAGE: ID...] hoặc BẢNG DỮ LIỆU [TABLE: ID...], bạn KHÔNG ĐƯỢC BỎ QUA.
-- Khi hoạt động cần dùng hình/bảng đó, bạn BẮT BUỘC viết chính xác thẻ `[IMAGE: ID]` hoặc `[TABLE: ID]` TRÊN MỘT DÒNG ĐỘC LẬP.
-- KHÔNG tự vẽ lại bảng Markdown (vì Word sẽ làm việc đó). CHỈ CẦN GHI THẺ `[TABLE: ID]`.
-- Ví dụ ĐÚNG: 
-  Học sinh quan sát hình dưới đây:
-  [IMAGE: IMG_P1_1]
-  Hoàn thành số liệu vào bảng:
-  [TABLE: TAB_P1_1]
-- SAI: Giáo viên chiếu Hình 5.1 (Sẽ bị mất ảnh vì thiếu thẻ [IMAGE: IMG_P1_1]).
-
-2. KỶ LUẬT TUYỆT ĐỐI VỀ CÔNG THỨC TOÁN - LÝ - HÓA (CHỐNG ĐỘT BIẾN KÝ TỰ):
-- LƯU Ý LỖI HAY GẶP CỦA AI: Số mũ thường bị viết sai thành số thường (vd: 108 thay vì 10^8). Bạn BẮT BUỘC rà soát lại và viết đúng dạng $10^8$.
-- BẮT BUỘC dùng dấu gạch chéo ngược \ cho các lệnh LaTeX. CẤM dùng | (CẤM |sqrt, |frac).
-- MỌI biểu thức, biến số, phép tính phải được GOM TRỌN VẸN VÀO MỘT CẶP DẤU $...$.
-- SAI: $n_{21}$ = $\frac{\sin i}{\sin r}$ (Bị tách rời)
-- SAI: n21 = \frac{\sin i}{\sin r} (Thiếu $)
-- ĐÚNG: $n_{21} = \frac{\sin i}{\sin r}$
+1. CẤM TUYỆT ĐỐI DÙNG DẤU BACKTICK (`) CHO CÔNG THỨC TOÁN:
+- Bạn đang dùng `sin i / sin r` hoặc `n21` -> ĐÂY LÀ LỖI RẤT NẶNG.
+- BẮT BUỘC dùng dấu $...$ cho TẤT CẢ công thức Toán, Lý, Hóa.
+- ĐÚNG: $\frac{\sin i}{\sin r}$
+- ĐÚNG: $n_{21}$
 - ĐÚNG: $c = 3 \times 10^8 \text{ m/s}$
 
-3. KỶ LUẬT VỀ VĂN PHONG:
-- CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-- TUYỆT ĐỐI CẤM các câu văn chung chung (Học sinh thực hiện nhiệm vụ, Thảo luận...). Phải nêu CỤ THỂ học sinh làm gì, đọc phần nào, tính toán gì.
+2. ÉP BUỘC CHÈN HÌNH ẢNH VÀ BẢNG:
+- NGUYÊN TẮC: Phần mềm chỉ hiển thị được Ảnh và Bảng khi bạn viết đúng thẻ ID.
+- Nếu Nguồn Kiến Thức có ghi `HÌNH MINH HỌA [IMAGE: ID...]`, bạn CẤM được phép viết "Giáo viên mô tả hình vẽ".
+- BẠN BẮT BUỘC PHẢI COPY CHÍNH XÁC THẺ `[IMAGE: ID]` VÀ `[TABLE: ID]` VÀO NỘI DUNG BÀI SOẠN.
+- Ví dụ: Học sinh quan sát hình dưới đây: [IMAGE: IMG_P1_1]
+
+3. CẤM TỰ Ý ĐÁNH SỐ THỨ TỰ HOẠT ĐỘNG:
+- BẮT BUỘC Giữ nguyên Cấu trúc Hoạt động cốt lõi: 
+  **Hoạt động 1: MỞ ĐẦU**
+  **Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI**
+  **Hoạt động 3: LUYỆN TẬP**
+  **Hoạt động 4: VẬN DỤNG**
+- CẤM TỰ CHIA NHỎ: Không được tự ý chế ra "Hoạt động 1: Tìm hiểu...", "Hoạt động 2: Định nghĩa..." nằm bên trong phần "HÌNH THÀNH KIẾN THỨC MỚI".
 """
     full_prompt = system_instruction + "\n\n" + prompt
     api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
