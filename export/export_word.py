@@ -4,7 +4,7 @@
 MODULE: export/export_word.py
 Nhiệm vụ: Bộ điều phối trung tâm kết xuất Markdown / AI Generated Content 
 thành file Word (.docx) chuẩn 5512.
-Có Auto-Fix gom trọn vẹn biểu thức toán học, CHỐNG ĐỘT BIẾN LATEX và bắt Ảnh.
+(Bản chuẩn hóa PEP-8 chống SyntaxError trên môi trường Streamlit Cloud)
 ============================================================
 """
 
@@ -62,7 +62,9 @@ except ImportError:
 try:
     from .template_loader import get_word_document
 except ImportError:
-    def get_word_document(): return Document()
+    def get_word_document(): 
+        return Document()
+
 
 # ============================================================
 # TẦNG 2 — HÀM SANITIZER VÀ AUTO-FIX GOM TRỌN TOÁN HỌC
@@ -72,10 +74,8 @@ def _sanitize_and_fix_math(text: str) -> str:
     if not text:
         return ""
 
-    # 0. KHỬ ĐỘT BIẾN KÝ TỰ: Biến |sqrt thành \sqrt, |frac thành \frac
     text = re.sub(r'\|(sqrt|frac|approx|times|sin|cos|tan|cot|lim|log|ln|alpha|beta|gamma|Delta|pi)\b', r'\\\1', text)
 
-    # 1. Bảo vệ các khối toán đã có dấu $
     protected = []
 
     def protect_math(match):
@@ -85,44 +85,20 @@ def _sanitize_and_fix_math(text: str) -> str:
     text = re.sub(r"\$\$[\s\S]*?\$\$", protect_math, text)
     text = re.sub(r"\$(?!\$)[^$\n]+?\$(?!\$)", protect_math, text)
 
-    # 2. Gom và bọc các biểu thức phương trình cơ bản (VD: x^2 = 49)
-    formula_pattern = re.compile(
-        r"""
-        (?<![\w$])
-        (
-            (?:[a-zA-Z][a-zA-Z0-9_]*|\d+)\^\{?[^{}\n]+\}? # x^2 hoặc x^{2}
-            \s*(?:=|<|>|\le|\ge|\approx|\neq)\s*
-            [^.,;:\n]+?
-            (?=[.,;:]?(?:\s|$))
-            |
-            [A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+) # n21 hoặc n_{21}
-            \s*=\s*
-            (?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})
-            |
-            \\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}
-            \s*(?:=|\approx)\s*
-            [^.,;:\n]+?
-            (?=[.,;:]?(?:\s|$))
-        )
-        (?![\w$])
-        """,
-        re.VERBOSE
-    )
+    formula_regex = r"(?<![\w$])((?:[a-zA-Z][a-zA-Z0-9_]*\vert{}\d+)\^\{?[^{}\n]+\}?\s*(?:=\vert{}<\vert{}>\vert{}\\le\vert{}\\ge\vert{}\\approx\vert{}\\neq)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s\vert{}$))|[A-Za-z](?:_\{[^{}\n]+\}|_\d+|\d+)\s*=\s*(?:\\frac\s*\{[^{}\n]+\}\s*\{[^{}\n]+\})|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}\n]+\}\s*(?:=|\\approx)\s*[^.,;:\n]+?(?=[.,;:]?(?:\s|$)))(?![\w$])"
+    formula_pattern = re.compile(formula_regex)
 
     def wrap_formula(match):
         formula = match.group(1).strip()
-        # Chuẩn hóa biến dạng n21 => n_{21} nếu có
         formula = re.sub(r"\b([A-Za-z])(\d{1,3})\b", r"\1_{\2}", formula)
         return f"${formula}$"
 
     text = formula_pattern.sub(wrap_formula, text)
 
-    # 3. Bọc các cụm lẻ loi (nếu AI xuất trần x^2 hoặc \sqrt{81})
     text = re.sub(r"(?<![$\w])([a-zA-Z]\^\{?[^{}\n\s]+\}?)(?![$])", r"$\1$", text)
     text = re.sub(r"(?<![$\\])(\\frac\s*\{[^{}\n]*\}\s*\{[^{}\n]*\})(?![$])", r"$\1$", text)
     text = re.sub(r"(?<![$\\])(\\sqrt(?:\[[^\]]*\])?\s*\{[^{}\n]*\})(?![$])", r"$\1$", text)
 
-    # 4. Khôi phục các khối toán đã bảo vệ
     for idx, original in enumerate(protected):
         text = text.replace(f"@@MATH_PROTECTED_{idx}@@", original)
 
@@ -130,18 +106,11 @@ def _sanitize_and_fix_math(text: str) -> str:
 
 
 def _parse_inline_with_math_and_images(text: str) -> List[Dict[str, Any]]:
-    """Phân tách nội dòng: Toán, Hình ảnh (từ AI Prompt), Bold, Italic."""
     tokens = []
-    # Thêm regex để bắt [IMAGE: IMG_P...] hoặc [IMAGE - ID: IMG_P...]
-    pattern = re.compile(
-        r'(\$\$(.*?)\$\$)|'                       # 1, 2: Block math
-        r'(\$([^$]+?)\$)|'                        # 3, 4: Inline math
-        r'(\[IMAGE\s*(?:-\s*ID:\s*)?([^\]]+)\])|' # 5, 6: Image tag
-        r'(\[TABLE\s*(?:-\s*ID:\s*)?([^\]]+)\])|' # 7, 8: Table tag (nếu có)
-        r'(\*\*([^*]+?)\*\*)|'                    # 9, 10: Bold
-        r'(\*([^*]+?)\*)'                         # 11, 12: Italic
-    )
+    pattern_str = r'(\$\$(.*?)\$\$)|(\$([^$]+?)\$)|(\[IMAGE\s*(?:-\s*ID:\s*)?([^\]]+)\])|(\[TABLE\s*(?:-\s*ID:\s*)?([^\]]+)\])|(\*\*([^*]+?)\*\*)|(\*([^*]+?)\*)'
+    pattern = re.compile(pattern_str)
     last_idx = 0
+    
     for match in pattern.finditer(text):
         if match.start() > last_idx:
             tokens.append({"type": "text", "content": text[last_idx:match.start()]})
@@ -151,7 +120,7 @@ def _parse_inline_with_math_and_images(text: str) -> List[Dict[str, Any]]:
         elif match.group(3):
             tokens.append({"type": "inline_math", "content": match.group(4)})
         elif match.group(5):
-            tokens.append({"type": "image", "content": match.group(6).strip()}) # Lưu ID ảnh
+            tokens.append({"type": "image", "content": match.group(6).strip()})
         elif match.group(7):
             tokens.append({"type": "text", "content": f"[BẢNG/SỐ LIỆU ĐÍNH KÈM: {match.group(8).strip()}]"}) 
         elif match.group(9):
@@ -190,14 +159,17 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
                 in_code = True
                 code_lang = s_line.lstrip("`").strip()
             continue
+        
         if in_code:
             code_buffer.append(line)
             continue
+            
         if s_line.startswith("|"):
             table_buffer.append(s_line)
             continue
         else:
             flush_table()
+            
         if not s_line:
             continue
         
@@ -208,19 +180,33 @@ def _fallback_parse_markdown(markdown_text: str) -> List[Dict[str, Any]]:
         if s_line.startswith("#"):
             match = re.match(r'^(#{1,6})\s+(.*)', s_line)
             if match:
-                ast_nodes.append({"type": "heading", "level": len(match.group(1)), "text": match.group(2), "tokens": _parse_inline_with_math_and_images(match.group(2))})
+                ast_nodes.append({
+                    "type": "heading", 
+                    "level": len(match.group(1)), 
+                    "text": match.group(2), 
+                    "tokens": _parse_inline_with_math_and_images(match.group(2))
+                })
                 continue
                 
         if s_line.startswith("- ") or s_line.startswith("* "):
-            ast_nodes.append({"type": "list_item", "style": "bullet", "level": 1, "tokens": _parse_inline_with_math_and_images(s_line[2:].strip())})
+            ast_nodes.append({
+                "type": "list_item", 
+                "style": "bullet", 
+                "level": 1, 
+                "tokens": _parse_inline_with_math_and_images(s_line[2:].strip())
+            })
             continue
             
         num_match = re.match(r'^\d+\.\s+(.*)', s_line)
         if num_match:
-            ast_nodes.append({"type": "list_item", "style": "number", "level": 1, "tokens": _parse_inline_with_math_and_images(num_match.group(1))})
+            ast_nodes.append({
+                "type": "list_item", 
+                "style": "number", 
+                "level": 1, 
+                "tokens": _parse_inline_with_math_and_images(num_match.group(1))
+            })
             continue
             
-        # Catch standard markdown image syntax
         img_match = re.match(r'^!\[(.*?)\]\((.*?)\)', s_line)
         if img_match:
             ast_nodes.append({"type": "image", "content": img_match.group(2)})
@@ -271,23 +257,29 @@ class WordExportEngine:
                             run = p.add_run(content)
                             cls._set_font(run, "Times New Roman")
                             run.font.size = Pt(13)
-                            if ttype == "bold": run.bold = True
-                            elif ttype == "italic": run.italic = True
-                            elif ttype == "underline": run.underline = True
-                            elif ttype == "strike": run.font.strike = True
-                            elif ttype == "highlight": run.font.color.rgb = RGBColor(199, 37, 78)
+                            
+                            if ttype == "bold": 
+                                run.bold = True
+                            elif ttype == "italic": 
+                                run.italic = True
+                            elif ttype == "underline": 
+                                run.underline = True
+                            elif ttype == "strike": 
+                                run.font.strike = True
+                            elif ttype == "highlight": 
+                                run.font.color.rgb = RGBColor(199, 37, 78)
                     continue
 
                 if ttype in ["inline_math", "math_inline", "math", "math_block", "block_math"]:
                     if insert_math_to_paragraph:
-                        insert_math_to_paragraph(p, content, is_block=(ttype in ["math_block", "block_math"]))
+                        is_block = (ttype in ["math_block", "block_math"])
+                        insert_math_to_paragraph(p, content, is_block=is_block)
                     else:
                         run = p.add_run(f" {content} ")
                         cls._set_font(run, "Cambria Math")
                         run.italic = True
 
                 elif ttype == "image":
-                    # Content chứa ID. Tìm base64 từ data_cache truyền vào
                     img_id = content
                     img_src = None
                     if data_cache and "pages" in data_cache:
@@ -296,12 +288,17 @@ class WordExportEngine:
                                 if img.get("id") == img_id:
                                     img_src = {"base64": img.get("base64"), "caption": img_id}
                                     break
-                            if img_src: break
-                    
-                    if insert_image_to_paragraph:
-                        insert_image_to_paragraph(p, img_src if img_src else img_id)
-                    else:
-                        p.add_run(f"[Hình ảnh: {img_id}]").italic = True
+                            if img_src: 
+                                break
+                            
+                    if insert_image_to_paragraph: 
+                        if img_src:
+                            insert_image_to_paragraph(p, img_src)
+                        else:
+                            insert_image_to_paragraph(p, img_id)
+                    else: 
+                        run_img = p.add_run(f"[Hình ảnh: {img_id}]")
+                        run_img.italic = True
 
                 else:
                     run = p.add_run(str(content))
@@ -310,17 +307,65 @@ class WordExportEngine:
 
             except Exception as e:
                 export_errors.append({"type": "inline_token", "index": idx, "token": token, "error": str(e)})
-                try: p.add_run(str(token.get("content") or token.get("text") or ""))
-                except: pass
+                try: 
+                    fallback_text = str(token.get("content") or token.get("text") or "")
+                    p.add_run(fallback_text)
+                except Exception: 
+                    pass
+
+    @classmethod
+    def _render_khbd_header(cls, doc: Document, metadata: dict):
+        try:
+            table = doc.add_table(rows=1, cols=2)
+            tblPr = table._element.xpath('w:tblPr')
+            if tblPr:
+                tblBorders = OxmlElement('w:tblBorders')
+                for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+                    border = OxmlElement(f'w:{border_name}')
+                    border.set(qn('w:val'), 'none')
+                    tblBorders.append(border)
+                tblPr[0].append(tblBorders)
+
+            c0 = table.cell(0, 0)
+            p0 = c0.paragraphs[0]
+            p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r0 = p0.add_run("TRƯỜNG: ....................................\nTỔ: ........................................")
+            r0.bold = True
+            cls._set_font(r0)
+
+            c1 = table.cell(0, 1)
+            p1 = c1.paragraphs[0]
+            p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            mon = str(metadata.get('mon', '.......')).upper()
+            lop = str(metadata.get('lop', '.......'))
+            r1 = p1.add_run(f"HỌ VÀ TÊN GIÁO VIÊN: ..........................\nMÔN: {mon}\nLỚP: {lop}")
+            r1.bold = True
+            cls._set_font(r1)
+            doc.add_paragraph()
+
+            p_title = doc.add_paragraph()
+            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title = str(metadata.get('title', '.........................')).upper()
+            rt = p_title.add_run(f"TÊN BÀI DẠY: {title}")
+            rt.bold = True
+            rt.font.size = Pt(16)
+            cls._set_font(rt)
+
+            p_time = doc.add_paragraph()
+            p_time.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            so_tiet = str(metadata.get('so_tiet', '...'))
+            r_time = p_time.add_run(f"Môn học/Hoạt động giáo dục: {mon}; Thời gian thực hiện: {so_tiet} tiết")
+            r_time.font.italic = True
+            cls._set_font(r_time)
+            doc.add_paragraph()
+        except Exception:
+            pass
 
     @classmethod
     def convert_markdown_to_docx_bytes(cls, markdown_text: str, metadata: dict = None) -> bytes:
         export_errors = []
-        
-        # SỬ DỤNG TEMPLATE CHUẨN THAY VÌ TẠO FILE TRẮNG
         doc = get_word_document()
 
-        # Áp dụng bộ lọc khử đột biến và bọc toán học
         markdown_text = _sanitize_and_fix_math(markdown_text or "")
 
         ast_nodes = []
@@ -339,6 +384,7 @@ class WordExportEngine:
 
                 if ntype == "paragraph":
                     p = doc.add_paragraph()
+                    p.paragraph_format.space_after = Pt(4)
                     raw_text = str(node.get("text", "")).strip()
 
                     tokens = node.get("tokens", [])
@@ -354,7 +400,11 @@ class WordExportEngine:
                     p.paragraph_format.space_before = Pt(10)
                     p.paragraph_format.space_after = Pt(4)
                     p.paragraph_format.keep_with_next = True
-                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if level == 1 else WD_ALIGN_PARAGRAPH.LEFT
+                    
+                    if level == 1:
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    else:
+                        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
                     tokens = node.get("tokens", [])
                     if tokens:
@@ -366,13 +416,19 @@ class WordExportEngine:
                     for r in p.runs:
                         r.bold = True
                         cls._set_font(r, "Times New Roman")
-                        r.font.size = Pt(16 if level == 1 else (14 if level == 2 else 13))
+                        if level == 1:
+                            r.font.size = Pt(16)
+                        elif level == 2:
+                            r.font.size = Pt(14)
+                        else:
+                            r.font.size = Pt(13)
 
                 elif ntype in ["block_math", "math_block"]:
                     math_content = node.get("content") or node.get("text") or ""
                     p = doc.add_paragraph()
                     p.paragraph_format.space_before = Pt(6)
                     p.paragraph_format.space_after = Pt(6)
+                    
                     if insert_math_to_paragraph:
                         insert_math_to_paragraph(p, math_content, is_block=True)
                     else:
@@ -382,7 +438,11 @@ class WordExportEngine:
                         r.italic = True
 
                 elif ntype in ["list_item", "bullet_list", "numbered_list"]:
-                    style_name = 'List Number' if (node.get("style") == "number" or ntype == "numbered_list") else 'List Bullet'
+                    if node.get("style") == "number" or ntype == "numbered_list":
+                        style_name = 'List Number'
+                    else:
+                        style_name = 'List Bullet'
+                        
                     level = node.get("level", 1)
                     p = doc.add_paragraph(style=style_name)
                     p.paragraph_format.left_indent = Inches(0.25 * level + 0.25)
@@ -408,14 +468,20 @@ class WordExportEngine:
                                 if img.get("id") == img_id:
                                     img_src = {"base64": img.get("base64"), "caption": img_id}
                                     break
-                            if img_src: break
+                            if img_src: 
+                                break
                             
-                    if insert_image_to_paragraph: insert_image_to_paragraph(p, img_src if img_src else img_id)
-                    else: p.add_run(f"[Hình ảnh: {img_id}]").italic = True
+                    if insert_image_to_paragraph: 
+                        if img_src:
+                            insert_image_to_paragraph(p, img_src)
+                        else:
+                            insert_image_to_paragraph(p, img_id)
+                    else: 
+                        run_img = p.add_run(f"[Hình ảnh: {img_id}]")
+                        run_img.italic = True
 
                 elif ntype in ["table", "table_raw_lines"]:
                     lines = node.get("lines", [])
-                    # Truyền thêm metadata để chèn ảnh/công thức vào trong ô bảng
                     if process_and_draw_markdown_table and lines:
                         process_and_draw_markdown_table(doc, lines, metadata=metadata)
                     else:
@@ -456,7 +522,6 @@ class WordExportEngine:
     def export_to_word(cls, data_cache: Dict[str, Any]) -> bytes:
         if not isinstance(data_cache, dict):
             return cls.convert_markdown_to_docx_bytes(str(data_cache))
-        # Truyền chính data_cache vào tham số metadata để hàm xuất Word có thể moi base64 ảnh ra
         return cls.convert_markdown_to_docx_bytes(data_cache.get("ai_generated_content", ""), metadata=data_cache)
 
 
