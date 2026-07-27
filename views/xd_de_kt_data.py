@@ -162,6 +162,8 @@ def parse_pdf_structured(uploaded_file, range_str=""):
             if target_pages and i not in target_pages: continue
             page = doc[i]
             page_text = safe_text(page.get_text("text"))
+            
+            # Trích xuất hình ảnh nhúng
             page_images = []
             for img_idx, img in enumerate(page.get_images(full=True)):
                 try:
@@ -173,6 +175,8 @@ def parse_pdf_structured(uploaded_file, range_str=""):
                         "base64": base64.b64encode(base_image["image"]).decode("utf-8")
                     })
                 except: pass
+                
+            # Trích xuất bảng biểu
             page_tables = []
             try:
                 tabs = page.find_tables()
@@ -183,10 +187,11 @@ def parse_pdf_structured(uploaded_file, range_str=""):
                             page_tables.append({
                                 "id": f"TAB_P{i+1}_{t_idx+1}",
                                 "page": i + 1,
-                                "headers": [str(c) for c in extracted_df[0]],
-                                "rows": [[str(c) for c in r] for r in extracted_df[1:]]
+                                "headers": [str(c) if c is not None else "" for c in extracted_df[0]],
+                                "rows": [[str(c) if c is not None else "" for c in r] for r in extracted_df[1:]]
                             })
             except: pass
+            
             pages_data.append({"page_number": i + 1, "text": page_text, "images": page_images, "tables": page_tables, "figures": [], "charts": []})
     except Exception as e:
         logger.error(f"Lỗi đọc cấu trúc PDF: {e}")
@@ -219,7 +224,8 @@ def build_intermediate_knowledge_source(structured_data):
         if page["text"]: source_lines.append(f"[TEXT - Trang {p_num}]\n{page['text']}")
         for tab in page.get("tables", []):
             source_lines.append(f"[TABLE - ID: {tab['id']} - Trang {p_num}]\nHeaders: {' | '.join(tab['headers'])}\nRows:\n" + "\n".join([' | '.join(r) for r in tab['rows']]))
-        for img in page.get("images", []): source_lines.append(f"[IMAGE - ID: {img['id']} - Trang {p_num}]")
+        for img in page.get("images", []): 
+            source_lines.append(f"[IMAGE - ID: {img['id']} - Trang {p_num}]")
     return "\n\n".join(source_lines)
 
 def read_pdf(uploaded_file, range_str=""): return "\n".join([p["text"] for p in parse_pdf_structured(uploaded_file, range_str)["pages"]])
@@ -237,40 +243,28 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
     system_instruction = """
-[KỶ LUẬT THÉP VỀ NỘI DUNG VÀ CẤU TRÚC TEMPLATE - CHỐNG CỤT NGỦN VÀ CHỐNG CHUNG CHUNG 100%]:
-1. CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-2. BẠN PHẢI SỬ DỤNG TRỰC TIẾP VÀ CHÍNH XÁC DỮ LIỆU TỪ NGUỒN KIẾN THỨC TRUNG GIAN ĐƯỢC CUNG CẤP. 
-3. TUYỆT ĐỐI CẤM CÁC CÂU VĂN CHUNG CHUNG (Học sinh thực hiện nhiệm vụ, Thảo luận và trình bày kết quả, Giáo viên nhận xét kết luận...).
+[KỶ LUẬT THÉP - BẮT BUỘC TUÂN THỦ 100% ĐỂ TRÁNH LỖI XUẤT FILE WORD]:
 
-5. KỶ LUẬT TUYỆT ĐỐI VỀ CÔNG THỨC TOÁN - VẬT LÝ - HÓA HỌC:
-- TUYỆT ĐỐI KHÔNG ĐƯỢC xuất hiện LaTeX trần ngoài dấu $...$ hoặc $$...$$.
-- MỌI biểu thức toán học, vật lý, hóa học phải được bao trọn trong một cặp dấu $...$ hoặc $$...$$.
-- Nếu một câu có công thức, phải bao trọn TOÀN BỘ BIỂU THỨC liên quan, không được tách rời các thành phần của cùng một công thức.
+1. KỶ LUẬT VỀ HÌNH ẢNH VÀ BẢNG BIỂU (QUAN TRỌNG NHẤT):
+- Trong Nguồn Kiến Thức cung cấp cho bạn, nếu có các thẻ `[IMAGE - ID: ...]`, `[TABLE - ID: ...]`, bạn KHÔNG ĐƯỢC BỎ QUA.
+- Khi tóm tắt hoặc viết vào bài soạn (đặc biệt ở mục b và d), nếu hoạt động đó dùng hình ảnh/bảng, BẠN BẮT BUỘC PHẢI COPY CHÍNH XÁC MÃ ID VÀO GIÁO ÁN.
+- CÚ PHÁP BẮT BUỘC ĐỂ HỆ THỐNG XUẤT ẢNH: `[IMAGE: ID_CỦA_HÌNH]`
+- Ví dụ ĐÚNG: Giáo viên yêu cầu học sinh quan sát [IMAGE: IMG_P1_1] và hoàn thành bảng [TABLE: TAB_P1_1].
+- Sai: Giáo viên yêu cầu quan sát hình 1. (Hệ thống sẽ bị mất ảnh).
 
-SAI:
-Chiết suất tỉ đối n21 = \\frac{\\sin i}{\\sin r}.
+2. KỶ LUẬT TUYỆT ĐỐI VỀ CÔNG THỨC TOÁN - LÝ - HÓA (CHỐNG ĐỘT BIẾN KÝ TỰ):
+- BẮT BUỘC dùng dấu gạch chéo ngược `\` cho các lệnh LaTeX. TUYỆT ĐỐI CẤM dùng dấu gạch đứng `|` (Ví dụ: CẤM dùng |sqrt, |frac. PHẢI DÙNG \sqrt, \frac).
+- MỌI biểu thức, biến số (x, y, a, b), phép tính phải được BỌC TRONG DẤU $...$.
+- GOM TRỌN VẸN toàn bộ biểu thức vào một cặp dấu $.
+- SAI: $x$^2 = 49
+- SAI: $x^2$ = 49
+- ĐÚNG: $x^2 = 49$
+- ĐÚNG: $\sqrt{81} = 9$ (TUYỆT ĐỐI KHÔNG VIẾT |\sqrt{81} = 9)
+- ĐÚNG: Căn bậc hai của $\frac{7}{11}$ là $\approx 3,33$.
 
-SAI:
-Chiết suất tỉ đối $n_{21}$ = $\\frac{\\sin i}{\\sin r}$.
-
-ĐÚNG:
-Chiết suất tỉ đối $n_{21} = \\frac{\\sin i}{\\sin r}$.
-
-ĐÚNG:
-Theo định luật khúc xạ ánh sáng, chiết suất tỉ đối được xác định bởi
-$$
-n_{21} = \\frac{\\sin i}{\\sin r}.
-$$
-
-Các quy tắc bắt buộc:
-- Chỉ số dưới: $n_{21}$, $H_2O$, $v_1$.
-- Số mũ: $x^2$, $10^8$.
-- Phân số: $\\frac{a}{b}$.
-- Căn thức: $\\sqrt{x}$.
-- Hàm lượng giác: $\\sin i$, $\\cos r$, $\\tan \\alpha$.
-- Đơn vị nằm trong công thức phải dùng \\text{}: $c = 3 \\times 10^8 \\text{ m/s}$.
-- Công thức hóa học phải đặt trong $...$: $H_2O$, $CO_2$.
-- Khi nêu hình ảnh từ nguồn, bắt buộc xuất dạng: ![Tên hình](ID_HÌNH) hoặc [IMAGE:ID_HÌNH].
+3. KỶ LUẬT VỀ CẤU TRÚC VÀ VĂN PHONG:
+- CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
+- TUYỆT ĐỐI CẤM các câu văn chung chung (Học sinh thực hiện nhiệm vụ, Thảo luận và trình bày kết quả...). Các bước Chuyển giao, Thực hiện, Báo cáo, Kết luận phải nêu CỤ THỂ học sinh làm gì, đọc phần nào, tính toán gì.
 """
     full_prompt = system_instruction + "\n\n" + prompt
     api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
@@ -312,4 +306,4 @@ def validate_khbd_result(text):
 def build_prompt(thong_tin, noi_dung_chinh, noi_dung_ga, nls_str, tich_hop_ai, tich_hop_hoa_nhap, nhu_cau_hoa_nhap, mode, so_tiet):
     source = safe_text(noi_dung_chinh)[:35000]
     ga_block = f"--- GIÁO ÁN CŨ ĐỂ CHỈNH SỬA ---\n{safe_text(noi_dung_ga)[:10000]}\n" if mode == "chinh_sua" else ""
-    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\nNHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY {so_tiet} TIẾT BÁM SÁT NGUỒN SAU:\n\n--- NGUỒN KIẾN THỨC TRUNG GIAN ---\n{source}\n\n{ga_block}"
+    return f"--- THÔNG TIN CHUNG ---\n{thong_tin}\n\nNHIỆM VỤ: SOẠN KẾ HOẠCH BÀI DẠY {so_tiet} TIẾT BÁM SÁT NGUỒN SAU:\n\n--- NGUỒN KIẾN THỨC TRUNG GIAN (CHỨA TEXT, ẢNH VÀ BẢNG) ---\n{source}\n\n{ga_block}"
