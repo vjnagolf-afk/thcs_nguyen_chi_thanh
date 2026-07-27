@@ -3,7 +3,7 @@
 ============================================================
 DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
 FILE: views/xd_khbd_data.py
-(Bản chuẩn hóa PEP-8 chống SyntaxError do Escape Character)
+(Bản chuẩn hóa Kỷ luật AI về Bảng Biểu và Hình Ảnh)
 ============================================================
 """
 
@@ -238,6 +238,9 @@ def parse_docx_structured(uploaded_file):
     return {"source_name": file_name, "pages": [{"page_number": 1, "text": "\n".join(paragraphs_text), "images": [], "tables": tables_data, "figures": [], "charts": []}]}
 
 def build_intermediate_knowledge_source(structured_data):
+    """
+    ÉP CÚ PHÁP CHUẨN [IMAGE: ID] và [TABLE: ID] ĐỂ AI COPY ĐÚNG NHẤT.
+    """
     if not structured_data or not structured_data.get("pages"): 
         return "Không có dữ liệu nguồn."
     source_lines = []
@@ -247,9 +250,9 @@ def build_intermediate_knowledge_source(structured_data):
         if page["text"]: 
             source_lines.append(f"[TEXT - Trang {p_num}]\n{page['text']}")
         for tab in page.get("tables", []):
-            source_lines.append(f"[TABLE - ID: {tab['id']} - Trang {p_num}]\nHeaders: {' | '.join(tab['headers'])}\nRows:\n" + "\n".join([' | '.join(r) for r in tab['rows']]))
+            source_lines.append(f"BẢNG DỮ LIỆU [TABLE: {tab['id']}]\nHeaders: {' | '.join(tab['headers'])}\nRows:\n" + "\n".join([' | '.join(r) for r in tab['rows']]))
         for img in page.get("images", []): 
-            source_lines.append(f"[IMAGE - ID: {img['id']} - Trang {p_num}]")
+            source_lines.append(f"HÌNH MINH HỌA [IMAGE: {img['id']}]")
     return "\n\n".join(source_lines)
 
 def read_pdf(uploaded_file, range_str=""): 
@@ -273,30 +276,32 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
     return build_intermediate_knowledge_source(combined)
 
 def generate_ai(client, prompt, model_name="3.5 Flash"):
-    # SỬ DỤNG r"""...""" ĐỂ CHỐNG LỖI CÚ PHÁP (SYNTAX ERROR) DO DẤU \
     system_instruction = r"""
 [KỶ LUẬT THÉP - BẮT BUỘC TUÂN THỦ 100% ĐỂ TRÁNH LỖI XUẤT FILE WORD]:
 
 1. KỶ LUẬT VỀ HÌNH ẢNH VÀ BẢNG BIỂU (QUAN TRỌNG NHẤT):
-- Trong Nguồn Kiến Thức cung cấp cho bạn, nếu có các thẻ `[IMAGE - ID: ...]`, `[TABLE - ID: ...]`, bạn KHÔNG ĐƯỢC BỎ QUA.
-- Khi tóm tắt hoặc viết vào bài soạn (đặc biệt ở mục b và d), nếu hoạt động đó dùng hình ảnh/bảng, BẠN BẮT BUỘC PHẢI COPY CHÍNH XÁC MÃ ID VÀO GIÁO ÁN.
-- CÚ PHÁP BẮT BUỘC ĐỂ HỆ THỐNG XUẤT ẢNH: `[IMAGE: ID_CỦA_HÌNH]`
-- Ví dụ ĐÚNG: Giáo viên yêu cầu học sinh quan sát [IMAGE: IMG_P1_1] và hoàn thành bảng [TABLE: TAB_P1_1].
-- Sai: Giáo viên yêu cầu quan sát hình 1. (Hệ thống sẽ bị mất ảnh).
+- Trong Nguồn Kiến Thức, nếu có HÌNH MINH HỌA [IMAGE: ID...] hoặc BẢNG DỮ LIỆU [TABLE: ID...], bạn KHÔNG ĐƯỢC BỎ QUA.
+- Khi hoạt động cần dùng hình/bảng đó, bạn BẮT BUỘC viết chính xác thẻ `[IMAGE: ID]` hoặc `[TABLE: ID]` TRÊN MỘT DÒNG ĐỘC LẬP.
+- KHÔNG tự vẽ lại bảng Markdown (vì Word sẽ làm việc đó). CHỈ CẦN GHI THẺ `[TABLE: ID]`.
+- Ví dụ ĐÚNG: 
+  Học sinh quan sát hình dưới đây:
+  [IMAGE: IMG_P1_1]
+  Hoàn thành số liệu vào bảng:
+  [TABLE: TAB_P1_1]
+- SAI: Giáo viên chiếu Hình 5.1 (Sẽ bị mất ảnh vì thiếu thẻ [IMAGE: IMG_P1_1]).
 
 2. KỶ LUẬT TUYỆT ĐỐI VỀ CÔNG THỨC TOÁN - LÝ - HÓA (CHỐNG ĐỘT BIẾN KÝ TỰ):
-- BẮT BUỘC dùng dấu gạch chéo ngược \ cho các lệnh LaTeX. TUYỆT ĐỐI CẤM dùng dấu gạch đứng | (Ví dụ: CẤM dùng |sqrt, |frac. PHẢI DÙNG \sqrt, \frac).
-- MỌI biểu thức, biến số (x, y, a, b), phép tính phải được BỌC TRONG DẤU $...$.
-- GOM TRỌN VẸN toàn bộ biểu thức vào một cặp dấu $.
-- SAI: $x$^2 = 49
-- SAI: $x^2$ = 49
-- ĐÚNG: $x^2 = 49$
-- ĐÚNG: $\sqrt{81} = 9$
-- ĐÚNG: Căn bậc hai của $\frac{7}{11}$ là $\approx 3,33$.
+- LƯU Ý LỖI HAY GẶP CỦA AI: Số mũ thường bị viết sai thành số thường (vd: 108 thay vì 10^8). Bạn BẮT BUỘC rà soát lại và viết đúng dạng $10^8$.
+- BẮT BUỘC dùng dấu gạch chéo ngược \ cho các lệnh LaTeX. CẤM dùng | (CẤM |sqrt, |frac).
+- MỌI biểu thức, biến số, phép tính phải được GOM TRỌN VẸN VÀO MỘT CẶP DẤU $...$.
+- SAI: $n_{21}$ = $\frac{\sin i}{\sin r}$ (Bị tách rời)
+- SAI: n21 = \frac{\sin i}{\sin r} (Thiếu $)
+- ĐÚNG: $n_{21} = \frac{\sin i}{\sin r}$
+- ĐÚNG: $c = 3 \times 10^8 \text{ m/s}$
 
-3. KỶ LUẬT VỀ CẤU TRÚC VÀ VĂN PHONG:
+3. KỶ LUẬT VỀ VĂN PHONG:
 - CẤM VIẾT LỜI CHÀO/KẾT LUẬN. Bắt đầu ngay lập tức bằng "# TÊN BÀI HỌC:".
-- TUYỆT ĐỐI CẤM các câu văn chung chung (Học sinh thực hiện nhiệm vụ, Thảo luận và trình bày kết quả...). Các bước Chuyển giao, Thực hiện, Báo cáo, Kết luận phải nêu CỤ THỂ học sinh làm gì, đọc phần nào, tính toán gì.
+- TUYỆT ĐỐI CẤM các câu văn chung chung (Học sinh thực hiện nhiệm vụ, Thảo luận...). Phải nêu CỤ THỂ học sinh làm gì, đọc phần nào, tính toán gì.
 """
     full_prompt = system_instruction + "\n\n" + prompt
     api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
