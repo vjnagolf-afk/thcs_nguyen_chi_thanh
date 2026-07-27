@@ -3,8 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_chu_nhiem.py
 Nhiệm vụ: Trợ lý Công tác Chủ nhiệm & Tâm lý học đường.
-Kết nối trực tiếp qua ai_engine_2.py.
-Tích hợp tính năng Lưu kết quả (Session State) và Xuất file Word.
+ĐÃ CẮT BỎ ENGINE CŨ - KẾT NỐI TRỰC TIẾP TỚI AIEngine2 MỚI NHẤT.
 ============================================================
 """
 
@@ -19,46 +18,21 @@ try:
 except ImportError:
     export_word = None
 
-# ============================================================
-# 1. HÀM GỌI AI ENGINE (TƯƠNG THÍCH ĐA PHIÊN BẢN SDK)
-# ============================================================
-def call_chu_nhiem_ai(ai_engine, prompt):
-    """
-    Giao tiếp với `ai_engine_2.py`.
-    Thích ứng thông minh với các hàm có trong Engine của dự án.
-    """
-    if ai_engine is None:
-        raise ValueError("Chưa kết nối AI Engine.")
-        
-    try:
-        # Ưu tiên SDK Google GenAI mới nhất (nếu ai_engine_2.py đã cập nhật)
-        if hasattr(ai_engine, "client") and hasattr(ai_engine.client, "models"):
-            response = ai_engine.client.models.generate_content(
-                model="gemini-2.5-pro", # Dùng Pro cho các bài toán suy luận tâm lý sâu
-                contents=prompt
-            )
-            return response.text
-        # Fallback về các hàm cũ
-        elif hasattr(ai_engine, "generate_text"):
-            return ai_engine.generate_text(prompt)
-        elif hasattr(ai_engine, "generate"):
-            return ai_engine.generate(prompt)
-        else:
-            raise AttributeError("Không tìm thấy hàm gọi AI hợp lệ trong ai_engine.")
-            
-    except Exception as e:
-        logger.error(f"Lỗi AI Chủ nhiệm: {e}")
-        raise RuntimeError(f"Sự cố khi gọi AI: {e}")
+# BẮT BUỘC IMPORT TRỰC TIẾP AI ENGINE 2 MỚI NHẤT ĐỂ BỎ QUA ENGINE CŨ
+try:
+    from utils.ai_engine_2 import AIEngine2
+except ImportError:
+    AIEngine2 = None
 
 # ============================================================
-# 2. GIAO DIỆN VÀ LOGIC CHÍNH
+# GIAO DIỆN VÀ LOGIC CHÍNH
 # ============================================================
-def render_xd_chu_nhiem(ai_engine=None):
+def render_xd_chu_nhiem(ai_engine_cu_tu_app_py=None):
     # Khởi tạo bộ nhớ tạm để giữ kết quả không bị mất khi thao tác
     if "cn_result" not in st.session_state:
         st.session_state["cn_result"] = None
     if "cn_chu_de" not in st.session_state:
-        st.session_state["cn_chu_de"] = "Tư_vấn"
+        st.session_state["cn_chu_de"] = "Tu_van"
 
     st.markdown("### 👨‍👩‍👧‍👦 Trợ lý Công tác Chủ nhiệm & Tâm lý")
     st.info("💡 **Góc chuyên gia:** AI sẽ đóng vai trò là một chuyên gia tâm lý học đường, hỗ trợ phân tích nguyên nhân sâu xa, đưa ra từng bước xử lý sư phạm và gợi ý cả **kịch bản lời thoại** để Thầy/Cô giao tiếp với Phụ huynh/Học sinh.")
@@ -96,6 +70,10 @@ def render_xd_chu_nhiem(ai_engine=None):
 
     # XỬ LÝ SỰ KIỆN NÚT BẤM
     if btn_tu_van:
+        if AIEngine2 is None:
+            st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`. Vui lòng kiểm tra lại cấu trúc dự án.")
+            return
+            
         if not tinh_huong.strip():
             st.warning("⚠️ Vui lòng mô tả chi tiết tình huống để AI có cơ sở tư vấn.")
         else:
@@ -123,13 +101,20 @@ Hãy giúp giải quyết tình huống sư phạm sau đây một cách thấu 
 (Làm sao để lớp không lặp lại tình trạng này).
 """
                 try:
-                    result = call_chu_nhiem_ai(ai_engine, prompt)
-                    # Lưu vào Session State để không bị mất khi tải lại trang
-                    st.session_state["cn_result"] = result
-                    # Lưu tên chủ đề để làm tên file Word
-                    st.session_state["cn_chu_de"] = chu_de.split("(")[0].strip().replace(" ", "_")
+                    # Khởi tạo trực tiếp AIEngine2 (bỏ qua cái cũ)
+                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
+                    result = engine_v2.generate_text(prompt)
+                    
+                    # Nếu AI Engine 2 trả về chuỗi báo lỗi (bắt đầu bằng ❌)
+                    if result.startswith("❌") or result.startswith("⚠️"):
+                        st.error(result)
+                    else:
+                        # Lưu vào Session State để không bị mất khi tải lại trang
+                        st.session_state["cn_result"] = result
+                        st.session_state["cn_chu_de"] = chu_de.split("(")[0].strip().replace(" ", "_")
+                        
                 except Exception as e:
-                    st.error(f"❌ {e}")
+                    st.error(f"❌ Xảy ra lỗi hệ thống: {e}")
 
     # HIỂN THỊ KẾT QUẢ VÀ XUẤT WORD
     if st.session_state.get("cn_result"):
