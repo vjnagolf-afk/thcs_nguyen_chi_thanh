@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_live.py
 Nhiệm vụ: Trợ lý Kịch bản Tương tác Trực tiếp (Live) - Cấp độ Bậc thầy.
-Đã fix lỗi SyntaxError ở dòng st.info.
+TÍCH HỢP: Sinh bộ Prompt chuyên nghiệp cho AI Video (Google Veo, Sora, HeyGen)
 ============================================================
 """
 
@@ -25,14 +25,15 @@ except ImportError:
     AIEngine2 = None
 
 def render_xd_live(ai_engine_cu=None):
-    # Khởi tạo bộ nhớ tạm để giữ kết quả kịch bản
+    # Khởi tạo bộ nhớ tạm
     if "live_result" not in st.session_state:
         st.session_state["live_result"] = None
     if "live_topic" not in st.session_state:
         st.session_state["live_topic"] = "Kich_Ban_Live"
+    if "video_prompts" not in st.session_state:
+        st.session_state["video_prompts"] = None
 
     st.markdown("### 🔴 Trợ lý Kịch bản Tương tác Trực tiếp (Live)")
-    # Đã sửa lỗi SyntaxError bằng cách dùng dấu nháy đơn bọc chuỗi bên ngoài
     st.info('💡 **Góc chuyên gia:** Biến tiết dạy thành một show truyền hình thực tế! AI sẽ đóng vai trò là một Đạo diễn, MC và Giám khảo lão luyện để viết cho Thầy/Cô kịch bản từng lời dẫn, cách "rắc muối" và điều phối tranh biện đỉnh cao.')
     
     with st.container(border=True):
@@ -54,8 +55,11 @@ def render_xd_live(ai_engine_cu=None):
             
         boi_canh = st.text_area("Bối cảnh thêm hoặc Từ khóa cần nhấn mạnh (Tuỳ chọn):", height=80, placeholder="VD: HS đang khá buồn ngủ vì là tiết 5, cần game tương tác vật lý một chút...")
             
-        btn_tao_live = st.button("🔥 TẠO KỊCH BẢN ĐIỀU PHỐI ĐỈNH CAO", type="primary", use_container_width=True)
+        btn_tao_live = st.button("🔥 1. TẠO KỊCH BẢN ĐIỀU PHỐI ĐỈNH CAO", type="primary", use_container_width=True)
 
+    # ========================================================
+    # XỬ LÝ: TẠO KỊCH BẢN LIVE
+    # ========================================================
     if btn_tao_live:
         if AIEngine2 is None:
             st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`. Vui lòng kiểm tra lại cấu trúc dự án.")
@@ -64,6 +68,9 @@ def render_xd_live(ai_engine_cu=None):
         if not chu_de_live.strip():
             st.warning("⚠️ Vui lòng nhập Chủ đề bài học để AI có chất liệu sáng tạo.")
         else:
+            # Xóa prompt video cũ nếu tạo kịch bản mới
+            st.session_state["video_prompts"] = None 
+            
             with st.spinner("⏳ AI đang hóa thân thành Đạo diễn sân khấu & Giám khảo quyền lực để viết kịch bản..."):
                 prompt = f"""
 BẠN LÀ MỘT BẬC THẦY VỀ NGHỆ THUẬT GIẢNG DẠY, MỘT GIÁM KHẢO SẮC BÉN VÀ LÀ MỘT MC ĐẦY LÔI CUỐN.
@@ -100,9 +107,8 @@ HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phí
 - Tuyệt đối không dùng dấu backtick (`) cho công thức Toán.
 """
                 try:
-                    # Khởi tạo AIEngine2 (Dùng Pro để khả năng sáng tạo ngôn từ phong phú nhất)
                     engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                    result = engine_v2.generate_text(prompt, temperature=0.8) # Tăng temperature để tăng độ sáng tạo
+                    result = engine_v2.generate_text(prompt, temperature=0.8)
                     
                     if result.startswith("❌") or result.startswith("⚠️"):
                         st.error(result)
@@ -114,39 +120,90 @@ HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phí
                     st.error(f"❌ Lỗi hệ thống: {e}")
 
     # ========================================================
-    # HIỂN THỊ KẾT QUẢ & XUẤT FILE
+    # HIỂN THỊ KẾT QUẢ & CÁC NÚT TÍNH NĂNG MỞ RỘNG
     # ========================================================
     if st.session_state.get("live_result"):
         st.markdown("---")
         st.markdown("### 🎭 KỊCH BẢN ĐIỀU PHỐI ĐỈNH CAO")
-        
         st.markdown(st.session_state["live_result"], unsafe_allow_html=True)
         
-        st.markdown("### 📥 Tải Kịch bản (In ra để dẫn chương trình)")
-        if export_word is None:
-            st.warning("⚠️ Module Word chưa sẵn sàng.")
-        else:
-            try:
-                export_data = {
-                    "ai_generated_content": st.session_state["live_result"],
-                    "is_dkt": False
-                }
-                with st.spinner("Đang kết xuất Word..."):
+        # Nhóm tính năng Xuất file và Tạo Video
+        col_down, col_video = st.columns([1, 1])
+        with col_down:
+            st.markdown("#### 📥 Tải Kịch bản (Bản in)")
+            if export_word:
+                try:
+                    export_data = {"ai_generated_content": st.session_state["live_result"], "is_dkt": False}
                     word_bytes = export_word(export_data)
+                    safe_topic = st.session_state.get("live_topic", "Kich_Ban")[:30]
+                    st.download_button(
+                        label="📄 TẢI KỊCH BẢN (.DOCX)",
+                        data=word_bytes,
+                        file_name=f"Live_Script_{safe_topic}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"Lỗi xuất Word: {e}")
+            else:
+                st.warning("⚠️ Module Word chưa sẵn sàng.")
+
+        with col_video:
+            st.markdown("#### 🎬 Chuyển hóa thành Video Tương tác")
+            btn_tao_video = st.button("🪄 2. Sinh bộ Prompt tạo AI Video (Veo/HeyGen)", use_container_width=True, type="secondary")
+
+        # ========================================================
+        # XỬ LÝ: SINH PROMPT AI VIDEO
+        # ========================================================
+        if btn_tao_video:
+            with st.spinner("⏳ AI đang phân rã kịch bản thành Storyboard và thiết kế bộ lệnh Prompt (Camera, Ánh sáng, Voice)..."):
+                video_prompt = f"""
+Bạn là một Đạo diễn Phim & Chuyên gia AI Video (Google Veo, Sora, HeyGen, Midjourney).
+Dựa vào Kịch bản văn bản dưới đây, hãy "chuyển thể" nó thành bảng phân cảnh (Storyboard) chi tiết kèm các Prompt chuẩn xác nhất để nạp vào các cỗ máy tạo Video AI.
+
+[YÊU CẦU QUAN TRỌNG: TÍNH XUYÊN SUỐT VÀ NHẤT QUÁN]
+- Xác định 1 nhân vật MC (giáo viên ảo) duy nhất: Mô tả rõ giới tính, trang phục, phong cách (ví dụ: "nam giáo viên châu Á, 30 tuổi, mặc vest xanh navy lịch lãm"). BẮT BUỘC lặp lại mô tả này trong mọi phân cảnh để AI Video không đổi mặt nhân vật.
+- Xác định 1 bối cảnh xuyên suốt (ví dụ: "Lớp học tương lai", "Studio ánh sáng vàng").
+- Nếu có nhiều phân cảnh, phải giữ nguyên vẹn tone giọng và nhân vật.
+
+Hãy chia thành các Phân cảnh (Scene 1, Scene 2...) và trình bày ĐÚNG cấu trúc sau cho mỗi cảnh bằng Markdown:
+
+## 🎬 Phân cảnh [Số]: [Tên cảnh]
+- **👤 Nhất quán Nhân vật & Bối cảnh:** [Mô tả ngắn gọn đặc điểm cố định để giữ tính xuyên suốt]
+- **🎥 Prompt Video (Tiếng Anh - Dùng cho Google Veo/Sora):** [Prompt tiếng Anh chuyên nghiệp: Góc máy (Medium shot, Close-up...), Ánh sáng (cinematic lighting), Hành động, Bối cảnh. 
+Ví dụ: "Medium shot, a charismatic 30-year-old Asian male teacher in a sharp navy blue suit standing in a futuristic classroom, explaining passionately, dramatic lighting, 4k, hyper-realistic, highly detailed..."]
+- **🎥 Prompt Video (Tiếng Việt):** [Bản dịch chuẩn xác và mượt mà của prompt tiếng Anh ở trên]
+- **🗣️ Lời thoại (Dùng cho HeyGen/TTS):** [Trích xuất chính xác lời thoại tiếng Việt của MC trong kịch bản để lồng tiếng]
+- **🖱️ Điểm chạm Tương tác (Dùng cho Edpuzzle/H5P):** [Chỉ định rõ: Tại giây này, chèn hiệu ứng pop-up câu hỏi gì, yêu cầu học sinh bấm vào đâu]
+
+--- KỊCH BẢN GỐC ---
+{st.session_state["live_result"]}
+"""
+                try:
+                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
+                    video_result = engine_v2.generate_text(video_prompt, temperature=0.7)
+                    
+                    if video_result.startswith("❌") or video_result.startswith("⚠️"):
+                        st.error(video_result)
+                    else:
+                        st.session_state["video_prompts"] = video_result
+                        
+                except Exception as e:
+                    st.error(f"❌ Lỗi hệ thống khi sinh Prompt Video: {e}")
+
+        # Hiển thị bộ Prompt Video nếu đã tạo
+        if st.session_state.get("video_prompts"):
+            st.markdown("---")
+            st.success("✅ Đã thiết kế xong Bảng phân cảnh và Bộ lệnh Prompt AI Video!")
+            
+            with st.expander("🎞️ BỘ PROMPT AI VIDEO & TƯƠNG TÁC (Bấm để xem chi tiết)", expanded=True):
+                st.markdown(st.session_state["video_prompts"], unsafe_allow_html=True)
                 
-                safe_topic = st.session_state.get("live_topic", "Kich_Ban")[:30]
-                
+                # Nút copy/tải file text đơn giản để paste sang web khác
                 st.download_button(
-                    label="📘 TẢI KỊCH BẢN (.DOCX)",
-                    data=word_bytes,
-                    file_name=f"Live_Script_{safe_topic}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True,
-                    type="primary"
+                    label="📋 Tải Bộ Prompt (.TXT) để Copy-Paste",
+                    data=st.session_state["video_prompts"],
+                    file_name="AI_Video_Prompts.txt",
+                    mime="text/plain",
+                    use_container_width=True
                 )
-            except Exception as e:
-                st.error(f"Lỗi xuất Word: {e}")
-                
-        if st.button("🔄 Lên kịch bản cho bài khác", use_container_width=True):
-            st.session_state["live_result"] = None
-            st.rerun()
