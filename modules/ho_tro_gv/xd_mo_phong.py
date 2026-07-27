@@ -3,8 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_mo_phong.py
 Nhiệm vụ: Trợ lý Mô phỏng & Phòng Thí nghiệm Ảo.
-Nhóm 1: Nhúng và kết nối kho thí nghiệm PhET & MozaWeb 3D.
-Nhóm 2: Trợ lý AI thiết kế kịch bản mô phỏng toàn diện (An toàn, Không gian/Thời gian, Quản lý & Tương tác).
+ĐÃ FIX LỖI: Sửa hàm strip5 thành strip().
 ============================================================
 """
 
@@ -55,7 +54,6 @@ def render_xd_mo_phong(ai_engine_cu=None):
                 st.markdown("Hơn 150 mô phỏng tương tác miễn phí về Vật lý, Hóa học, Sinh học, Toán học và Khoa học Trái Đất.")
                 st.markdown("[🔗 Truy cập trang chủ PhET](https://phet.colorado.edu/)", unsafe_allow_html=True)
                 
-                # Tùy chọn nhúng iFrame PhET trực tiếp vào giao diện Streamlit
                 if st.checkbox("💻 Nhúng trực tiếp PhET vào ứng dụng", value=False, key="embed_phet"):
                     st.components.v1.iframe("https://phet.colorado.edu/sims/html/density/latest/density_en.html", height=450, scrolling=True)
 
@@ -105,6 +103,10 @@ def render_xd_mo_phong(ai_engine_cu=None):
                 st.warning("⚠️ Vui lòng nhập đầy đủ Môn học và Chủ đề bài học.")
             else:
                 with st.spinner("⏳ AI đang lập chiến lược mô phỏng, tích hợp các công nghệ ảo hóa tiên tiến..."):
+                    
+                    # Đã fix lỗi strip5 thành strip() ở đây
+                    yeu_cau_str = yeu_cau_chi_tiet.strip() if yeu_cau_chi_tiet else 'Không có'
+
                     prompt = f"""
 BẠN LÀ MỘT CHUYÊN GIA CÔNG TRÌNH GIÁO DỤC (EDTECH EXPERT) VÀ KIẾN TRÚC SƯ THỰC TẾ ẢO (VR/AR/SIMULATION).
 Nhiệm vụ của bạn là thiết kế một Kịch bản Mô phỏng Giảng dạy hoàn chỉnh dựa trên các tiêu chí chuyên sâu.
@@ -114,7 +116,7 @@ Nhiệm vụ của bạn là thiết kế một Kịch bản Mô phỏng Giảng
 - Chủ đề: {chu_de}
 - Đối tượng: {do_tuoi}
 - Trọng tâm mô phỏng được chọn: {nhom_tinh_nang}
-- Yêu cầu riêng từ Giáo viên: {yeu_cau_chi_tiet if yeu_cau_chi_tiet.strip5 else 'Không có'}
+- Yêu cầu riêng từ Giáo viên: {yeu_cau_str}
 
 --- CẤU TRÚC KỊCH BẢN MÔ PHỎNG BẮT BUỘC ---
 
