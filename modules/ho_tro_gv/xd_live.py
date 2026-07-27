@@ -2,8 +2,9 @@
 r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_live.py
-Nhiệm vụ: Trợ lý Kịch bản Tương tác Trực tiếp (Live) - Cấp độ Bậc thầy.
-TÍCH HỢP: Sinh bộ Prompt chuyên nghiệp cho AI Video (Google Veo, Sora, HeyGen)
+Nhiệm vụ: Trợ lý Kịch bản Tương tác Trực tiếp (Live).
+CẬP NHẬT: Tách biệt Prompt Tiếng Anh / Tiếng Việt vào các khung Code Block
+để người dùng dễ dàng Copy/Paste (1-Click).
 ============================================================
 """
 
@@ -103,7 +104,7 @@ HƯỚNG DẪN CỤ THỂ CÁCH YÊU CẦU HS TƯƠNG TÁC: VD "Các em gõ phí
 
 [KỶ LUẬT ĐỊNH DẠNG]
 - Sử dụng Markdown chuyên nghiệp (Bullet points, in đậm từ khóa).
-- NẾU có dính đến công thức Toán/Lý/Hóa, BẮT BUỘC dùng chuẩn LaTeX bọc trong dấu `$ ... $`.
+- NẾU có dính đến công thức Toán/Lý/Hóa, BẮT BUỘC dùng chuẩn LaTeX bọc trong dấu `$...$`.
 - Tuyệt đối không dùng dấu backtick (`) cho công thức Toán.
 """
                 try:
@@ -166,44 +167,14 @@ Dựa vào Kịch bản văn bản dưới đây, hãy "chuyển thể" nó thà
 - Xác định 1 bối cảnh xuyên suốt (ví dụ: "Lớp học tương lai", "Studio ánh sáng vàng").
 - Nếu có nhiều phân cảnh, phải giữ nguyên vẹn tone giọng và nhân vật.
 
+[KỶ LUẬT HIỂN THỊ ĐỂ NGƯỜI DÙNG DỄ COPY (BẮT BUỘC)]
+Bạn PHẢI sử dụng khung Code Block (dùng 3 dấu backtick ```text và ```) để bọc các phần Prompt lại. Việc này giúp người dùng dễ dàng ấn nút Copy.
+
 Hãy chia thành các Phân cảnh (Scene 1, Scene 2...) và trình bày ĐÚNG cấu trúc sau cho mỗi cảnh bằng Markdown:
 
 ## 🎬 Phân cảnh [Số]: [Tên cảnh]
-- **👤 Nhất quán Nhân vật & Bối cảnh:** [Mô tả ngắn gọn đặc điểm cố định để giữ tính xuyên suốt]
-- **🎥 Prompt Video (Tiếng Anh - Dùng cho Google Veo/Sora):** [Prompt tiếng Anh chuyên nghiệp: Góc máy (Medium shot, Close-up...), Ánh sáng (cinematic lighting), Hành động, Bối cảnh. 
-Ví dụ: "Medium shot, a charismatic 30-year-old Asian male teacher in a sharp navy blue suit standing in a futuristic classroom, explaining passionately, dramatic lighting, 4k, hyper-realistic, highly detailed..."]
-- **🎥 Prompt Video (Tiếng Việt):** [Bản dịch chuẩn xác và mượt mà của prompt tiếng Anh ở trên]
-- **🗣️ Lời thoại (Dùng cho HeyGen/TTS):** [Trích xuất chính xác lời thoại tiếng Việt của MC trong kịch bản để lồng tiếng]
-- **🖱️ Điểm chạm Tương tác (Dùng cho Edpuzzle/H5P):** [Chỉ định rõ: Tại giây này, chèn hiệu ứng pop-up câu hỏi gì, yêu cầu học sinh bấm vào đâu]
+**👤 Bối cảnh & Nhân vật (Giữ xuyên suốt):** [Mô tả ngắn gọn]
 
---- KỊCH BẢN GỐC ---
-{st.session_state["live_result"]}
-"""
-                try:
-                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                    video_result = engine_v2.generate_text(video_prompt, temperature=0.7)
-                    
-                    if video_result.startswith("❌") or video_result.startswith("⚠️"):
-                        st.error(video_result)
-                    else:
-                        st.session_state["video_prompts"] = video_result
-                        
-                except Exception as e:
-                    st.error(f"❌ Lỗi hệ thống khi sinh Prompt Video: {e}")
-
-        # Hiển thị bộ Prompt Video nếu đã tạo
-        if st.session_state.get("video_prompts"):
-            st.markdown("---")
-            st.success("✅ Đã thiết kế xong Bảng phân cảnh và Bộ lệnh Prompt AI Video!")
-            
-            with st.expander("🎞️ BỘ PROMPT AI VIDEO & TƯƠNG TÁC (Bấm để xem chi tiết)", expanded=True):
-                st.markdown(st.session_state["video_prompts"], unsafe_allow_html=True)
-                
-                # Nút copy/tải file text đơn giản để paste sang web khác
-                st.download_button(
-                    label="📋 Tải Bộ Prompt (.TXT) để Copy-Paste",
-                    data=st.session_state["video_prompts"],
-                    file_name="AI_Video_Prompts.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
+**🎥 PROMPT TẠO VIDEO (TIẾNG ANH - Copy & Paste vào Veo/Sora/Midjourney):**
+```text
+[Chỉ viết nội dung prompt tiếng Anh chuyên nghiệp: Góc máy (Medium shot, Close-up...), Ánh sáng, Hành động, Bối cảnh. Không giải thích thêm]
