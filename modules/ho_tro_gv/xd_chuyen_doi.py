@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_chuyen_doi.py
 Nhiệm vụ: Trợ lý Xử lý, Làm sạch & Chuyển đổi Dữ liệu.
-NÂNG CẤP BỘ PROMPT: Phục hồi cấu trúc Toán học bị dập nát do Copy/Paste.
+NÂNG CẤP ĐỈNH CAO: Ép AI xuất Toán học trên 1 dòng để File Word render Native.
 ============================================================
 """
 
@@ -71,17 +71,24 @@ Nhiệm vụ: Chuyển đổi và PHỤC HỒI toàn bộ các công thức toá
 
 [CÁC LỖI THƯỜNG GẶP CẦN PHỤC HỒI BẮT BUỘC]:
 1. Lỗi mất số mũ/chỉ số: `b2` phải sửa thành `b^2`, `x1` thành `x_1`, `x2` thành `x_2`.
-2. Lỗi mất phân số: `-b/2a` hoặc `-b2a` phải sửa thành `\frac{-b}{2a}`. Mẫu số và tử số phải được bọc trong ngoặc nhọn `{}`.
+2. Lỗi mất phân số: `-b/2a` hoặc `-b2a` phải sửa thành `\frac{-b}{2a}`. Phải có cặp ngoặc nhọn `{}` bao bọc tử và mẫu.
 3. Lỗi mất dấu căn: `b2-4ac` trong công thức nghiệm phải có căn, sửa thành `\sqrt{b^2-4ac}`.
 4. Lỗi ký hiệu Unicode thô: Thay `Δ` bằng `\Delta`, thay `±` bằng `\pm`, thay `·` bằng `\cdot`.
 
-[QUY TẮC ĐÓNG GÓI - KỶ LUẬT THÉP]:
-- MỌI công thức, biến số (dù là một chữ cái như a, b, c, \Delta) ĐỀU PHẢI được bọc trong dấu `$ ... $` (nếu nằm trong dòng) hoặc `$$ ... $$` (nếu đứng độc lập thành 1 dòng).
-- TUYỆT ĐỐI KHÔNG dùng dấu ngoặc `\( ... \)` hay `\[ ... \]`.
-- TUYỆT ĐỐI KHÔNG dùng dấu nháy ngược (`) để bọc công thức.
-- KHÔNG giải thích, chỉ xuất ra nội dung đã được xử lý hoàn chỉnh.
+[QUY TẮC ĐÓNG GÓI - KỶ LUẬT THÉP ĐỂ XUẤT FILE WORD]:
+1. MỌI công thức và BIẾN SỐ ĐƠN LẺ (như a, b, c, \Delta, x, y...) ĐỀU PHẢI được bọc trong dấu `$ ... $` (nếu nằm trong dòng) hoặc `$$ ... $$` (nếu đứng độc lập).
+2. LƯU Ý SỐNG CÒN: Cấm tuyệt đối việc ngắt dòng khi sử dụng `$$ ... $$`. Dấu `$$` và công thức BẮT BUỘC phải nằm liền nhau trên 1 dòng duy nhất.
+   - ❌ SAI (Word sẽ bị lỗi phân mảnh):
+   $$
+   ax^2 + bx + c = 0
+   $$
+   - ✅ ĐÚNG (Word hiển thị hoàn hảo):
+   $$ ax^2 + bx + c = 0 $$
+3. TUYỆT ĐỐI KHÔNG dùng dấu ngoặc `\( ... \)` hay `\[ ... \]`.
+4. TUYỆT ĐỐI KHÔNG dùng dấu nháy ngược (`) để bọc công thức.
+5. KHÔNG giải thích dông dài, chỉ xuất ra nội dung đã được xử lý hoàn chỉnh.
 
-Hãy viết lại toàn bộ văn bản dưới đây, giữ nguyên lời văn, nhưng phục hồi 100% công thức Toán học theo đúng cú pháp LaTeX.
+Hãy viết lại toàn bộ văn bản dưới đây, giữ nguyên lời văn, nhưng phục hồi 100% công thức Toán học theo đúng cú pháp LaTeX và LUẬT TRÊN 1 DÒNG DUY NHẤT.
 """
                 elif "Bảng dữ liệu" in loai_chuyen_doi:
                     prompt_task = """
@@ -166,6 +173,6 @@ Nhiệm vụ: Viết lại đoạn văn bản sau sang văn phong Hành chính /
                 except Exception as e:
                     st.error(f"Lỗi xuất Word: {e}")
                     
-        if st.button("🔄 Làm sạch văn bản khác", use_container_width=True):
+        if st.button("🔄 Xử lý văn bản khác", use_container_width=True):
             st.session_state["cd_result"] = None
             st.rerun()
