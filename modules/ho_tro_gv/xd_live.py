@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_live.py
 Nhiệm vụ: Trợ lý Kịch bản Tương tác Trực tiếp (Live) - Cấp độ Bậc thầy.
-Kết nối trực tiếp AIEngine2, có tính năng Xuất Word.
+Đã fix lỗi SyntaxError ở dòng st.info.
 ============================================================
 """
 
@@ -32,7 +32,8 @@ def render_xd_live(ai_engine_cu=None):
         st.session_state["live_topic"] = "Kich_Ban_Live"
 
     st.markdown("### 🔴 Trợ lý Kịch bản Tương tác Trực tiếp (Live)")
-    st.info("💡 **Góc chuyên gia:** Biến tiết dạy thành một show truyền hình thực tế! AI sẽ đóng vai trò là một Đạo diễn, MC và Giám khảo lão luyện để viết cho Thầy/Cô kịch bản từng lời dẫn, cách "rắc muối" và điều phối tranh biện đỉnh cao.")
+    # Đã sửa lỗi SyntaxError bằng cách dùng dấu nháy đơn bọc chuỗi bên ngoài
+    st.info('💡 **Góc chuyên gia:** Biến tiết dạy thành một show truyền hình thực tế! AI sẽ đóng vai trò là một Đạo diễn, MC và Giám khảo lão luyện để viết cho Thầy/Cô kịch bản từng lời dẫn, cách "rắc muối" và điều phối tranh biện đỉnh cao.')
     
     with st.container(border=True):
         col1, col2 = st.columns(2)
