@@ -4,7 +4,7 @@ r"""
 MODULE: modules/ho_tro_giang_day/xd_hoc_lieu.py
 Nhiệm vụ: Trợ lý Tổng hợp & Thiết kế Học liệu.
 Nâng cấp: 
-- FIX LỖI TIMEOUT VÀ BỎ QUA KIỂM TRA SSL KHI CÀO WEB CỦA CÁC TRƯỜNG HỌC (.edu.vn).
+- FIX LỖI BỊ CHẶN BỞI TƯỜNG LỬA (.edu.vn) BẰNG CƠ CHẾ PROXY TRUNG GIAN (Jina AI).
 ============================================================
 """
 
@@ -51,16 +51,15 @@ def extract_text_from_file(uploaded_file):
         st.error(f"Không thể đọc file {file_name}. Vui lòng kiểm tra định dạng.")
     return extracted_text
 
-# HÀM MỚI SIÊU VIỆT: Tự động trích xuất và Dịch nội dung từ Link Web / YouTube
+# HÀM MỚI SIÊU VIỆT: Tự động trích xuất nội dung từ Link Web / YouTube
 def extract_content_from_url(url):
     text_content = ""
     url = url.strip()
     
+    # 1. XỬ LÝ YOUTUBE
     if "youtube.com" in url or "youtu.be" in url:
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
-            
-            # Trích xuất Video ID
             parsed_url = urlparse.urlparse(url)
             video_id = ""
             if parsed_url.hostname in ['youtu.be']:
@@ -71,10 +70,8 @@ def extract_content_from_url(url):
             
             if video_id:
                 try:
-                    # Lấy danh sách tất cả phụ đề hiện có của Video
                     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                     available_langs = [t.language_code for t in transcript_list]
-                    
                     if 'vi' in available_langs:
                         transcript = transcript_list.find_transcript(['vi'])
                     elif 'en' in available_langs:
@@ -86,9 +83,7 @@ def extract_content_from_url(url):
                     transcript_data = transcript.fetch()
                     text_content = " ".join([entry['text'] for entry in transcript_data])
                     return True, f"[PHỤ ĐỀ YOUTUBE ĐÃ TRÍCH XUẤT]:\n{text_content}"
-                    
                 except Exception:
-                    # Dự phòng nếu Video không có phụ đề
                     try:
                         transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
                         text_content = " ".join([entry['text'] for entry in transcript_data])
@@ -97,58 +92,49 @@ def extract_content_from_url(url):
                         return False, f"❌ Video này không có phụ đề (CC) hoặc đã bị chủ kênh khóa. Vui lòng chọn video khác."
             else:
                 return False, "❌ Không thể nhận diện được Video ID từ đường link YouTube này."
-                
-        except ImportError:
-            return False, "❌ Hệ thống thiếu thư viện. Vui lòng chạy lệnh: pip install youtube-transcript-api==0.6.2"
         except Exception as e:
             return False, f"❌ Đã xảy ra lỗi khi lấy phụ đề: {e}"
             
+    # 2. XỬ LÝ LINK WEBSITE THÔNG THƯỜNG (2 LỚP VƯỢT TƯỜNG LỬA)
     else:
-        # XỬ LÝ LINK WEBSITE THÔNG THƯỜNG (CẢI TIẾN VƯỢT TƯỜNG LỬA)
         try:
             import requests
             import urllib3
             from bs4 import BeautifulSoup
             
-            # Tắt cảnh báo bảo mật SSL (Rất cần thiết cho các trang .edu.vn bị hết hạn chứng chỉ)
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            
-            # Thêm Header giả lập trình duyệt thật
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Connection": "keep-alive",
             }
             
-            # Tăng timeout lên 30s và bỏ qua kiểm tra SSL (verify=False)
-            response = requests.get(url, headers=headers, timeout=30, verify=False)
-            response.raise_for_status() 
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Quét sạch rác
-            for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
-                element.extract()
+            # LỚP 1: CỐ GẮNG TRUY CẬP TRỰC TIẾP
+            try:
+                response = requests.get(url, headers=headers, timeout=10, verify=False)
+                response.raise_for_status() 
+                soup = BeautifulSoup(response.content, 'html.parser')
+                for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+                    element.extract()
+                text_content = soup.get_text(separator='\n', strip=True)
+                text_content = re.sub(r'\n+', '\n', text_content)
                 
-            text_content = soup.get_text(separator='\n', strip=True)
-            text_content = re.sub(r'\n+', '\n', text_content)
-            
-            if len(text_content) < 50:
-                return False, "❌ Trang web này không có nội dung chữ hoặc sử dụng cơ chế bảo mật chống sao chép."
-                
-            return True, f"[NỘI DUNG WEBSITE TỰ ĐỘNG TRÍCH XUẤT]:\n{text_content}"
-            
+                if len(text_content) > 50:
+                    return True, f"[NỘI DUNG WEBSITE TỰ ĐỘNG TRÍCH XUẤT]:\n{text_content}"
+                else:
+                    raise ValueError("Nội dung quá ngắn")
+                    
+            except Exception as direct_error:
+                # LỚP 2: DÙNG PROXY JINA READER NẾU BỊ TƯỜNG LỬA CHẶN (Timeout/Geo-block)
+                jina_url = f"https://r.jina.ai/{url}"
+                jina_res = requests.get(jina_url, headers=headers, timeout=20, verify=False)
+                if jina_res.status_code == 200 and len(jina_res.text) > 50:
+                    return True, f"[NỘI DUNG TRÍCH XUẤT QUA PROXY JINA]:\n{jina_res.text}"
+                else:
+                    raise Exception("Proxy cũng bị tường lửa quốc gia chặn.")
+                    
         except ImportError:
             return False, "❌ Hệ thống thiếu thư viện. Vui lòng cài đặt: pip install beautifulsoup4 requests"
-        except requests.exceptions.Timeout:
-            return False, "❌ Máy chủ của trang web này phản hồi quá chậm (Timeout). Trang web có thể đang bảo trì hoặc chặn IP máy chủ của ứng dụng. Thầy hãy thử copy nội dung và dán thủ công nhé!"
-        except requests.exceptions.ConnectionError:
-            return False, "❌ Lỗi kết nối mạng đến trang web này. Tường lửa của trang web có thể đã chặn IP nước ngoài (Geo-blocking) hoặc web đang bị sập."
-        except requests.exceptions.HTTPError as e:
-            return False, f"❌ Trang web từ chối truy cập (Lỗi {e.response.status_code})."
         except Exception as e:
-            return False, f"❌ Không thể truy cập trang web. Lỗi chi tiết: {e}"
+            return False, f"❌ Tường lửa của trang web này đã chặn kết nối máy chủ triệt để (Geo-blocking). Thầy vui lòng làm thủ công: Quét khối (Ctrl+A), Copy chữ trên web đó và paste vào ô 'Dán văn bản' nhé!"
 
 def render_xd_hoc_lieu(ai_engine_cu=None):
     if "hl_result" not in st.session_state:
@@ -157,7 +143,7 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
         st.session_state["hl_topic"] = "Hoc_Lieu"
 
     st.markdown("### 📚 Trợ lý Tổng hợp & Thiết kế Học liệu Đa phương tiện")
-    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản, File, Upload Video, hoặc Link). Tính năng vượt tường lửa giả lập trình duyệt giúp bóc tách chữ từ Web và phụ đề từ YouTube cực chuẩn.")
+    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn. Hỗ trợ tính năng vượt tường lửa 2 lớp để đọc báo mạng. (Lưu ý: Các trang nội bộ .edu.vn khóa IP nước ngoài gắt gao có thể cần copy tay).")
 
     with st.container(border=True):
         st.markdown("#### 1️⃣ Cấu hình Nguồn Dữ liệu (Input)")
