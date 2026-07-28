@@ -1,156 +1,162 @@
 # -*- coding: utf-8 -*-
 r"""
 ============================================================
-MODULE: modules/ho_tro_giang_day/xd_chatbot.py
-Nhiệm vụ: Trợ lý Chatbot Giáo dục (Trợ giảng AI Sư phạm).
-Công nghệ: Thư viện `google-genai` mới nhất của Google.
-Tính năng: 
-- Cấu hình API Key trên Sidebar.
-- Lưu trữ lịch sử trò chuyện (Chat history).
-- 2 Chế độ sư phạm: (1) Socratic - Gợi ý từng bước, (2) Giải thích chi tiết.
+ỨNG DỤNG: Chatbot Giáo dục Trợ giảng AI
+Công nghệ: Streamlit & Thư viện `google-genai` mới nhất
+Tác giả: Chuyên gia AI & Lập trình viên Python
 ============================================================
 """
 
-import logging
 import streamlit as st
 
-logger = logging.getLogger(__name__)
-
-# Thử import thư viện google-genai mới nhất
+# Import thư viện google-genai mới nhất
 try:
     from google import genai
     from google.genai import types
 except ImportError:
     genai = None
 
-def render_xd_chatbot(ai_engine_cu=None):
-    st.markdown("### 🤖 Trợ lý Chatbot Giáo dục (Trợ giảng Sư phạm AI)")
-    st.info("💡 **Góc chuyên gia:** Trợ lý ảo kiên nhẫn đồng hành cùng học sinh. Hệ thống áp dụng phương pháp Sư phạm Socratic (gợi mở tư duy) hoặc Giải thích chi tiết tùy theo lựa chọn của người học.")
+# ============================================================
+# CẤU HÌNH GIAO DIỆN TRANG
+# ============================================================
+st.set_page_config(
+    page_title="Trợ Giảng AI - Hỗ Trợ Học Tập Thông Minh",
+    page_icon="🎓",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
 
-    # ========================================================
-    # 1. THANH BÊN (SIDEBAR) CẤU HÌNH API KEY & CHẾ ĐỘ SƯ PHẠM
-    # ========================================================
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### ⚙️ Cài đặt Trợ giảng AI")
-        
-        # Nhập API Key tùy chọn
-        api_key_input = st.text_input("Nhập Gemini API Key (Tùy chọn):", type="password", placeholder="AIzaSy...", help="Nếu để trống, hệ thống sẽ tự động dùng API Key mặc định của ứng dụng.")
-        
-        st.markdown("---")
-        st.markdown("### 🎓 Chế độ Hỗ trợ Sư phạm")
-        che_do_su_pham = st.radio(
-            "Chọn phong cách phản hồi của Trợ giảng:",
-            [
-                "💡 Lựa chọn 1: Phương pháp Gợi mở (Socratic) - Không giải hộ hoàn toàn, đưa ra gợi ý từng bước để học sinh tự tư duy.",
-                "📚 Lựa chọn 2: Giải bài chi tiết & Phân tích đáp án - Hỗ trợ giải thích cặn kẽ, rõ ràng từng bước kèm ví dụ."
-            ]
-        )
-        
-        st.markdown("---")
-        if st.button("🧹 Xóa lịch sử trò chuyện", use_container_width=True):
-            st.session_state["chatbot_messages"] = []
-            st.rerun()
+st.title("🎓 Trợ Giảng AI - Đồng Hành Cùng Em Học Tập")
+st.caption("Trợ lý ảo kiên nhẫn, khoa học luôn sẵn sàng giải đáp thắc mắc và hướng dẫn em tư duy mỗi ngày.")
 
-    # ========================================================
-    # 2. KHỞI TẠO LỊCH SỬ TRÒ CHUYỆN (SESSION STATE)
-    # ========================================================
-    if "chatbot_messages" not in st.session_state:
-        st.session_state["chatbot_messages"] = [
-            {
-                "role": "assistant", 
-                "content": "👋 Chào bạn! Mình là Trợ giảng AI. Bạn đang gặp khó khăn ở bài tập hoặc khái niệm môn học nào? Hãy chia sẻ để chúng ta cùng giải quyết nhé!"
-            }
-        ]
-
-    # Xác định System Instruction dựa trên lựa chọn của giáo viên/học sinh
-    if "Lựa chọn 1" in che_do_su_pham:
-        system_instruction = """
-Bạn là một Giáo viên trợ giảng vô cùng ân cần, kiên nhẫn và am hiểu tâm lý học sinh.
-[QUY TẮC PHẢN HỒI BẮT BUỘC - SƯ PHẠM SOCRATIC]:
-1. TUYỆT ĐỐI KHÔNG giải bài tập hộ học sinh từ A-Z hoặc đưa ra đáp án trực tiếp ngay từ đầu.
-2. Hãy đóng vai trò là người dẫn dắt: Đặt các câu hỏi gợi mở, chia nhỏ vấn đề thành các bước dễ hiểu, và động viên học sinh tự suy luận ra kết quả.
-3. Giải thích khái niệm bằng các ví dụ thực tế gần gũi, sinh động. Khuyến khích tư duy phản biện.
-"""
-    else:
-        system_instruction = """
-Bạn là một Chuyên gia Giáo dục và Gia sư giỏi chuyên môn, tận tâm.
-[QUY TẮC PHẢN HỒI BẮT BUỘC - GIẢI THÍCH CHI TIẾT]:
-1. Khi học sinh đưa ra một bài toán hoặc câu hỏi, hãy tiến hành giải bài hộ một cách hoàn chỉnh, rõ ràng.
-2. Trình bày lời giải thành các bước logic (Bước 1, Bước 2, Kết luận).
-3. Có phần phân tích sâu tại sao lại chọn hướng giải quyết đó, lưu ý các bẫy thường gặp và mở rộng thêm ví dụ tương tự để học sinh củng cố kiến thức.
-"""
-
-    # ========================================================
-    # 3. HIỂN THỊ KHUNG CHAT (UI)
-    # ========================================================
-    chat_container = st.container(height=500, border=True)
+# ============================================================
+# THANH BÊN (SIDEBAR): CÀI ĐẶT & LỰA CHỌN SƯ PHẠM
+# ============================================================
+with st.sidebar:
+    st.header("⚙️ Cài đặt hệ thống")
     
-    with chat_container:
-        for message in st.session_state["chatbot_messages"]:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+    # Nhập API Key cá nhân
+    api_key_input = st.text_input(
+        "Nhập Gemini API Key:", 
+        type="password", 
+        placeholder="AIzaSy...",
+        help="Nhập API Key cá nhân của bạn để sử dụng mô hình."
+    )
+    
+    st.markdown("---")
+    st.subheader("🎯 Lựa chọn chế độ trợ giảng")
+    
+    # Hai lựa chọn theo yêu cầu
+    che_do = st.radio(
+        "Chọn phong cách phản hồi:",
+        [
+            "💡 Lựa chọn 1: Gợi ý từng bước (Không giải bài hộ hoàn toàn, kích thích tư duy)",
+            "📚 Lựa chọn 2: Giải bài chi tiết & Phân tích đáp án (Cặn kẽ, rõ ràng bản chất)"
+        ]
+    )
+    
+    st.markdown("---")
+    if st.button("🧹 Xóa lịch sử trò chuyện", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+        
+    st.markdown("---")
+    st.markdown(
+        "<div style='font-size: 0.8em; font-style: italic; color: gray;'>"
+        "Sử dụng Google GenAI SDK mới nhất.<br>Hỗ trợ đa lượt (Multi-turn Chat)."
+        "</div>", 
+        unsafe_allow_html=True
+    )
 
-    # ========================================================
-    # 4. XỬ LÝ GỬI TIN NHẮN & KẾT NỐI SDK `google-genai`
-    # ========================================================
-    if prompt := st.chat_input("Nhập câu hỏi hoặc bài tập của bạn vào đây..."):
-        # Thêm tin nhắn của người dùng vào lịch sử
-        st.session_state["chatbot_messages"].append({"role": "user", "content": prompt})
-        with chat_container:
-            with st.chat_message("user"):
-                st.markdown(prompt)
+# ============================================================
+# CÀI ĐẶT VAI TRÒ (SYSTEM INSTRUCTION) DỰA TRÊN LỰA CHỌN
+# ============================================================
+if "Lựa chọn 1" in che_do:
+    system_instruction = (
+        "Bạn đóng vai là một Giáo viên trợ giảng vô cùng ân cần, kiên nhẫn và thấu hiểu tâm lý học sinh. "
+        "Nhiệm vụ của bạn là giải thích các khái niệm học tập một cách dễ hiểu, khoa học, có ví dụ minh họa gần gũi. "
+        "[QUY TẮC BẮT BUỘC]: Tuyệt đối không giải bài hộ hoàn toàn hoặc đưa ra đáp án trực tiếp. "
+        "Hãy đóng vai trò người dẫn dắt, đặt các câu hỏi gợi mở, chia nhỏ vấn đề thành từng bước để học sinh tự suy luận và tìm ra kết quả."
+    )
+else:
+    system_instruction = (
+        "Bạn đóng vai là một Giáo viên trợ giảng vô cùng ân cần, kiên nhẫn và am hiểu chuyên môn sâu sắc. "
+        "Nhiệm vụ của bạn là giải thích các khái niệm học tập một cách dễ hiểu, khoa học, có ví dụ minh họa. "
+        "[QUY TẮC BẮT BUỘC]: Hãy hỗ trợ giải bài hộ học sinh hoàn toàn một cách chi tiết, rõ ràng từng bước. "
+        "Đồng thời, tiến hành phân tích sâu sắc các lựa chọn/đáp án, chỉ ra bản chất vấn đề và mở rộng ví dụ tương tự để học sinh củng cố kiến thức."
+    )
 
-        # Tiến hành gọi API
-        with chat_container:
-            with st.chat_message("assistant"):
-                with st.spinner("Trợ giảng AI đang suy nghĩ..."):
-                    try:
-                        if genai is None:
-                            st.error("❌ Thư viện `google-genai` chưa được cài đặt trong môi trường Python.")
-                            return
+# ============================================================
+# QUẢN LÝ LỊCH SỬ TRÒ CHUYỆN (SESSION STATE)
+# ============================================================
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "assistant", 
+            "content": "👋 Chào em! Thầy/Cô là Trợ giảng AI đây. Em đang gặp khó khăn ở bài tập hoặc khái niệm môn học nào? Hãy chia sẻ để chúng ta cùng trao đổi nhé!"
+        }
+    ]
 
-                        # Khởi tạo client google-genai (Sử dụng key tùy chỉnh nếu có, ngược lại lấy mặc định tự động)
-                        client_kwargs = {}
-                        if api_key_input.strip():
-                            client_kwargs["api_key"] = api_key_input.strip()
-                        
-                        client = genai.Client(**client_kwargs)
-                        
-                        # Sử dụng mô hình Gemini 2.5 Flash (hoặc 2.5 Pro) tối ưu cho chat
-                        model_id = "gemini-2.5-flash"
-                        
-                        # Chuyển đổi lịch sử chat của Streamlit sang định dạng chuẩn của google-genai SDK nếu cần,
-                        # Hoặc sử dụng client.chats.create với system_instruction
-                        config = types.GenerateContentConfig(
-                            system_instruction=system_instruction,
-                            temperature=0.7,
-                        )
-                        
-                        # Xây dựng danh sách contents bao gồm toàn bộ lịch sử để duy trì đa lượt (multi-turn)
-                        formatted_contents = []
-                        for m in st.session_state["chatbot_messages"]:
-                            role_name = "user" if m["role"] == "user" else "model"
-                            formatted_contents.append(
-                                types.Content(
-                                    role=role_name,
-                                    parts=[types.Part.from_text(text=m["content"])]
-                                )
+# Hiển thị lịch sử trò chuyện lên giao diện
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# ============================================================
+# XỬ LÝ NHẬP LIỆU VÀ GỌI API GEMINI (GOOGLE-GENAI SDK)
+# ============================================================
+if prompt := st.chat_input("Nhập câu hỏi hoặc bài tập của em vào đây..."):
+    # Lưu tin nhắn người dùng vào lịch sử
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Tiến hành sinh phản hồi từ AI
+    with st.chat_message("assistant"):
+        with st.spinner("Trợ giảng đang suy nghĩ và chuẩn bị câu trả lời..."):
+            try:
+                if genai is None:
+                    st.error("❌ Thư viện `google-genai` chưa được cài đặt trong môi trường. Vui lòng chạy lệnh: `pip install google-genai`")
+                else:
+                    # Khởi tạo client google-genai (Lấy key từ sidebar nếu có, ngược lại lấy từ biến môi trường)
+                    client_kwargs = {}
+                    if api_key_input.strip():
+                        client_kwargs["api_key"] = api_key_input.strip()
+                    
+                    client = genai.Client(**client_kwargs)
+                    
+                    # Sử dụng mô hình Gemini 2.5 Flash tối ưu cho tốc độ và chất lượng đối thoại
+                    model_id = "gemini-2.5-flash"
+                    
+                    # Thiết lập cấu hình hệ thống và nhiệt độ
+                    config = types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.7,
+                    )
+                    
+                    # Chuyển đổi toàn bộ lịch sử trò chuyện sang định dạng chuẩn `types.Content` của SDK mới
+                    formatted_contents = []
+                    for m in st.session_state.messages:
+                        role_name = "user" if m["role"] == "user" else "model"
+                        formatted_contents.append(
+                            types.Content(
+                                role=role_name,
+                                parts=[types.Part.from_text(text=m["content"])]
                             )
-                        
-                        # Gọi generate_content với lịch sử đầy đủ
-                        response = client.models.generate_content(
-                            model=model_id,
-                            contents=formatted_contents,
-                            config=config
                         )
-                        
-                        reply_text = response.text
-                        st.markdown(reply_text)
-                        
-                        # Lưu phản hồi vào lịch sử
-                        st.session_state["chatbot_messages"].append({"role": "assistant", "content": reply_text})
-                        
-                    except Exception as e:
-                        error_msg = f"❌ Đã xảy ra lỗi kết nối với Google GenAI SDK: {e}"
-                        st.error(error_msg)
+                    
+                    # Gọi API tạo nội dung đa lượt (Multi-turn)
+                    response = client.models.generate_content(
+                        model=model_id,
+                        contents=formatted_contents,
+                        config=config
+                    )
+                    
+                    reply_text = response.text
+                    st.markdown(reply_text)
+                    
+                    # Lưu phản hồi vào lịch sử phiên làm việc
+                    st.session_state.messages.append({"role": "assistant", "content": reply_text})
+                    
+            except Exception as e:
+                st.error(f"❌ Đã xảy ra lỗi khi kết nối với Google GenAI API: {e}")
