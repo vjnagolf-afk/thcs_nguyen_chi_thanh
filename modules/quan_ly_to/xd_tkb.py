@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/xd_tkb.py
+Nhiệm vụ: Quản lý Thời Khóa Biểu Toàn Trường.
+Chức năng: Upload file Excel TKB, đồng bộ Supabase và hiển thị 
+lưới ma trận TKB chung / chi tiết theo giáo viên.
+============================================================
+"""
+
 import streamlit as st
 import pandas as pd
 
