@@ -14,7 +14,6 @@ try:
 except ImportError:
     create_client = None
 
-
 class DatabaseConnector:
     """
     Lớp bọc (Wrapper) quản lý kết nối cơ sở dữ liệu Supabase.
@@ -22,7 +21,6 @@ class DatabaseConnector:
     """
     def __init__(self, client):
         self.client = client
-
 
 def init_db():
     """
