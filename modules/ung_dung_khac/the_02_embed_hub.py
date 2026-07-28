@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/ung_dung_khac/the_02_embed_hub.py
+Nhiệm vụ: Không gian Nhúng Tài nguyên (YouTube & Canva Embed).
+Chức năng: Nhúng trực tiếp video bài giảng YouTube hoặc trò chơi, 
+bài tập tương tác do Canva thiết kế vào hệ thống Streamlit.
+============================================================
+"""
+
 import streamlit as st
 import streamlit.components.v1 as components
 
