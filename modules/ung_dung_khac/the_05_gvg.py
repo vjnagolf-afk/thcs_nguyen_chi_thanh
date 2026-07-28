@@ -41,7 +41,7 @@ def render_the_05(ai_engine=None):
                 key="gvg_mon"
             )
         with c3:
-            cap_thi = st.selectbox("Cấp thi", ["Cấp Trường", "Cấp Xã/Phường", "Cấp Huyện/Quận", "Cấp Tỉnh"], key="gvg_capthi")
+            cap_thi = st.selectbox("Cấp thi", ["Cấp Trường", "Cấp Xã/Phường", "Cấp Tỉnh"], key="gvg_capthi")
 
         # Hàng 2: Tên biện pháp và Nút Gợi ý
         st.markdown("**Tên biện pháp / Đề tài** <span style='color:red;'>*</span>", unsafe_allow_html=True)
