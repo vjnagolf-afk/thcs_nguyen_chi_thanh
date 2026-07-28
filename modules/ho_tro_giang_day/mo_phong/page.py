@@ -57,7 +57,6 @@ def render_xd_mo_phong(ai_engine_cu=None):
 
             with col_view:
                 st.markdown("##### 📊 Mô phỏng quỹ đạo bay")
-                # Tính toán vật lý
                 t_flight = np.sqrt(2 * h0 / g)
                 t = np.linspace(0, t_flight, 100)
                 x = v0 * t
@@ -80,14 +79,13 @@ def render_xd_mo_phong(ai_engine_cu=None):
                 i_val = u / r
                 st.metric(label="Cường độ dòng điện $I$ (Ampere)", value=f"{i_val:.2f} A")
                 
-                # Vẽ đồ thị quan hệ I theo U (khi R cố định)
                 u_range = np.linspace(0, 220, 50)
                 i_range = u_range / r
                 df_ohm = pd.DataFrame({"Hiệu điện thế U (V)": u_range, "Dòng điện I (A)": i_range})
                 fig = px.line(df_ohm, x="Hiệu điện thế U (V)", y="Dòng điện I (A)", title=f"Đặc tuyến V-I với điện trở R = {r}Ω")
                 st.plotly_chart(fig, use_container_width=True)
 
-        else: # Khảo sát hàm số bậc 2
+        else: 
             col_ctrl, col_view = st.columns([1, 2])
             with col_ctrl:
                 st.markdown("##### 🎛️ Hệ số hàm số")
@@ -113,7 +111,6 @@ def render_xd_mo_phong(ai_engine_cu=None):
     with tab_chat:
         st.markdown("#### Trợ giảng AI giải thích hiện tượng mô phỏng")
         
-        # Sidebar cấu hình riêng cho phần Chat trong tab này
         with st.sidebar:
             st.markdown("---")
             st.markdown("### ⚙️ Cài đặt Trợ giảng AI")
@@ -199,6 +196,5 @@ def render_xd_mo_phong(ai_engine_cu=None):
                         except Exception as e:
                             st.error(f"❌ Lỗi kết nối Google GenAI SDK: {e}")
 
-# Tương thích với cấu trúc gọi hàm render của hệ thống
 def render_xd_ca_nhan_hoa(ai_engine_cu=None):
     render_xd_mo_phong(ai_engine_cu)
