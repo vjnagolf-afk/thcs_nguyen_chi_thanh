@@ -75,7 +75,7 @@ def get_youtube_transcript_new(url):
             return None, f"⚠️ Không lấy được phụ đề chữ từ YouTube.", True
 
 # =========================================================
-# HÀM DỰ PHÒNG: TẢI ÂM THANH (ĐÃ NÂNG CẤP VƯỢT BOT YOUTUBE)
+# HÀM DỰ PHÒNG: TẢI ÂM THANH (XỬ LÝ LỖI 403 FORBIDDEN)
 # =========================================================
 def download_youtube_audio_fallback(url):
     try:
@@ -86,16 +86,15 @@ def download_youtube_audio_fallback(url):
     temp_dir = tempfile.gettempdir()
     out_tmpl = os.path.join(temp_dir, 'yt_audio_%(id)s.%(ext)s')
     
-    # Thêm cấu hình giả lập Android và Header để tránh bị YouTube block bot
     ydl_opts = {
         'format': 'm4a/bestaudio/best',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'extractor_args': {'youtube': ['player_client=android']},
+        'extractor_args': {'youtube': ['player_client=ios,android,web']},
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
     }
     
@@ -110,7 +109,10 @@ def download_youtube_audio_fallback(url):
                 return found_files[0], None
             return None, "❌ Lỗi: Không tìm thấy file âm thanh trên hệ thống sau khi tải."
     except Exception as e:
-        return None, f"❌ Không thể tải âm thanh dự phòng: {str(e)}"
+        error_str = str(e)
+        if "403" in error_str or "Forbidden" in error_str or "Sign in" in error_str:
+            return None, "🔒 **Lỗi 403 Forbidden:** YouTube đang chặn máy chủ đám mây của thầy tải video. Vui lòng sử dụng tính năng **'Tải tệp lên máy'** ở bên dưới thay thế nhé!"
+        return None, f"❌ Không thể tải âm thanh dự phòng: {error_str}"
 
 # =========================================================
 # HÀM XỬ LÝ ĐA PHƯƠNG TIỆN GEMINI
@@ -281,7 +283,7 @@ YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư
                         if not gemini_key:
                             show_missing_key_warning()
                         else:
-                            with st.spinner("📥 Đang tải luồng âm thanh từ YouTube (Giả lập Android Client)..."):
+                            with st.spinner("📥 Đang tải luồng âm thanh từ YouTube (Vượt tường lửa 403)..."):
                                 audio_path, dl_err = download_youtube_audio_fallback(yt_url)
                                 
                             if audio_path:
@@ -296,7 +298,11 @@ YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư
                                 if os.path.exists(audio_path):
                                     os.remove(audio_path)
                             else:
-                                st.error(dl_err)
+                                # Nếu gặp lỗi 403, báo lỗi bằng warning màu vàng thay vì đỏ
+                                if "403 Forbidden" in dl_err:
+                                    st.warning(dl_err)
+                                else:
+                                    st.error(dl_err)
                     else:
                         st.error(err_msg)
 
