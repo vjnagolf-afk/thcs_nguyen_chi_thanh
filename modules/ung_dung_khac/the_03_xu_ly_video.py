@@ -1,10 +1,22 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/ung_dung_khac/the_03_xu_ly_video.py
+Nhiệm vụ: Trích xuất, Chuyển văn bản & Dịch Video (YouTube & Tải lên).
+Chức năng: Lấy kịch bản, chuyển lời thoại thành văn bản, dịch nội dung 
+và phân tích đa phương tiện bằng AI.
+============================================================
+"""
+
 import streamlit as st
 import re
 import tempfile
 import os
 import time
 import glob
+import logging
+
+logger = logging.getLogger(__name__)
 
 # =========================================================
 # KHỞI TẠO STATE
@@ -228,10 +240,10 @@ def render_the_03(ai_engine=None):
             gemini_key = get_gemini_api_key()
             
             prompt_chung = f"""
-            BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH TÀI LIỆU GIÁO DỤC.
-            Nhiệm vụ: {tac_vu} {'sang ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}.
-            YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm.
-            """
+BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH TÀI LIỆU GIÁO DỤC.
+Nhiệm vụ: {tac_vu} {'sang ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}.
+YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm.
+"""
 
             # ---------------------------------------------------------
             # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng)
