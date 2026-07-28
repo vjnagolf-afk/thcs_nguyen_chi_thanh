@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/phan_cong.py
+Nhiệm vụ: Quản lý phân công chuyên môn của Tổ.
+Chức năng: Giao việc, phân công giảng dạy (thủ công / từ file Excel).
+============================================================
+"""
+
 import streamlit as st
 import pandas as pd
 import io
