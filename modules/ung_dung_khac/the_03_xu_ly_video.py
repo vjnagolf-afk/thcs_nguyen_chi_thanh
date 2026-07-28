@@ -75,7 +75,7 @@ def get_youtube_transcript_new(url):
             return None, f"⚠️ Không lấy được phụ đề chữ từ YouTube.", True
 
 # =========================================================
-# HÀM DỰ PHÒNG: TẢI ÂM THANH
+# HÀM DỰ PHÒNG: TẢI ÂM THANH (ĐÃ NÂNG CẤP VƯỢT BOT YOUTUBE)
 # =========================================================
 def download_youtube_audio_fallback(url):
     try:
@@ -86,12 +86,19 @@ def download_youtube_audio_fallback(url):
     temp_dir = tempfile.gettempdir()
     out_tmpl = os.path.join(temp_dir, 'yt_audio_%(id)s.%(ext)s')
     
+    # Thêm cấu hình giả lập Android và Header để tránh bị YouTube block bot
     ydl_opts = {
         'format': 'm4a/bestaudio/best',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
+        'nocheckcertificate': True,
+        'extractor_args': {'youtube': ['player_client=android']},
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
     }
+    
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -106,34 +113,26 @@ def download_youtube_audio_fallback(url):
         return None, f"❌ Không thể tải âm thanh dự phòng: {str(e)}"
 
 # =========================================================
-# HÀM XỬ LÝ ĐA PHƠNG TIỆN GEMINI (ĐÃ NÂNG CẤP TÌM API KEY)
+# HÀM XỬ LÝ ĐA PHƯƠNG TIỆN GEMINI
 # =========================================================
 def get_gemini_api_key(ai_engine=None):
-    # 1. Kiểm tra từ session_state (do người dùng nhập ở sidebar)
     key = st.session_state.get("user_api_key")
     if key and not key.startswith("sk-"): 
         return key
-        
-    # 2. Kiểm tra biến môi trường hệ thống
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key:
         return env_key
-        
-    # 3. Kiểm tra trong st.secrets an toàn
     try:
         if "GEMINI_API_KEY" in st.secrets:
             return st.secrets["GEMINI_API_KEY"]
     except Exception:
         pass 
-        
-    # 4. Kiểm tra xem ai_engine có lưu trữ khóa API bên trong không
     if ai_engine:
         for attr in ["api_key", "key", "_api_key"]:
             if hasattr(ai_engine, attr):
                 val = getattr(ai_engine, attr)
                 if val:
                     return val
-
     return None
 
 def show_missing_key_warning():
@@ -141,10 +140,6 @@ def show_missing_key_warning():
     ❌ **Hệ thống chưa tìm thấy mã API Key của Google Gemini!**
     
     Để AI có thể tự động "nghe" video dự phòng hoặc xử lý File tải lên, thầy cần cung cấp mã khóa API.
-    
-    💡 **CÁCH XỬ LÝ NHANH NHẤT:**
-    1. Truy cập [Google AI Studio](https://aistudio.google.com/app/apikey) để lấy 1 mã Key.
-    2. Điền vào ô nhập API Key ở cột bên trái Sidebar để hệ thống ghi nhận.
     """)
 
 def process_multimodal_gemini(file_path, prompt, api_key):
@@ -253,7 +248,6 @@ def render_the_03(ai_engine=None):
                     st.error("❌ Tệp vượt quá giới hạn 200MB. Vui lòng thử tệp nhẹ hơn.")
                     st.stop()
 
-            # Lấy API Key có truyền vào ai_engine để kiểm tra linh hoạt
             gemini_key = get_gemini_api_key(ai_engine)
             
             prompt_chung = f"""
@@ -261,10 +255,6 @@ BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH TÀI LIỆU 
 Nhiệm vụ: {tac_vu} {'sang ' + ngon_ngu_dich if 'Dịch' in tac_vu else ''}.
 YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư phạm.
 """
-
-            # ---------------------------------------------------------
-            # NHÁNH 1: YOUTUBE (Kèm cơ chế Dự phòng)
-            # ---------------------------------------------------------
             if nguon_video == "Đường dẫn YouTube (URL)":
                 with st.spinner("🤖 Đang kết nối YouTube..."):
                     raw_text, err_msg, can_fallback = get_youtube_transcript_new(yt_url)
@@ -291,7 +281,7 @@ YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư
                         if not gemini_key:
                             show_missing_key_warning()
                         else:
-                            with st.spinner("📥 Đang tải luồng âm thanh từ YouTube..."):
+                            with st.spinner("📥 Đang tải luồng âm thanh từ YouTube (Giả lập Android Client)..."):
                                 audio_path, dl_err = download_youtube_audio_fallback(yt_url)
                                 
                             if audio_path:
@@ -310,9 +300,6 @@ YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư
                     else:
                         st.error(err_msg)
 
-            # ---------------------------------------------------------
-            # NHÁNH 2: XỬ LÝ FILE TẢI LÊN
-            # ---------------------------------------------------------
             else:
                 if not gemini_key:
                     show_missing_key_warning()
@@ -334,9 +321,6 @@ YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư
                         if os.path.exists(tmp_path):
                             os.remove(tmp_path)
 
-        # ---------------------------------------------------------
-        # HIỂN THỊ KẾT QUẢ
-        # ---------------------------------------------------------
         if st.session_state["vproc_result"]:
             st.text_area("Văn bản kết xuất:", value=st.session_state["vproc_result"], height=450)
             st.download_button(
@@ -346,5 +330,3 @@ YÊU CẦU: Trình bày rõ ràng, mạch lạc, phân đoạn logic chuẩn sư
                 mime="text/plain",
                 use_container_width=True
             )
-        else:
-            st.info("💡 Tính năng đã sẵn sàng! Đã cập nhật chế độ nhận diện File Âm thanh/Video thông minh.")
