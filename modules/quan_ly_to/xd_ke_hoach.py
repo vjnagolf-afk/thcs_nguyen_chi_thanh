@@ -1,5 +1,25 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/ke_hoach.py
+Nhiệm vụ: Quản lý và Xây dựng Chuyên đề Giáo dục.
+Chức năng: Trưng bày 6 mảng chuyên đề trọng tâm, AI hỗ trợ 
+khởi tạo khung kế hoạch chi tiết, hỗ trợ xuất file Word (.docx) 
+chuẩn hành chính và file .txt.
+============================================================
+"""
+
 import streamlit as st
+import io
+
+# Kiểm tra thư viện hỗ trợ xuất file Word (.docx)
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
 
 def render_ke_hoach():
     st.markdown("### 🎯 Quản lý và Xây dựng Chuyên đề Giáo dục")
@@ -86,7 +106,7 @@ def render_ke_hoach():
             if ten_chuyen_de.strip():
                 with st.spinner("AI đang thiết kế khung kế hoạch chuyên đề..."):
                     prompt = f"""
-                    Hãy đóng vai Tổ trưởng chuyên môn. Viết một 'Kế hoạch triển khai chuyên đề' thật chi tiết, khoa học, bám sát các tiêu chí của trường THCS.
+                    HÃY ĐÓNG VAI TỔ TRƯỞNG CHUYÊN MÔN. VIẾT MỘT 'KẾ HOẠCH TRIỂN KHAI CHUYÊN ĐỀ' THẬT CHI TIẾT, KHOA HỌC, BÁM SÁT CÁC TIÊU CHÍ CỦA TRƯỜNG THCS.
                     
                     THÔNG TIN CHUYÊN ĐỀ:
                     - Nhóm chuyên đề: {nhom_cd}
@@ -99,30 +119,132 @@ def render_ke_hoach():
                     III. Nội dung chi tiết của chuyên đề
                     IV. Tổ chức thực hiện (Phân công chuẩn bị, tiến trình báo cáo/dự giờ)
                     
-                    Trình bày chuyên nghiệp, sử dụng bullet point rõ ràng.
+                    Trình bày chuyên nghiệp, sử dụng bullet point rõ ràng, văn phong hành chính trang trọng.
                     """
+                    
+                    khung_ke_hoach = None
                     try:
-                        # Lấy ai_engine được lưu trong session_state
-                        if "ai_engine" in st.session_state and st.session_state.ai_engine:
-                            khung_ke_hoach = st.session_state.ai_engine.generate_text(prompt)
-                        else:
-                            khung_ke_hoach = f"*(Demo - Chưa kết nối AI)*\n\n**KẾ HOẠCH TRIỂN KHAI CHUYÊN ĐỀ: {ten_chuyen_de.upper()}**\n\n- Nhóm: {nhom_cd}\n- Người phụ trách: {nguoi_bao_cao}\n\n[Nội dung chi tiết do AI sinh ra...]"
-                        
-                        st.session_state.ket_qua_chuyen_de = khung_ke_hoach
+                        # 1. Thử gọi qua ai_engine
+                        ai_engine = st.session_state.get("ai_engine", None)
+                        if ai_engine and hasattr(ai_engine, "generate_text"):
+                            try:
+                                khung_ke_hoach = ai_engine.generate_text(prompt)
+                            except Exception:
+                                pass 
+
+                        # 2. Dự phòng gọi trực tiếp OpenAI bằng khóa sk-
+                        if not khung_ke_hoach:
+                            api_key = None
+                            for key, val in st.session_state.items():
+                                if isinstance(val, str) and val.startswith("sk-"):
+                                    api_key = val
+                                    break
+                            
+                            if not api_key:
+                                for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+                                    if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                                        api_key = st.session_state.get(k)
+                                        break
+                            
+                            if not api_key and "OPENAI_API_KEY" in st.secrets:
+                                api_key = st.secrets["OPENAI_API_KEY"]
+
+                            if api_key:
+                                from openai import OpenAI
+                                client = OpenAI(api_key=str(api_key).strip())
+                                response = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[{"role": "user", "content": prompt}]
+                                ी]
+                                khung_ke_hoach = response.choices[0].message.content
+                            else:
+                                st.error("❌ Không tìm thấy khóa API `sk-` hợp lệ. Thầy vui lòng kiểm tra lại ô nhập API Key ở menu bên trái.")
+
+                        if khung_ke_hoach:
+                            # Làm sạch dấu ** ngay lập tức
+                            st.session_state.ket_qua_chuyen_de = khung_ke_hoach.replace("**", "")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Lỗi AI: {e}")
             else:
                 st.warning("Thầy vui lòng nhập Tên chuyên đề hoặc Ý tưởng để AI có cơ sở lập kế hoạch nhé!")
 
-    # 3. HIỂN THỊ VÀ TẢI KẾ HOẠCH
+    # 3. HIỂN THỊ VÀ TẢI KẾ HOẠCH (HỖ TRỢ CẢ WORD VÀ TEXT)
     if st.session_state.get("ket_qua_chuyen_de"):
+        st.markdown("---")
         st.markdown("#### 📄 Khung Kế hoạch đề xuất")
-        st.text_area("Chỉnh sửa Kế hoạch (nếu cần):", value=st.session_state.ket_qua_chuyen_de, height=400, key="edit_cd")
+        st.text_area("Chỉnh sửa Kế hoạch (nếu cần):", value=st.session_state.get("ket_qua_chuyen_de", "").replace("**", ""), height=400, key="edit_cd")
         
-        st.download_button(
-            label="⬇️ Tải Kế hoạch về máy (.txt)",
-            data=st.session_state.ket_qua_chuyen_de,
-            file_name="Ke_Hoach_Chuyen_De.txt",
-            mime="text/plain",
-            type="primary"
-        )
+        dl_col1, dl_col2 = st.columns(2)
+        
+        with dl_col1:
+            if HAS_DOCX:
+                try:
+                    doc = Document()
+                    
+                    # Thiết lập lề trang giấy chuẩn hành chính
+                    sections = doc.sections
+                    for section in sections:
+                        section.top_margin = Inches(1.0)
+                        section.bottom_margin = Inches(1.0)
+                        section.left_margin = Inches(1.2)
+                        section.right_margin = Inches(0.8)
+                    
+                    # Tiêu đề chính
+                    p_title = doc.add_paragraph()
+                    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run_title = p_title.add_run("KẾ HOẠCH TRIỂN KHAI CHUYÊN ĐỀ")
+                    run_title.bold = True
+                    run_title.font.size = Pt(13)
+                    p_title.paragraph_format.space_after = Pt(16)
+
+                    # Xử lý nội dung văn bản (loại bỏ dấu **)
+                    raw_text = st.session_state.get("ket_qua_chuyen_de", "").replace("**", "")
+                    for line in raw_text.split('\n'):
+                        clean_line = line.strip()
+                        if not clean_line:
+                            continue
+                        
+                        p = doc.add_paragraph()
+                        p.paragraph_format.space_after = Pt(4)
+                        p.paragraph_format.line_spacing = 1.15
+                        
+                        # In đậm các đề mục lớn (I., II., III., IV., V., 1., 2., 3...)
+                        if clean_line.startswith(('I.', 'II.', 'III.', 'IV.', 'V.', 'VI.', '1.', '2.', '3.', '4.', '5.')) and len(clean_line) < 90 and not clean_line.startswith('-'):
+                            run = p.add_run(clean_line)
+                            run.bold = True
+                            if clean_line.startswith(('I.', 'II.', 'III.', 'IV.')):
+                                p.paragraph_format.space_before = Pt(8)
+                                run.font.size = Pt(11)
+                            else:
+                                run.font.size = Pt(11)
+                        else:
+                            p.add_run(clean_line)
+
+                    docx_buffer = io.BytesIO()
+                    doc.save(docx_buffer)
+                    docx_buffer.seek(0)
+                    
+                    st.download_button(
+                        label="⬇️ Tải Kế hoạch Word (.docx)",
+                        data=docx_buffer,
+                        file_name="Ke_Hoach_Chuyen_De.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        type="primary",
+                        use_container_width=True
+                    )
+                except Exception as ex:
+                    st.error(f"Lỗi tạo file Word: {ex}")
+            else:
+                st.warning("⚠️ Cần cài đặt `python-docx` để tải file Word. Chạy lệnh: `pip install python-docx`")
+
+        with dl_col2:
+            clean_txt_data = st.session_state.get("ket_qua_chuyen_de", "").replace("**", "")
+            st.download_button(
+                label="⬇️ Tải Kế hoạch Text (.txt)",
+                data=clean_txt_data,
+                file_name="Ke_Hoach_Chuyen_De.txt",
+                mime="text/plain",
+                type="secondary",
+                use_container_width=True
+            )
