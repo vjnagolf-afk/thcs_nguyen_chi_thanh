@@ -13,16 +13,23 @@ import os
 
 def render_the_04(ai_engine=None):
     st.markdown("### 👁️‍🗨️ Trợ lý Phân tích Màn hình & Lệnh Giọng nói")
-    st.caption("Chụp lại màn hình máy tính (bài toán, lỗi phần mềm, trang web...) và ghi âm yêu cầu của thầy. AI sẽ kết hợp cả hai để giải quyết vấn đề ngay lập tức.")
+    st.caption("Chụp lại màn hình máy tính (bài toán, lỗi phần mềm, trang web...) và ghi âm yêu cầu. AI sẽ kết hợp cả hai để giải quyết vấn đề ngay lập tức.")
 
     col1, col2 = st.columns([1, 1], gap="medium")
 
     with col1:
         st.markdown("#### 1️⃣ Cung cấp Màn hình / Hình ảnh")
-        st.info("💡 **Mẹo:** Thầy có thể bấm `Windows + Shift + S` (hoặc `Cmd + Shift + 4`) để chụp màn hình, sau đó chọn ô bên dưới và bấm `Ctrl + V` để dán ảnh vào ngay lập tức!")
+        
+        # Khung hướng dẫn dán ảnh nổi bật
+        st.success(
+            "🎯 **CÁCH DÁN ẢNH SIÊU NHANH:**\n"
+            "1. Chụp màn hình bằng phím tắt `Windows + Shift + S`.\n"
+            "2. **Click chuột 1 lần vào khung đứt nét bên dưới**.\n"
+            "3. Bấm phím **`Ctrl + V`** để dán ảnh vào ngay lập tức!"
+        )
         
         uploaded_img = st.file_uploader(
-            "Tải lên hoặc Dán ảnh chụp màn hình (PNG, JPG):", 
+            "👇 CLICK VÀO KHU VỰC NÀY VÀ BẤM CTRL + V:", 
             type=["png", "jpg", "jpeg"],
             key="the4_img_upload"
         )
@@ -33,7 +40,6 @@ def render_the_04(ai_engine=None):
         st.markdown("#### 2️⃣ Ghi âm yêu cầu (Tùy chọn)")
         st.write("Sử dụng micro để nói yêu cầu thay vì gõ chữ (Ví dụ: 'Hãy giải thích cho tôi đoạn code trên màn hình này là gì?').")
         
-        # Sử dụng tính năng st.audio_input mới nhất của Streamlit
         recorded_audio = st.audio_input("Bấm vào biểu tượng Micro để bắt đầu nói:", key="the4_audio")
         
         st.markdown("#### 3️⃣ Hoặc nhập yêu cầu bằng văn bản")
@@ -50,14 +56,13 @@ def render_the_04(ai_engine=None):
         
         if btn_analyze:
             if not uploaded_img:
-                st.warning("⚠️ Vui lòng cung cấp ít nhất một bức ảnh chụp màn hình.")
+                st.warning("⚠️ Vui lòng cung cấp ít nhất một bức ảnh chụp màn hình bằng cách Tải lên hoặc Dán (Ctrl + V).")
                 st.stop()
                 
             if not recorded_audio and not text_prompt.strip():
                 st.warning("⚠️ Vui lòng ghi âm yêu cầu hoặc nhập yêu cầu bằng văn bản.")
                 st.stop()
                 
-            # Lấy API Key từ hệ thống
             api_key = None
             if st.session_state.get("user_api_key"):
                 api_key = st.session_state["user_api_key"]
@@ -72,12 +77,10 @@ def render_the_04(ai_engine=None):
                 try:
                     import google.generativeai as genai
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel("gemini-2.5-flash") # Dùng model hỗ trợ Multimodal
+                    model = genai.GenerativeModel("gemini-2.5-flash")
                     
-                    # Chuẩn bị dữ liệu để gửi đi
                     contents = []
                     
-                    # 1. Thêm prompt văn bản (nếu có)
                     master_prompt = "Dưới đây là một bức ảnh chụp màn hình. "
                     if text_prompt.strip():
                         master_prompt += f"Người dùng có yêu cầu văn bản như sau: '{text_prompt.strip()}'. "
@@ -87,45 +90,36 @@ def render_the_04(ai_engine=None):
                     
                     contents.append(master_prompt)
                     
-                    # 2. Thêm file ghi âm (nếu có) bằng API File Upload
                     uploaded_audio_file = None
                     if recorded_audio:
-                        audio_ext = ".wav" # Định dạng mặc định của st.audio_input
+                        audio_ext = ".wav" 
                         with tempfile.NamedTemporaryFile(delete=False, suffix=audio_ext) as tmp_audio:
                             tmp_audio.write(recorded_audio.read())
                             tmp_audio_path = tmp_audio.name
                             
-                        # Đẩy file âm thanh lên Gemini
                         uploaded_audio_file = genai.upload_file(path=tmp_audio_path)
                         contents.append(uploaded_audio_file)
 
-                    # 3. Thêm hình ảnh (Sử dụng đối tượng dạng dictionary hoặc PIL)
                     from PIL import Image
                     img = Image.open(uploaded_img)
                     contents.append(img)
                     
-                    # GỌI AI XỬ LÝ ĐỒNG THỜI 3 LUỒNG DỮ LIỆU
                     response = model.generate_content(contents)
                     
                     st.success("🎉 AI đã xử lý xong!")
-                    
-                    # Hiển thị kết quả
                     st.session_state["the4_result"] = response.text
                     
                 except Exception as e:
                     st.error(f"❌ Lỗi xử lý Đa phương thức: {e}")
                 finally:
-                    # Dọn dẹp file âm thanh tạm trên máy chủ Google (nếu có)
                     if 'uploaded_audio_file' in locals() and uploaded_audio_file:
                         try:
                             genai.delete_file(uploaded_audio_file.name)
                         except:
                             pass
-                    # Dọn dẹp file cục bộ
                     if 'tmp_audio_path' in locals() and os.path.exists(tmp_audio_path):
                         os.remove(tmp_audio_path)
 
-        # Hiển thị kết quả lưu trong state
         if st.session_state.get("the4_result"):
             with st.container(border=True):
                 st.markdown(st.session_state["the4_result"])
