@@ -41,7 +41,7 @@ def render_xd_mo_phong(ai_engine_cu=None):
             [
                 "🚀 Chuyển động Ném ngang (Vật lý 10)",
                 "⚡ Định luật Ohm & Mạch điện cơ bản (Vật lý 9/11)",
-                "📈 Khảo sát hàm số bậc 2: $y = ax^2 + bx + c$ (Toán học)"
+                "📈 Khảo sát hàm số bậc 2: y = ax² + bx + c (Toán học)"
             ]
         )
 
@@ -51,8 +51,8 @@ def render_xd_mo_phong(ai_engine_cu=None):
             col_ctrl, col_view = st.columns([1, 2])
             with col_ctrl:
                 st.markdown("##### 🎛️ Thông số đầu vào")
-                v0 = st.slider("Vận tốc ban đầu $v_0$ (m/s):", 1.0, 50.0, 15.0, 1.0)
-                h0 = st.slider("Độ cao ban đầu $h$ (m):", 5.0, 100.0, 45.0, 5.0)
+                v0 = st.slider("Vận tốc ban đầu v0 (m/s):", 1.0, 50.0, 15.0, 1.0)
+                h0 = st.slider("Độ cao ban đầu h (m):", 5.0, 100.0, 45.0, 5.0)
                 g = 9.81
 
             with col_view:
@@ -72,12 +72,12 @@ def render_xd_mo_phong(ai_engine_cu=None):
             col_ctrl, col_view = st.columns([1, 2])
             with col_ctrl:
                 st.markdown("##### 🎛️ Thông số mạch điện")
-                u = st.slider("Hiệu điện thế $U$ (Volt):", 1.0, 220.0, 12.0, 1.0)
-                r = st.slider("Điện trở $R$ ($\Omega$):", 1.0, 100.0, 10.0, 1.0)
+                u = st.slider("Hiệu điện thế U (Volt):", 1.0, 220.0, 12.0, 1.0)
+                r = st.slider("Điện trở R (Ω):", 1.0, 100.0, 10.0, 1.0)
             with col_view:
-                st.markdown(rf"##### 📊 Định luật Ohm ($I = \frac{{U}{R}$)")
+                st.markdown("##### 📊 Công thức Định luật Ohm: I = U / R")
                 i_val = u / r
-                st.metric(label="Cường độ dòng điện $I$ (Ampere)", value=f"{i_val:.2f} A")
+                st.metric(label="Cường độ dòng điện I (Ampere)", value=f"{i_val:.2f} A")
                 
                 u_range = np.linspace(0, 220, 50)
                 i_range = u_range / r
@@ -103,7 +103,7 @@ def render_xd_mo_phong(ai_engine_cu=None):
                 st.plotly_chart(fig, use_container_width=True)
                 
                 delta = b**2 - 4*a*c
-                st.info(rf"📌 Delta ($\Delta$): **{delta}** | Tọa độ đỉnh $I\left(\frac{{-b}}{{2a}}, \frac{{-\Delta}}{{4a}}\right)$")
+                st.info(f"📌 Delta (Δ) = {delta} | Tọa độ đỉnh Parabol tính theo công thức chuẩn.")
 
     # ========================================================
     # TAB 2: TRỢ GIẢNG AI MÔ PHỎNG (CHATBOT GOOGLE-GENAI)
