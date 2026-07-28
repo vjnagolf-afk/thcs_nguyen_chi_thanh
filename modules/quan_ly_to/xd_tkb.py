@@ -2,9 +2,7 @@
 r"""
 ============================================================
 MODULE: modules/quan_ly_to/xd_tkb.py
-Nhiệm vụ: Quản lý Thời Khóa Biểu Toàn Trường.
-Chức năng: Upload file Excel TKB, đồng bộ Supabase và hiển thị 
-lưới ma trận TKB chung / chi tiết theo giáo viên.
+Nhiệm vụ: Quản lý Thời Khóa Biểu Toàn Trường (Kết nối Supabase).
 ============================================================
 """
 
@@ -14,14 +12,14 @@ import pandas as pd
 def render_tkb(db=None):
     st.subheader("📅 Quản lý Thời Khóa Biểu Toàn Trường")
     
-    # Kiểm tra kết nối Supabase
+    # Kiểm tra kết nối
     supabase = db.client if hasattr(db, 'client') else db
     
     if not supabase:
-        st.error("🚨 Không thể kết nối tới cơ sở dữ liệu Supabase. Vui lòng kiểm tra lại cấu hình `db_connector`.")
+        st.error("🚨 Không thể kết nối tới Supabase. Vui lòng kiểm tra file `.streamlit/secrets.toml` và file `utils/db_connector.py`.")
         return
 
-    # 1. Lấy danh sách các đợt TKB đã lưu từ Supabase
+    # 1. Lấy danh sách đợt TKB
     try:
         response = supabase.table("tkb_batches").select("*").order("created_at", desc=True).execute()
         batches = response.data if response.data else []
@@ -46,14 +44,14 @@ def render_tkb(db=None):
                             xls = pd.ExcelFile(uploaded_file)
                             df = pd.read_excel(xls, sheet_name=0, header=None)
                             
-                            # Lưu đợt vào bảng tkb_batches
+                            # Lưu bảng tkb_batches
                             batch_res = supabase.table("tkb_batches").insert({"batch_name": batch_name_input}).execute()
                             if not batch_res.data:
                                 st.error("❌ Không thể tạo đợt TKB mới trên CSDL.")
                                 return
                             batch_id = batch_res.data[0]["id"]
 
-                            # Phân tích dữ liệu từ hàng thứ 5 (index 4)
+                            # Phân tích dữ liệu
                             headers = df.iloc[4].tolist() if len(df) > 4 else []
                             rows_to_insert = []
                             current_thu = "2"
@@ -98,13 +96,14 @@ def render_tkb(db=None):
                                             "giao_vien": giao_vien
                                         })
 
+                            # Đẩy hàng loạt vào tkb_details
                             if rows_to_insert:
                                 chunk_size = 500
                                 for j in range(0, len(rows_to_insert), chunk_size):
                                     chunk = rows_to_insert[j:j + chunk_size]
                                     supabase.table("tkb_details").insert(chunk).execute()
 
-                            st.success("✅ Tải lên và đồng bộ Thời khóa biểu thành công!")
+                            st.success("✅ Tải lên và đồng bộ Thời khóa biểu lên Supabase thành công!")
                             st.rerun()
                         except Exception as ex:
                             st.error(f"❌ Lỗi xử lý file: {ex}")
@@ -117,14 +116,10 @@ def render_tkb(db=None):
             selected_batch_id = batch_options[selected_batch_name]
 
             st.markdown("---")
-            # Nút xóa gắn liền với cơ sở dữ liệu Supabase
             if st.button("🗑️ Xóa đợt TKB này (Cả trên giao diện & Supabase)", type="primary", use_container_width=True):
                 try:
-                    # Xóa chi tiết trước (để đảm bảo không bị ràng buộc khóa ngoại nếu chưa bật cascade)
                     supabase.table("tkb_details").delete().eq("batch_id", selected_batch_id).execute()
-                    # Xóa đợt chính trong bảng tkb_batches trên Supabase
                     supabase.table("tkb_batches").delete().eq("id", selected_batch_id).execute()
-                    
                     st.success("✅ Đã xóa thành công đợt TKB trên Supabase và hệ thống!")
                     st.rerun()
                 except Exception as ex:
@@ -133,7 +128,7 @@ def render_tkb(db=None):
             selected_batch_id = None
             st.info("Chưa có đợt TKB nào được tải lên hệ thống.")
 
-    # 3. Hiển thị dữ liệu TKB
+    # 3. Hiển thị TKB
     if selected_batch_id and batches:
         st.markdown("---")
         try:
@@ -144,24 +139,18 @@ def render_tkb(db=None):
 
         if tkb_data:
             df_tkb = pd.DataFrame(tkb_data)
-
             tab_chung, tab_gv = st.tabs(["📚 TKB Chung Toàn Trường", "👩‍🏫 Xem Theo Giáo Viên"])
 
-            # Giao diện TKB chung (Hình 2)
             with tab_chung:
                 st.markdown("### 🏫 Bảng Thời Khóa Biểu Chung Toàn Trường")
                 try:
                     pivot_chung = df_tkb.pivot_table(
-                        index=["thu", "tiet"], 
-                        columns="lop", 
-                        values="mon_hoc", 
-                        aggfunc=lambda x: ' / '.join(x)
+                        index=["thu", "tiet"], columns="lop", values="mon_hoc", aggfunc=lambda x: ' / '.join(x)
                     ).fillna("")
                     st.dataframe(pivot_chung, use_container_width=True)
                 except Exception:
                     st.dataframe(df_tkb[["thu", "tiet", "lop", "mon_hoc", "giao_vien"]], use_container_width=True, hide_index=True)
 
-            # Giao diện xem theo giáo viên (Hình 1)
             with tab_gv:
                 st.markdown("### 👩‍🏫 Lịch Giảng Dạy Chi Tiết Theo Giáo Viên")
                 danh_sach_gv = sorted(list(df_tkb["giao_vien"].dropna().unique()))
@@ -170,23 +159,16 @@ def render_tkb(db=None):
                 if selected_teacher:
                     df_gv = df_tkb[df_tkb["giao_vien"] == selected_teacher]
                     st.markdown(f"**Giáo viên: {selected_teacher}** (Tổng số tiết: {len(df_gv)})")
-                    
                     try:
                         df_gv["noi_dung"] = df_gv["mon_hoc"] + " - " + df_gv["lop"]
                         pivot_gv = df_gv.pivot_table(
-                            index="tiet", 
-                            columns="thu", 
-                            values="noi_dung", 
-                            aggfunc=lambda x: ' / '.join(x)
+                            index="tiet", columns="thu", values="noi_dung", aggfunc=lambda x: ' / '.join(x)
                         ).fillna("")
                         
                         standard_days = ["2", "3", "4", "5", "6", "7"]
                         existing_cols = [c for c in standard_days if c in pivot_gv.columns]
                         other_cols = [c for c in pivot_gv.columns if c not in standard_days]
                         pivot_gv = pivot_gv[existing_cols + other_cols]
-                        
                         st.dataframe(pivot_gv, use_container_width=True)
                     except Exception:
                         st.dataframe(df_gv[["thu", "tiet", "lop", "mon_hoc"]], use_container_width=True, hide_index=True)
-        else:
-            st.warning("⚠️ Đợt TKB này hiện chưa có dữ liệu chi tiết trên Supabase.")
