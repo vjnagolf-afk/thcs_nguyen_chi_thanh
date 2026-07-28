@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/bien_ban.py
+Nhiệm vụ: Trợ lý Thư ký - Xây dựng Biên bản Sinh hoạt.
+Chức năng: AI tự động soạn thảo biên bản họp bám sát cấu trúc 
+dự thảo kế hoạch (hỗ trợ nhập text hoặc tải file PDF).
+============================================================
+"""
+
 import streamlit as st
 from pypdf import PdfReader
 
@@ -132,4 +141,4 @@ def render_bien_ban(ai_engine=None):
         )
         
         st.markdown("#### 📜 Nội dung Biên bản")
-        st.text_area("Chỉnh sửa biên bản (nếu cần):", value=st.session_state.ket_qua_bien_ban, height=600)
+        st.text_area("Chỉnh sửa biên bản (nếu cần):", value=st.session_state.ket_qua_bien_ban, height=600, label_visibility="collapsed")
