@@ -5,13 +5,12 @@ MODULE: modules/quan_ly_to/bien_ban.py
 Nhiệm vụ: Trợ lý Thư ký - Xây dựng Biên bản Sinh hoạt.
 Chức năng: AI tự động soạn thảo biên bản họp bám sát cấu trúc 
 dự thảo kế hoạch (hỗ trợ nhập text hoặc tải file PDF) kèm cơ chế 
-gỡ lỗi chi tiết (Traceback).
+tự động định tuyến API Key linh hoạt.
 ============================================================
 """
 
 import streamlit as st
 from pypdf import PdfReader
-import traceback
 
 def render_bien_ban(ai_engine=None):
     st.markdown("### 📝 Trợ lý Thư ký: Xây dựng Biên bản Sinh hoạt")
@@ -110,26 +109,36 @@ def render_bien_ban(ai_engine=None):
                     
                     bien_ban = None
                     try:
-                        # Thử quét tất cả các nguồn ai_engine có thể có
+                        # Cách 1: Thử gọi qua ai_engine nếu không bị lỗi kiểm tra API Key của app.py
                         engine_to_use = ai_engine
                         if not engine_to_use and "ai_engine" in st.session_state:
                             engine_to_use = st.session_state.ai_engine
 
                         if engine_to_use and hasattr(engine_to_use, "generate_text"):
-                            bien_ban = engine_to_use.generate_text(prompt)
-                        
-                        # Nếu vẫn chưa có, tự gọi trực tiếp OpenAI bằng mọi khóa có trong session_state hoặc secrets
+                            try:
+                                bien_ban = engine_to_use.generate_text(prompt)
+                            except Exception:
+                                pass # Bỏ qua để chuyển sang cách gọi dự phòng bên dưới
+
+                        # Cách 2: Gọi trực tiếp OpenAI bằng chìa khóa sk- đang có trong session_state hoặc secrets
                         if not bien_ban:
                             api_key = None
-                            for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
-                                if st.session_state.get(k):
-                                    api_key = st.session_state.get(k)
+                            # Quét tìm khóa API trong toàn bộ session_state
+                            for key, val in st.session_state.items():
+                                if isinstance(val, str) and val.startswith("sk-"):
+                                    api_key = val
                                     break
+                            
+                            if not api_key:
+                                for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+                                    if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                                        api_key = st.session_state.get(k)
+                                        break
                             
                             if not api_key and "OPENAI_API_KEY" in st.secrets:
                                 api_key = st.secrets["OPENAI_API_KEY"]
 
-                            if api_key and str(api_key).startswith("sk-"):
+                            if api_key:
                                 from openai import OpenAI
                                 client = OpenAI(api_key=str(api_key).strip())
                                 response = client.chat.completions.create(
@@ -137,15 +146,14 @@ def render_bien_ban(ai_engine=None):
                                     messages=[{"role": "user", "content": prompt}]
                                 )
                                 bien_ban = response.choices[0].message.content
+                            else:
+                                st.error("❌ Không tìm thấy khóa API `sk-` hợp lệ. Thầy vui lòng kiểm tra lại ô nhập API Key ở menu bên trái.")
 
                         if bien_ban:
                             st.session_state.ket_qua_bien_ban = bien_ban
                             st.rerun()
-                        else:
-                            st.error("❌ Không thể gọi AI do không tìm thấy đối tượng `ai_engine` hợp lệ hoặc khóa API chưa được thiết lập chính xác.")
                     except Exception as e:
-                        st.error(f"❌ Phát hiện lỗi chi tiết khi gọi AI:")
-                        st.code(traceback.format_exc())
+                        st.error(f"❌ Lỗi khi gọi AI: {str(e)}")
 
     with col_btn2:
         if st.button("🗑️ Xóa / Làm lại", type="secondary", use_container_width=True):
