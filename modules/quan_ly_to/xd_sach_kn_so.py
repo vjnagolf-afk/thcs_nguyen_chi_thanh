@@ -1,4 +1,15 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/sach_kn_so.py
+Mô tả: Tủ sách Kỹ năng số cho Giáo viên.
+Tính năng:
+    - Trưng bày các chuyên mục cẩm nang AI, Công cụ tương tác, Quản trị lớp học.
+    - Xem video bài giảng trực tiếp qua Streamlit.
+    - Hỗ trợ thêm/xóa bài giảng video linh hoạt theo chuyên mục.
+============================================================
+"""
+
 import streamlit as st
 
 def render_sach_kn_so():
@@ -69,25 +80,23 @@ def render_sach_kn_so():
             st.info("💡 Chuyên mục này hiện chưa có video nào. Thầy hãy dùng form bên dưới để thêm mới nhé!")
         else:
             for idx, link_video in enumerate(st.session_state.kho_video[cm]):
-                # Thêm nút xóa nằm cùng hàng với Tiêu đề bài học
                 col_title, col_del = st.columns([5, 1])
                 with col_title:
                     st.markdown(f"**Bài học {idx + 1}:**")
                 with col_del:
                     if st.button("🗑️ Xóa", key=f"del_{cm}_{idx}", type="secondary", use_container_width=True):
-                        st.session_state.kho_video[cm].pop(idx) # Lệnh xóa khỏi danh sách
+                        st.session_state.kho_video[cm].pop(idx)
                         st.rerun()
                 try:
-                    # Render link video theo input thay vì fixed tĩnh
                     st.video(link_video)
-                except:
+                except Exception:
                     st.error(f"Không thể tải video từ link: {link_video}")
                 st.markdown("<br>", unsafe_allow_html=True)
 
         # 2. KHU VỰC NHÚNG THÊM VIDEO MỚI
         st.markdown("---")
         with st.expander("➕ Dành cho Quản trị viên: Thêm bài giảng Video mới", expanded=False):
-            with st.form("form_nhung_video", clear_on_submit=True):
+            with st.form(f"form_nhung_video_{cm}", clear_on_submit=True):
                 st.caption("Dán đường link YouTube của bài giảng vào đây để đưa lên hệ thống.")
                 link_moi = st.text_input("🔗 Nhập link YouTube (Ví dụ: https://www.youtube.com/watch?v=...):")
                 
