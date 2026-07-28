@@ -40,6 +40,7 @@ try:
     from modules.quan_ly_to.xd_thi_dua import render_thi_dua
     from modules.quan_ly_to.xd_tkb import render_tkb
     from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
+    from utils.db_connector import db
 except ImportError as e:
     st.error(f"❌ Lỗi import phân hệ Quản lý tổ chuyên môn: {e}")
 
