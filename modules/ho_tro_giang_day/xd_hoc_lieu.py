@@ -4,8 +4,7 @@ r"""
 MODULE: modules/ho_tro_giang_day/xd_hoc_lieu.py
 Nhiệm vụ: Trợ lý Tổng hợp & Thiết kế Học liệu.
 Nâng cấp: 
-- TỰ ĐỘNG CÀO PHỤ ĐỀ YOUTUBE (Transcript).
-- VƯỢT TƯỜNG LỬA WEBSITE & LẤY TOÀN BỘ VĂN BẢN (Giả lập Chrome).
+- FIX LỖI TIMEOUT VÀ BỎ QUA KIỂM TRA SSL KHI CÀO WEB CỦA CÁC TRƯỜNG HỌC (.edu.vn).
 ============================================================
 """
 
@@ -76,7 +75,6 @@ def extract_content_from_url(url):
                     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                     available_langs = [t.language_code for t in transcript_list]
                     
-                    # Logic: Có Tiếng Việt -> Lấy luôn. Nếu không, lấy ngôn ngữ đầu tiên rồi Dịch sang Tiếng Việt
                     if 'vi' in available_langs:
                         transcript = transcript_list.find_transcript(['vi'])
                     elif 'en' in available_langs:
@@ -106,12 +104,16 @@ def extract_content_from_url(url):
             return False, f"❌ Đã xảy ra lỗi khi lấy phụ đề: {e}"
             
     else:
-        # XỬ LÝ LINK WEBSITE THÔNG THƯỜNG (CẢI TIẾN)
+        # XỬ LÝ LINK WEBSITE THÔNG THƯỜNG (CẢI TIẾN VƯỢT TƯỜNG LỬA)
         try:
             import requests
+            import urllib3
             from bs4 import BeautifulSoup
             
-            # Thêm Header giả lập trình duyệt thật (Tránh bị chặn bởi tường lửa Anti-Bot của các trang báo, Wikipedia...)
+            # Tắt cảnh báo bảo mật SSL (Rất cần thiết cho các trang .edu.vn bị hết hạn chứng chỉ)
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            # Thêm Header giả lập trình duyệt thật
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -119,30 +121,32 @@ def extract_content_from_url(url):
                 "Connection": "keep-alive",
             }
             
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status() # Bắt lỗi nếu trang web báo 403 Forbidden hoặc 404 Not Found
+            # Tăng timeout lên 30s và bỏ qua kiểm tra SSL (verify=False)
+            response = requests.get(url, headers=headers, timeout=30, verify=False)
+            response.raise_for_status() 
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Quét sạch rác: Xóa các thẻ chứa mã code, menu, quảng cáo, chân trang...
+            # Quét sạch rác
             for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
                 element.extract()
                 
-            # Trích xuất MỌI văn bản còn lại (không phụ thuộc vào thẻ <p>)
             text_content = soup.get_text(separator='\n', strip=True)
-            
-            # Dọn dẹp các khoảng trắng thừa
             text_content = re.sub(r'\n+', '\n', text_content)
             
             if len(text_content) < 50:
-                return False, "❌ Trang web này yêu cầu đăng nhập, hoặc sử dụng cơ chế bảo mật cao chống sao chép nội dung."
+                return False, "❌ Trang web này không có nội dung chữ hoặc sử dụng cơ chế bảo mật chống sao chép."
                 
             return True, f"[NỘI DUNG WEBSITE TỰ ĐỘNG TRÍCH XUẤT]:\n{text_content}"
             
         except ImportError:
             return False, "❌ Hệ thống thiếu thư viện. Vui lòng cài đặt: pip install beautifulsoup4 requests"
+        except requests.exceptions.Timeout:
+            return False, "❌ Máy chủ của trang web này phản hồi quá chậm (Timeout). Trang web có thể đang bảo trì hoặc chặn IP máy chủ của ứng dụng. Thầy hãy thử copy nội dung và dán thủ công nhé!"
+        except requests.exceptions.ConnectionError:
+            return False, "❌ Lỗi kết nối mạng đến trang web này. Tường lửa của trang web có thể đã chặn IP nước ngoài (Geo-blocking) hoặc web đang bị sập."
         except requests.exceptions.HTTPError as e:
-            return False, f"❌ Trang web từ chối truy cập (Lỗi {e.response.status_code}). Web này có thể chặn công cụ tự động."
+            return False, f"❌ Trang web từ chối truy cập (Lỗi {e.response.status_code})."
         except Exception as e:
             return False, f"❌ Không thể truy cập trang web. Lỗi chi tiết: {e}"
 
@@ -233,7 +237,7 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
 
         # Nếu người dùng nhập URL, tiến hành cào dữ liệu trước
         if "Link" in nguon_nhap and url_input.strip():
-            with st.spinner("⏳ Đang giả lập trình duyệt để cào dữ liệu từ Website/YouTube..."):
+            with st.spinner("⏳ Đang kết nối đến máy chủ Website/YouTube..."):
                 success, extracted_info = extract_content_from_url(url_input)
                 if not success:
                     st.error(extracted_info) # Báo lỗi rõ ràng nếu bị chặn
