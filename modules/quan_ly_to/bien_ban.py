@@ -83,9 +83,16 @@ def render_bien_ban(ai_engine=None):
             if not noidung_du_thao.strip():
                 st.warning("⚠️ Thầy vui lòng cung cấp nội dung hoặc file Dự thảo trước nhé!")
             else:
+                # Lấy API Key đồng bộ với các thẻ đang chạy tốt khác
+                api_key = None
+                if st.session_state.get("user_api_key"):
+                    api_key = st.session_state["user_api_key"]
+                elif "GEMINI_API_KEY" in st.secrets:
+                    api_key = st.secrets["GEMINI_API_KEY"]
+
                 with st.spinner("🧠 Thư ký AI đang tổng hợp và soạn thảo biên bản..."):
                     prompt = f"""
-                    Bạn là Thư ký tổ chuyên môn trường THCS. Hãy viết một "Biên bản cuộc họp" chi tiết, mang văn phong hành chính trang trọng.
+                    BẠN LÀ THƯ KÝ TỔ CHUYÊN MÔN TRƯỜNG THCS. HÃY VIẾT MỘT "BIÊN BẢN CUỘC HỌP" CHI TIẾT, MANG VĂN PHONG HÀNH CHÍNH TRANG TRỌNG.
                     
                     THÔNG TIN CHUNG (Trình bày rõ ở phần Mở đầu):
                     - Loại hình cuộc họp: {loai_cuoc_hop}
@@ -110,17 +117,26 @@ def render_bien_ban(ai_engine=None):
                     """
                     
                     try:
-                        if ai_engine:
+                        bien_ban = ""
+                        # Ưu tiên gọi trực tiếp qua google.generativeai nếu có key
+                        if api_key and isinstance(api_key, str) and api_key.strip().startswith("AI"):
+                            import google.generativeai as genai
+                            genai.configure(api_key=api_key.strip())
+                            model = genai.GenerativeModel("gemini-2.5-flash")
+                            response = model.generate_content(prompt)
+                            bien_ban = response.text
+                        elif ai_engine and hasattr(ai_engine, "generate_text"):
                             bien_ban = ai_engine.generate_text(prompt)
                         elif "ai_engine" in st.session_state and st.session_state.ai_engine:
                             bien_ban = st.session_state.ai_engine.generate_text(prompt)
                         else:
-                            bien_ban = f"*(Chưa kết nối AI)*\n\n**BIÊN BẢN {loai_cuoc_hop.upper()}**\n\n- Thời gian: {thoi_gian}\n- Địa điểm: {dia_diem}\n- Thành phần: Có mặt {co_mat}, vắng {vang_mat}\n- Chủ tọa: {chu_toa}\n- Thư ký: {thu_ky}\n\n[Nội dung AI sinh ra sẽ hiện ở đây...]"
+                            st.error("❌ Không tìm thấy API Key hợp lệ. Vui lòng kiểm tra lại thanh Sidebar.")
+                            st.stop()
                             
                         st.session_state.ket_qua_bien_ban = bien_ban
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Lỗi khi gọi AI: {e}. Vui lòng kiểm tra lại kết nối AI Engine.")
+                        st.error(f"❌ Lỗi khi gọi AI: {e}")
 
     with col_btn2:
         if st.button("🗑️ Xóa / Làm lại", type="secondary", use_container_width=True):
