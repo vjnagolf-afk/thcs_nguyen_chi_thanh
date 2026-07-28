@@ -299,8 +299,7 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
         except NameError: st.warning("Module Trò chơi chưa sẵn sàng.")
     with tabs_gd[11]:
         try: render_xd_mo_phong(ai_instance)
-        except NameError: 
-            st.warning("Module Mô phỏng chưa sẵn sàng.")
+        except NameError: st.warning("Module Mô phỏng chưa sẵn sàng.")
   
 # ------------------------------------------------------------
 # 3. PHÂN HỆ ỨNG DỤNG KHÁC
