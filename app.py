@@ -299,7 +299,8 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
         except NameError: st.warning("Module Trò chơi chưa sẵn sàng.")
     with tabs_gd[11]:
         st.info("Khu vực tính năng Mô phỏng thuộc phân hệ Hỗ trợ giảng dạy đang được phát triển...")
-
+    elif selected_menu == "Mô phỏng": # Hoặc tên menu tương ứng của thầy
+        render_xd_mo_phong(ai_engine)
 # ------------------------------------------------------------
 # 3. PHÂN HỆ ỨNG DỤNG KHÁC
 # ------------------------------------------------------------
