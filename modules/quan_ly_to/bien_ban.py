@@ -4,13 +4,20 @@ r"""
 MODULE: modules/quan_ly_to/bien_ban.py
 Nhiệm vụ: Trợ lý Thư ký - Xây dựng Biên bản Sinh hoạt.
 Chức năng: AI tự động soạn thảo biên bản họp bám sát cấu trúc 
-dự thảo kế hoạch (hỗ trợ nhập text hoặc tải file PDF) kèm cơ chế 
-tự động định tuyến API Key linh hoạt.
+dự thảo kế hoạch, hỗ trợ tải về định dạng cả .txt lẫn .docx chuẩn hành chính.
 ============================================================
 """
 
 import streamlit as st
 from pypdf import PdfReader
+import io
+
+# Kiểm tra thư viện hỗ trợ xuất file Word (.docx)
+try:
+    from docx import Document
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
 
 def render_bien_ban(ai_engine=None):
     st.markdown("### 📝 Trợ lý Thư ký: Xây dựng Biên bản Sinh hoạt")
@@ -109,7 +116,7 @@ def render_bien_ban(ai_engine=None):
                     
                     bien_ban = None
                     try:
-                        # Cách 1: Thử gọi qua ai_engine nếu không bị lỗi kiểm tra API Key của app.py
+                        # Thử gọi qua ai_engine chuẩn
                         engine_to_use = ai_engine
                         if not engine_to_use and "ai_engine" in st.session_state:
                             engine_to_use = st.session_state.ai_engine
@@ -118,12 +125,11 @@ def render_bien_ban(ai_engine=None):
                             try:
                                 bien_ban = engine_to_use.generate_text(prompt)
                             except Exception:
-                                pass # Bỏ qua để chuyển sang cách gọi dự phòng bên dưới
+                                pass 
 
-                        # Cách 2: Gọi trực tiếp OpenAI bằng chìa khóa sk- đang có trong session_state hoặc secrets
+                        # Dự phòng gọi trực tiếp OpenAI bằng khóa sk-
                         if not bien_ban:
                             api_key = None
-                            # Quét tìm khóa API trong toàn bộ session_state
                             for key, val in st.session_state.items():
                                 if isinstance(val, str) and val.startswith("sk-"):
                                     api_key = val
@@ -160,18 +166,50 @@ def render_bien_ban(ai_engine=None):
             st.session_state.ket_qua_bien_ban = None
             st.rerun()
 
-    # 4. HIỂN THỊ KẾT QUẢ VÀ TẢI VỀ
+    # 4. HIỂN THỊ KẾT QUẢ VÀ TẢI VỀ (HỖ TRỢ CẢ TXT VÀ DOCX)
     st.markdown("---")
     if st.session_state.ket_qua_bien_ban:
-        st.success("🎉 Biên bản đã hoàn thành! Thầy có thể đọc, chỉnh sửa trực tiếp hoặc tải về máy.")
+        st.success("🎉 Biên bản đã hoàn thành! Thầy có thể đọc, chỉnh sửa trực tiếp hoặc tải về dưới dạng file Word (.docx) hoặc Văn bản (.txt).")
         
-        st.download_button(
-            label="⬇️ Tải Biên bản về máy (.txt)",
-            data=st.session_state.ket_qua_bien_ban,
-            file_name="Bien_Ban_SHCM.txt",
-            mime="text/plain",
-            type="primary"
-        )
+        # Bố trí 2 nút tải về song song cho tiện lợi
+        dl_col1, dl_col2 = st.columns(2)
+        
+        with dl_col1:
+            # Nút tải file Word (.docx)
+            if HAS_DOCX:
+                try:
+                    doc = Document()
+                    # Thêm nội dung vào file Word từng đoạn một
+                    for line in st.session_state.ket_qua_bien_ban.split('\n'):
+                        doc.add_paragraph(line)
+                    
+                    docx_buffer = io.BytesIO()
+                    doc.save(docx_buffer)
+                    docx_buffer.seek(0)
+                    
+                    st.download_button(
+                        label="⬇️ Tải Biên bản về máy (.docx)",
+                        data=docx_buffer,
+                        file_name="Bien_Ban_SHCM.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        type="primary",
+                        use_container_width=True
+                    )
+                except Exception as ex:
+                    st.error(f"Lỗi tạo file Word: {ex}")
+            else:
+                st.warning("⚠️ Cần cài đặt `python-docx` để tải file Word. Chạy lệnh: `pip install python-docx`")
+
+        with dl_col2:
+            # Nút tải file Text (.txt)
+            st.download_button(
+                label="⬇️ Tải Biên bản về máy (.txt)",
+                data=st.session_state.ket_qua_bien_ban,
+                file_name="Bien_Ban_SHCM.txt",
+                mime="text/plain",
+                type="secondary",
+                use_container_width=True
+            )
         
         st.markdown("#### 📜 Nội dung Biên bản")
         st.text_area("Chỉnh sửa biên bản (nếu cần):", value=st.session_state.ket_qua_bien_ban, height=600, label_visibility="collapsed")
