@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/kiem_tra_khbd.py
+Nhiệm vụ: Kiểm tra, phê duyệt Kế hoạch bài dạy (Giáo án).
+Chức năng: Đọc file PDF/Word, quét lỗi đa chiều theo CV 5512, 
+hỗ trợ chat thông minh tương tác và báo cáo thẩm định toàn diện.
+============================================================
+"""
+
 import streamlit as st
 from pypdf import PdfReader
 import re
@@ -18,6 +27,43 @@ def render_kiem_tra_khbd(ai_engine=None):
     if "ai_analysis_report" not in st.session_state:
         st.session_state.ai_analysis_report = ""
 
+    # --- HỖ TRỢ GỌI AI LINH HOẠT CHO MỌI LOẠI KHÓA ---
+    def call_ai(prompt_text):
+        # 1. Thử qua ai_engine truyền vào hoặc trong session
+        engine = ai_engine or st.session_state.get("ai_engine", None)
+        if engine and hasattr(engine, "generate_text"):
+            try:
+                return engine.generate_text(prompt_text)
+            except Exception:
+                pass
+
+        # 2. Dự phòng gọi trực tiếp OpenAI bằng khóa sk-
+        api_key = None
+        for key, val in st.session_state.items():
+            if isinstance(val, str) and val.startswith("sk-"):
+                api_key = val
+                break
+        
+        if not api_key:
+            for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+                if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                    api_key = st.session_state.get(k)
+                    break
+        
+        if not api_key and "OPENAI_API_KEY" in st.secrets:
+            api_key = st.secrets["OPENAI_API_KEY"]
+
+        if api_key:
+            from openai import OpenAI
+            client = OpenAI(api_key=str(api_key).strip())
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt_text}]
+            )
+            return response.choices[0].message.content
+        
+        return "❌ Không tìm thấy API Key hoặc AI Engine hợp lệ. Vui lòng kiểm tra lại cấu hình."
+
     # --- BỐ CỤC GIAO DIỆN CHÍNH ---
     col_left, col_right = st.columns([1, 2.2])
 
@@ -35,7 +81,6 @@ def render_kiem_tra_khbd(ai_engine=None):
             
             if st.button("🚀 Quét & Phân tích (Thực tế)", type="primary", use_container_width=True):
                 if file_khbd:
-                    # 🔒 BẢO MẬT: Kiểm tra MIME-Type thực tế của file, chống mạo danh đuôi file
                     valid_mime = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
                     if file_khbd.type not in valid_mime and not file_khbd.name.endswith(('.pdf', '.docx')):
                         st.error("⚠️ Định dạng file không hợp lệ! Hệ thống chỉ chấp nhận file PDF hoặc DOCX chuẩn.")
@@ -68,10 +113,7 @@ def render_kiem_tra_khbd(ai_engine=None):
                                         if text:
                                             extracted_text += text + "\n"
                                 
-                                # 📊 HIỆU SUẤT: Nới rộng giới hạn đọc lên 60,000 ký tự để bao quát toàn bộ HĐ Vận dụng
                                 noidung = extracted_text[:60000]
-                                
-                                # 🛠️ TỐI ƯU REGEX (Chống ReDoS): Chuẩn hóa nhiều khoảng trắng thành 1 khoảng trắng duy nhất
                                 noidung = re.sub(r'\s+', ' ', noidung).strip()
                                 st.session_state.noidung_khbd = noidung
                                 
@@ -92,12 +134,8 @@ def render_kiem_tra_khbd(ai_engine=None):
                                 '''{st.session_state.noidung_khbd}'''
                                 """
                                 
-                                if ai_engine:
-                                    report = ai_engine.generate_text(prompt_scan)
-                                else:
-                                    report = "❌ Không tìm thấy AI Engine để xử lý."
-                                    
-                                st.session_state.ai_analysis_report = report
+                                report = call_ai(prompt_scan)
+                                st.session_state.ai_analysis_report = report.replace("**", "")
                                 
                                 st.session_state.chat_history_khbd.append({"role": "assistant", "content": f"✅ Tôi đã phân tích xong giáo án **{mon_hoc} {khoi_lop}**. Mời thầy/cô xem **Báo cáo chi tiết** ở tab bên cạnh."})
                                 st.rerun()
@@ -115,7 +153,6 @@ def render_kiem_tra_khbd(ai_engine=None):
         with tab_chat:
             chat_container = st.container(height=450)
 
-            # Các nút gợi ý được đặt ở ngoài container
             st.markdown("⚡ **Gợi ý kiểm tra nhanh:**")
             q1, q2 = st.columns(2)
             clicked_quick_prompt = None
@@ -136,8 +173,6 @@ def render_kiem_tra_khbd(ai_engine=None):
 
             user_input = st.chat_input("Hỏi AI về nội dung giáo án đang tải lên...")
             
-            # 🧠 TỐI ƯU LOGIC CHAT: Tránh lặp đúp (Không dùng st.rerun)
-            # 1. Ghi nhận Input người dùng
             prompt = user_input or clicked_quick_prompt
             
             if btn_tham_dinh:
@@ -152,30 +187,29 @@ def render_kiem_tra_khbd(ai_engine=None):
                 else:
                     st.session_state.chat_history_khbd.append({"role": "user", "content": prompt})
 
-            # 2. Render toàn bộ lịch sử trò chuyện (Bao gồm cả tin nhắn User vừa thêm)
             with chat_container:
                 for msg in st.session_state.chat_history_khbd:
                     with st.chat_message(msg["role"]): 
                         st.markdown(msg["content"])
                 
-                # 3. Kích hoạt AI trả lời dựa trên trigger (Nếu có)
                 if btn_tham_dinh and st.session_state.noidung_khbd:
                     with st.chat_message("assistant"):
                         with st.spinner("🕵️‍♂️ Tổ trưởng AI đang phân tích sâu 5 tiêu chí..."):
                             try:
-                                with open("prompts/prompt_tham_dinh_khbd.txt", "r", encoding="utf-8") as f:
-                                    prompt_template = f.read()
+                                prompt_template = ""
+                                try:
+                                    with open("prompts/prompt_tham_dinh_khbd.txt", "r", encoding="utf-8") as f:
+                                        prompt_template = f.read()
+                                except FileNotFoundError:
+                                    # Fallback prompt chuẩn nếu chưa có file ngoài
+                                    prompt_template = "Hãy thẩm định chi tiết Kế hoạch bài dạy sau theo 5 tiêu chí giáo dục phổ thông:\n[NOI_DUNG_KHBD_ODAY]"
+
                                 prompt_hoan_thien = prompt_template.replace("[NOI_DUNG_KHBD_ODAY]", st.session_state.noidung_khbd)
                                 
-                                if ai_engine:
-                                    ket_qua_tham_dinh = ai_engine.generate_text(prompt_hoan_thien)
-                                else:
-                                    ket_qua_tham_dinh = "❌ Không kết nối được AI Engine."
-                                    
+                                ket_qua_tham_dinh = call_ai(prompt_hoan_thien).replace("**", "")
+                                
                                 st.markdown(ket_qua_tham_dinh)
                                 st.session_state.chat_history_khbd.append({"role": "assistant", "content": ket_qua_tham_dinh})
-                            except FileNotFoundError:
-                                st.error("🚨 Không tìm thấy file prompt! Thầy kiểm tra lại thư mục 'prompts' nhé.")
                             except Exception as e:
                                 st.error(f"Lỗi hệ thống: {e}")
 
@@ -184,12 +218,8 @@ def render_kiem_tra_khbd(ai_engine=None):
                         with st.spinner("AI đang đọc lại giáo án và trả lời..."):
                             try:
                                 chat_prompt = f"Dựa vào nội dung KHBD sau:\n\n{st.session_state.noidung_khbd}\n\nThực hiện yêu cầu sau: {prompt}"
+                                ai_response = call_ai(chat_prompt).replace("**", "")
                                 
-                                if ai_engine:
-                                    ai_response = ai_engine.generate_text(chat_prompt)
-                                else:
-                                    ai_response = "❌ Lỗi: Chưa kết nối AI Engine."
-                                    
                                 st.markdown(ai_response)
                                 st.session_state.chat_history_khbd.append({"role": "assistant", "content": ai_response})
                             except Exception as e:
