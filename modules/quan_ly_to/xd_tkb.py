@@ -11,11 +11,14 @@ lưới ma trận TKB chung / chi tiết theo giáo viên.
 import streamlit as st
 import pandas as pd
 
-def render_tkb(db):
+# 🚀 NÂNG CẤP QUAN TRỌNG: Tự động gọi kết nối Supabase từ file chuẩn
+from utils.db_connector import db as supabase_client
+
+def render_tkb(db=None): # Giữ tham số db=None để file main gọi không bị lỗi
     st.subheader("📅 Quản lý Thời Khóa Biểu Toàn Trường")
     
-    # Kiểm tra kết nối Supabase
-    supabase = db.client if hasattr(db, 'client') else db
+    # Sử dụng trực tiếp kết nối chuẩn đã được Cache
+    supabase = supabase_client
     
     if not supabase:
         st.error("🚨 Không thể kết nối tới cơ sở dữ liệu Supabase. Vui lòng kiểm tra lại cấu hình `db_connector`.")
@@ -117,12 +120,9 @@ def render_tkb(db):
             selected_batch_id = batch_options[selected_batch_name]
 
             st.markdown("---")
-            # Nút xóa gắn liền với cơ sở dữ liệu Supabase
             if st.button("🗑️ Xóa đợt TKB này (Cả trên giao diện & Supabase)", type="primary", use_container_width=True):
                 try:
-                    # Xóa chi tiết trước (để đảm bảo không bị ràng buộc khóa ngoại nếu chưa bật cascade)
                     supabase.table("tkb_details").delete().eq("batch_id", selected_batch_id).execute()
-                    # Xóa đợt chính trong bảng tkb_batches trên Supabase
                     supabase.table("tkb_batches").delete().eq("id", selected_batch_id).execute()
                     
                     st.success("✅ Đã xóa thành công đợt TKB trên Supabase và hệ thống!")
@@ -147,7 +147,6 @@ def render_tkb(db):
 
             tab_chung, tab_gv = st.tabs(["📚 TKB Chung Toàn Trường", "👩‍🏫 Xem Theo Giáo Viên"])
 
-            # Giao diện TKB chung (Hình 2)
             with tab_chung:
                 st.markdown("### 🏫 Bảng Thời Khóa Biểu Chung Toàn Trường")
                 try:
@@ -161,7 +160,6 @@ def render_tkb(db):
                 except Exception:
                     st.dataframe(df_tkb[["thu", "tiet", "lop", "mon_hoc", "giao_vien"]], use_container_width=True, hide_index=True)
 
-            # Giao diện xem theo giáo viên (Hình 1)
             with tab_gv:
                 st.markdown("### 👩‍🏫 Lịch Giảng Dạy Chi Tiết Theo Giáo Viên")
                 danh_sach_gv = sorted(list(df_tkb["giao_vien"].dropna().unique()))
