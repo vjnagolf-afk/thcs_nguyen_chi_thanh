@@ -1,23 +1,16 @@
 # -*- coding: utf-8 -*-
-"""
-Module: modules/quan_ly_to/xd_cham_sang_kien.py
-
-Mô tả:
-    Module chấm và phân tích sáng kiến kinh nghiệm bằng AI.
-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/xd_cham_sang_kien.py
+Mô tả: Module chấm và phân tích sáng kiến kinh nghiệm bằng AI.
 Tính năng:
-    - Đọc PDF (Sử dụng PyMuPDF/fitz hiện đại, thay thế PyPDF2 cũ)
+    - Đọc PDF (Sử dụng PyMuPDF/fitz hiện đại)
     - Đọc DOCX
     - Đọc ảnh JPG/JPEG/PNG bằng AI Engine trung tâm
-    - Chấm theo Rubric 10 điểm
-    - Phân tích tính mới
-    - Phân tích tính khả thi
-    - Phân tích hiệu quả
-    - Phân tích phạm vi ảnh hưởng
-    - Kiểm tra logic của sáng kiến
-    - Phát hiện dấu hiệu văn phong máy móc / sao chép ở mức tham khảo
-    - Xuất kết quả Markdown
-    - Xuất báo cáo Word
+    - Chấm theo Rubric 10 điểm chuẩn
+    - Phân tích tính mới, khả thi, hiệu quả, phạm vi ảnh hưởng
+    - Kiểm tra logic, văn phong và xuất báo cáo Word / Markdown
+============================================================
 """
 
 import streamlit as st
@@ -68,13 +61,12 @@ def truncate_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
     return text[:max_length] + "\n\n[HỆ THỐNG: Nội dung đã được cắt bớt do vượt giới hạn xử lý.]"
 
 # ============================================================
-# 3. ĐỌC FILE PDF (ĐÃ NÂNG CẤP LÊN PyMuPDF / fitz)
+# 3. ĐỌC FILE PDF (SỬ DỤNG PyMuPDF / fitz)
 # ============================================================
 def extract_text_from_pdf(uploaded_file) -> str:
     """Trích xuất văn bản từ file PDF sử dụng thư viện PyMuPDF (fitz) tốc độ cao."""
     text_parts = []
     try:
-        # Hỗ trợ đọc cả đối tượng file Streamlit
         content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
         doc = fitz.open(stream=content, filetype="pdf")
         
@@ -98,7 +90,6 @@ def extract_text_from_pdf(uploaded_file) -> str:
 def extract_text_from_docx(uploaded_file) -> str:
     """Trích xuất nội dung từ DOCX."""
     try:
-        # Fix cho stream của Streamlit để Document đọc mượt mà
         source = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
         doc = Document(io.BytesIO(source))
         content_parts = []
@@ -211,7 +202,7 @@ TỔNG ĐIỂM: 10 ĐIỂM
 4. PHẠM VI ẢNH HƯỞNG: 0 - 2 ĐIỂM
 
 ============================================================
-YÊU CẦU ĐẦU RA (Trả về định dạng Markdown đúng cấu trúc)
+YÊU CẦU ĐẦU RA (Trả về định dạng Markdown đúng cấu trúc, không dùng dấu ** thừa)
 ============================================================
 # BÁO CÁO ĐÁNH GIÁ SÁNG KIẾN KINH NGHIỆM
 
@@ -247,27 +238,51 @@ MỨC ĐÁNH GIÁ: ...
     return prompt
 
 # ============================================================
-# 8. GỌI AI ENGINE TRUNG TÂM
+# 8. GỌI AI ENGINE TRUNG TÂM (Hỗ trợ đa định tuyến)
 # ============================================================
 def call_ai_engine(ai_engine, prompt: str) -> str:
-    """Gọi AI Engine trung tâm."""
-    if ai_engine is None:
-        raise RuntimeError("AI Engine chưa được khởi tạo.")
+    """Gọi AI Engine trung tâm hoặc dự phòng gọi OpenAI trực tiếp."""
+    if ai_engine and hasattr(ai_engine, "generate_text"):
+        try:
+            result = ai_engine.generate_text(prompt)
+            if isinstance(result, str):
+                return result.strip()
+            if hasattr(result, "text"):
+                return safe_text(result.text)
+            if isinstance(result, dict):
+                for key in ["text", "content", "response", "result"]:
+                    if key in result:
+                        return safe_text(result[key])
+            return safe_text(result)
+        except Exception:
+            pass
+
+    # Dự phòng gọi trực tiếp bằng khóa sk- đang có trong session_state hoặc secrets
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
     
-    if not hasattr(ai_engine, "generate_text"):
-        raise AttributeError("AI Engine hiện tại không có phương thức 'generate_text(prompt)'.")
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+    
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
 
-    result = ai_engine.generate_text(prompt)
+    if api_key:
+        from openai import OpenAI
+        client = OpenAI(api_key=str(api_key).strip())
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
 
-    if isinstance(result, str):
-        return result.strip()
-    if hasattr(result, "text"):
-        return safe_text(result.text)
-    if isinstance(result, dict):
-        for key in ["text", "content", "response", "result"]:
-            if key in result:
-                return safe_text(result[key])
-    return safe_text(result)
+    raise RuntimeError("AI Engine chưa được khởi tạo hoặc không tìm thấy API Key hợp lệ.")
 
 # ============================================================
 # 9. TẠO BÁO CÁO MARKDOWN
@@ -287,7 +302,7 @@ def build_markdown_report(ai_result: str, file_names: List[str]) -> str:
     return "\n".join(report)
 
 # ============================================================
-# 10. HỖ TRỢ WORD
+# 10. HỖ TRỢ XUẤT WORD
 # ============================================================
 def set_cell_shading(cell, fill: str = "D9EAF7"):
     tc_pr = cell._tc.get_or_add_tcPr()
@@ -321,7 +336,7 @@ def set_table_borders(table):
         element.set(qn("w:color"), "808080")
 
 def add_markdown_content_to_docx(document: Document, markdown_text: str):
-    lines = markdown_text.splitlines()
+    lines = markdown_text.replace("**", "").splitlines()
     index = 0
     while index < len(lines):
         line = lines[index].strip()
