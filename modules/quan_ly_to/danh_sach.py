@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/danh_sach.py
+Nhiệm vụ: Hiển thị danh sách thành viên Tổ chuyên môn.
+Chức năng: Cung cấp dữ liệu danh sách giáo viên cho toàn bộ phân hệ.
+============================================================
+"""
+
 import streamlit as st
 import pandas as pd
 
@@ -30,4 +38,4 @@ def render_danh_sach():
     st.session_state.danh_sach_gv = df["Họ và tên"].tolist()
     
     st.markdown("---")
-    st.caption("💡Danh sách được cập nhật thường xuyên.")
+    st.caption("💡 Danh sách được cập nhật thường xuyên.")
