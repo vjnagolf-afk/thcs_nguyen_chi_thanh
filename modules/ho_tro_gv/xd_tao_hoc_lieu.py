@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 r"""
 ============================================================
-MODULE: modules/ho_tro_gv/xd_tao_prompt.py
-Nhiệm vụ: Trợ lý Kỹ sư Câu lệnh (Prompt Engineering).
+MODULE: modules/ho_tro_gv/xd_tao_hoc_lieu.py
+Nhiệm vụ: Trợ lý Kỹ sư Câu lệnh (Prompt Engineering) & Tạo Học Liệu.
 Chức năng: Sinh ra các siêu câu lệnh (Meta Prompt) dựa trên lý luận chuẩn:
 Zero-shot, Few-shot, Chain-of-Thought, Multimodal...
+ĐÃ FIX TÊN HÀM ĐỂ KHỚP VỚI HỆ THỐNG APP.PY GỐC.
 ============================================================
 """
 
@@ -25,7 +26,7 @@ try:
 except ImportError:
     AIEngine2 = None
 
-def render_xd_tao_prompt(ai_engine_cu=None):
+def render_xd_tao_hoc_lieu(ai_engine_cu=None):
     if "prompt_result" not in st.session_state:
         st.session_state["prompt_result"] = None
     if "prompt_topic" not in st.session_state:
@@ -74,7 +75,7 @@ def render_xd_tao_prompt(ai_engine_cu=None):
             placeholder="VD: Viết một sáng kiến kinh nghiệm về chuyển đổi số trong giáo dục, cấu trúc 3 chương. Hoặc: Tạo một bức ảnh 1 lớp học tương lai phong cách Cyberpunk..."
         )
         
-        btn_tao = st.button("🪄 ĐÚC KẾT SIÊU CÂU Lệnh (META PROMPT)", type="primary", use_container_width=True)
+        btn_tao = st.button("🪄 ĐÚC KẾT SIÊU CÂU LỆNH (META PROMPT)", type="primary", use_container_width=True)
 
     # XỬ LÝ SỰ KIỆN NÚT BẤM
     if btn_tao:
@@ -118,7 +119,7 @@ Hãy trình bày ĐÚNG theo định dạng sau:
 {bq}
 """
                 try:
-                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro") # Dùng Pro cho tư duy logic siêu lệnh
+                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro") 
                     res = engine_v2.generate_text(prompt, temperature=0.6)
                     
                     if res.startswith("❌") or res.startswith("⚠️"):
