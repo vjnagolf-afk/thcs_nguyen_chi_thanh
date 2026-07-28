@@ -1,5 +1,22 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/ung_dung_khac/the_01_tao_prompt.py
+Nhiệm vụ: Công cụ Tạo Prompt Chuyên Sâu cho Trò Chơi Mô Phỏng Giáo Dục.
+Tích hợp: Kết nối trực tiếp với AIEngine3 (`utils/ai_engine_3.py`).
+============================================================
+"""
+
+import logging
 import streamlit as st
+
+logger = logging.getLogger(__name__)
+
+# Kết nối bộ xử lý AI từ utils/ai_engine_3.py
+try:
+    from utils.ai_engine_3 import AIEngine3
+except ImportError:
+    AIEngine3 = None
 
 def render_the_01(ai_engine=None):
     st.markdown("### 🎮 Công cụ Tạo Prompt Chuyên Sâu cho Trò Chơi Mô Phỏng Giáo Dục")
@@ -45,7 +62,7 @@ def render_the_01(ai_engine=None):
             if not chu_de.strip():
                 st.warning("⚠️ Vui lòng nhập tên chủ đề hoặc bài học.")
             else:
-                with st.spinner("🤖 Hệ thống đang tinh chỉnh prompt theo đúng tiêu chuẩn sư phạm..."):
+                with st.spinner("🤖 Hệ thống đang tinh chỉnh prompt qua AIEngine3 theo đúng tiêu chuẩn sư phạm..."):
                     
                     if "Canva AI" in nen_tang:
                         platform_instructions = """
@@ -92,18 +109,28 @@ Prompt bạn tạo ra phải có các phần rõ ràng sau để AI tiếp nhậ
 Hãy viết bằng tiếng Việt, văn phong chuyên nghiệp, định dạng Markdown rõ ràng.
 """
 
-                    if ai_engine:
-                        try:
+                    ket_qua_prompt = ""
+                    try:
+                        # Ưu tiên sử dụng AIEngine3 nếu có sẵn
+                        if AIEngine3 is not None:
+                            engine_v3 = AIEngine3()
+                            if hasattr(engine_v3, "generate_text"):
+                                ket_qua_prompt = engine_v3.generate_text(prompt_chuyen_sau)
+                            else:
+                                ket_qua_prompt = engine_v3.generate(prompt_chuyen_sau) # Dự phòng phương thức gọi khác
+                        elif ai_engine is not None and hasattr(ai_engine, "generate_text"):
                             ket_qua_prompt = ai_engine.generate_text(prompt_chuyen_sau)
-                        except Exception as e:
-                            ket_qua_prompt = f"Lỗi gọi AI: {str(e)}"
-                    else:
+                        else:
+                            raise Exception("Không tìm thấy engine AI hợp lệ.")
+                    except Exception as e:
+                        logger.error(f"Lỗi gọi AI3: {e}")
+                        # Fallback mẫu chuẩn nếu AI chưa cấu hình key
                         ket_qua_prompt = f"""### MẪU PROMPT CHUYÊN SÂU TẠO TRÒ CHƠI CHO NỀN TẢNG: {nen_tang}
 
 **Chủ đề:** {chu_de} ({mon_hoc} - {lop})
 **Mục tiêu:** {muc_tieu}
 
-*(Vì hệ thống đang chạy ở chế độ offline/chưa cấu hình API Key đầy đủ, đây là khung prompt mẫu tiêu chuẩn để thầy đưa vào AI)*
+*(Hệ thống sử dụng prompt mẫu tiêu chuẩn do chưa kết nối được API Key trực tiếp)*
 
 ---
 **NỘI DUNG PROMPT CẦN COPY:**
@@ -118,16 +145,16 @@ Yêu cầu cụ thể:
 """
 
                     st.session_state["tp_ket_qua_prompt"] = ket_qua_prompt
-                    st.success("🎉 Đã thiết kế thành công Prompt chuyên sâu!")
+                    st.success("🎉 Đã thiết kế thành công Prompt chuyên sâu qua AIEngine3!")
 
-            if "tp_ket_qua_prompt" in st.session_state:
-                st.text_area("Nội dung Prompt chuyên sâu:", value=st.session_state["tp_ket_qua_prompt"], height=400)
-                st.download_button(
-                    "📥 Tải xuống tệp Prompt (.txt)",
-                    data=st.session_state["tp_ket_qua_prompt"],
-                    file_name=f"PromptChuyenSau_{chu_de.replace(' ', '_')}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-            else:
-                st.info("💡 Điền thông tin bên cột trái và bấm nút để khởi tạo Prompt tối ưu.")
+        if "tp_ket_qua_prompt" in st.session_state:
+            st.text_area("Nội dung Prompt chuyên sâu:", value=st.session_state["tp_ket_qua_prompt"], height=400)
+            st.download_button(
+                "📥 Tải xuống tệp Prompt (.txt)",
+                data=st.session_state["tp_ket_qua_prompt"],
+                file_name=f"PromptChuyenSau_{chu_de.replace(' ', '_')}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+        else:
+            st.info("💡 Điền thông tin bên cột trái và bấm nút để khởi tạo Prompt tối ưu.")
