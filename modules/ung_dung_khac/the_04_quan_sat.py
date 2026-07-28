@@ -16,6 +16,10 @@ def render_the_04(ai_engine=None):
     st.markdown("### 👁️‍🗨️ Studio Phân Tích Màn Hình & Giọng Nói (AI Vision)")
     st.caption("Cung cấp hình ảnh/video quay màn hình và ghi âm lệnh của thầy. AI sẽ kết hợp đa phương thức để phân tích vấn đề.")
 
+    # Khởi tạo khóa (key) động để có thể Xóa/Reset khung ghi âm
+    if "audio_key" not in st.session_state:
+        st.session_state["audio_key"] = 0
+
     # ==========================================
     # GIAO DIỆN BẢNG ĐIỀU KHIỂN
     # ==========================================
@@ -49,11 +53,11 @@ def render_the_04(ai_engine=None):
     with c_left:
         if use_screen:
             st.markdown("**1. Hình ảnh / Video Màn hình**")
-            st.caption("Dán ảnh (Ctrl+V) hoặc tải lên Video quay màn hình (MP4, MOV).")
+            st.info("🎯 **Mẹo thao tác nhanh:** Thầy có thể **Kéo thả file có sẵn** vào khung dưới, hoặc chụp màn hình (`Win+Shift+S`) -> **Click chuột vào khung đứt nét** -> Bấm **`Ctrl+V`** để dán ảnh vào ngay lập tức!")
+            
             uploaded_media = st.file_uploader(
-                "Tải lên Ảnh/Video màn hình", 
+                "👇 Kéo thả, Tải lên hoặc Click vào đây & nhấn Ctrl+V để Dán:", 
                 type=["png", "jpg", "jpeg", "mp4", "mov", "webm", "avi"],
-                label_visibility="collapsed",
                 key="the4_media"
             )
             
@@ -66,18 +70,28 @@ def render_the_04(ai_engine=None):
 
         if use_mic:
             st.markdown("**2. Ghi âm lệnh (Trên Trình Duyệt)**")
-            recorded_audio = st.audio_input("Bấm để ghi âm (Hoặc chọn Stereo Mix trong cài đặt Chrome để thu âm máy tính):", key="the4_mic_input")
             
-            # Xử lý khi có file ghi âm: Cho phép nghe lại và Tải về
+            # Sử dụng key động để reset widget khi bấm nút Xóa
+            audio_widget_key = f"the4_mic_input_{st.session_state['audio_key']}"
+            recorded_audio = st.audio_input("Bấm biểu tượng Micro để ghi âm:", key=audio_widget_key)
+            
             if recorded_audio:
-                st.success("Đã ghi âm thành công!")
-                st.download_button(
-                    label="📥 Tải file ghi âm về máy (.wav)",
-                    data=recorded_audio.getvalue(),
-                    file_name="Ghi_am_AI_Studio.wav",
-                    mime="audio/wav",
-                    use_container_width=True
-                )
+                st.success("✅ Đã ghi âm thành công!")
+                col_dl, col_del = st.columns(2)
+                
+                with col_dl:
+                    st.download_button(
+                        label="📥 Tải file (.wav)",
+                        data=recorded_audio.getvalue(),
+                        file_name="Ghi_am_AI_Studio.wav",
+                        mime="audio/wav",
+                        use_container_width=True
+                    )
+                with col_del:
+                    # Nút xóa file ghi âm (reset widget)
+                    if st.button("🗑️ Xóa file ghi âm này", use_container_width=True):
+                        st.session_state["audio_key"] += 1
+                        st.rerun()
 
         st.markdown("**3. Lệnh văn bản bổ sung**")
         text_prompt = st.text_area("Nhập câu hỏi (Ví dụ: Hãy giải thích nội dung trên màn hình này):", height=68)
@@ -120,7 +134,6 @@ def render_the_04(ai_engine=None):
                         
                     contents.append(master_prompt)
                     
-                    # Xử lý File Ghi âm (Mic)
                     uploaded_audio_file = None
                     tmp_audio_path = None
                     if recorded_audio:
@@ -130,7 +143,6 @@ def render_the_04(ai_engine=None):
                         uploaded_audio_file = genai.upload_file(path=tmp_audio_path)
                         contents.append(uploaded_audio_file)
 
-                    # Xử lý Ảnh/Video Màn hình
                     uploaded_vision_file = None
                     tmp_vid_path = None
                     if uploaded_media:
