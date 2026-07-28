@@ -75,7 +75,7 @@ def render_xd_mo_phong(ai_engine_cu=None):
                 u = st.slider("Hiệu điện thế $U$ (Volt):", 1.0, 220.0, 12.0, 1.0)
                 r = st.slider("Điện trở $R$ ($\Omega$):", 1.0, 100.0, 10.0, 1.0)
             with col_view:
-                st.markdown("##### 📊 Định luật Ohm ($I = \\frac{U}{R}$)")
+                st.markdown(rf"##### 📊 Định luật Ohm ($I = \frac{{U}{R}$)")
                 i_val = u / r
                 st.metric(label="Cường độ dòng điện $I$ (Ampere)", value=f"{i_val:.2f} A")
                 
@@ -103,7 +103,7 @@ def render_xd_mo_phong(ai_engine_cu=None):
                 st.plotly_chart(fig, use_container_width=True)
                 
                 delta = b**2 - 4*a*c
-                st.info(f"📌 Delta ($\Delta$): **{delta}** | Tọa độ đỉnh $I\\left(\\frac{-b}{2a}, \\frac{-\\Delta}{4a}\\right)$")
+                st.info(rf"📌 Delta ($\Delta$): **{delta}** | Tọa độ đỉnh $I\left(\frac{{-b}}{{2a}}, \frac{{-\Delta}}{{4a}}\right)$")
 
     # ========================================================
     # TAB 2: TRỢ GIẢNG AI MÔ PHỎNG (CHATBOT GOOGLE-GENAI)
