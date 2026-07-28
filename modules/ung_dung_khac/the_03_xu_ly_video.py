@@ -106,18 +106,34 @@ def download_youtube_audio_fallback(url):
         return None, f"❌ Không thể tải âm thanh dự phòng: {str(e)}"
 
 # =========================================================
-# HÀM XỬ LÝ ĐA PHƯƠNG TIỆN GEMINI
+# HÀM XỬ LÝ ĐA PHƠNG TIỆN GEMINI (ĐÃ NÂNG CẤP TÌM API KEY)
 # =========================================================
-def get_gemini_api_key():
-    if st.session_state.get("is_admin_mode"):
-        try:
-            return st.secrets["GEMINI_API_KEY"]
-        except Exception:
-            pass 
-            
+def get_gemini_api_key(ai_engine=None):
+    # 1. Kiểm tra từ session_state (do người dùng nhập ở sidebar)
     key = st.session_state.get("user_api_key")
     if key and not key.startswith("sk-"): 
         return key
+        
+    # 2. Kiểm tra biến môi trường hệ thống
+    env_key = os.environ.get("GEMINI_API_KEY")
+    if env_key:
+        return env_key
+        
+    # 3. Kiểm tra trong st.secrets an toàn
+    try:
+        if "GEMINI_API_KEY" in st.secrets:
+            return st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        pass 
+        
+    # 4. Kiểm tra xem ai_engine có lưu trữ khóa API bên trong không
+    if ai_engine:
+        for attr in ["api_key", "key", "_api_key"]:
+            if hasattr(ai_engine, attr):
+                val = getattr(ai_engine, attr)
+                if val:
+                    return val
+
     return None
 
 def show_missing_key_warning():
@@ -128,7 +144,7 @@ def show_missing_key_warning():
     
     💡 **CÁCH XỬ LÝ NHANH NHẤT:**
     1. Truy cập [Google AI Studio](https://aistudio.google.com/app/apikey) để lấy 1 mã Key.
-    2. Điền vào cột bên trái Sidebar để Đăng nhập lại vào hệ thống.
+    2. Điền vào ô nhập API Key ở cột bên trái Sidebar để hệ thống ghi nhận.
     """)
 
 def process_multimodal_gemini(file_path, prompt, api_key):
@@ -237,7 +253,8 @@ def render_the_03(ai_engine=None):
                     st.error("❌ Tệp vượt quá giới hạn 200MB. Vui lòng thử tệp nhẹ hơn.")
                     st.stop()
 
-            gemini_key = get_gemini_api_key()
+            # Lấy API Key có truyền vào ai_engine để kiểm tra linh hoạt
+            gemini_key = get_gemini_api_key(ai_engine)
             
             prompt_chung = f"""
 BẠN LÀ TRỢ LÝ AI CHUYÊN PHÂN TÍCH, TỔNG HỢP VÀ DỊCH TÀI LIỆU GIÁO DỤC.
