@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 r"""
 ============================================================
-MODULE: modules/quan_ly_to/ke_hoach.py
+MODULE: modules/quan_ly_to/xd_ke_hoach.py
 Nhiệm vụ: Quản lý và Xây dựng Chuyên đề Giáo dục.
 Chức năng: Trưng bày 6 mảng chuyên đề trọng tâm, AI hỗ trợ 
 khởi tạo khung kế hoạch chi tiết, hỗ trợ xuất file Word (.docx) 
@@ -155,13 +155,12 @@ def render_ke_hoach():
                                 response = client.chat.completions.create(
                                     model="gpt-4o-mini",
                                     messages=[{"role": "user", "content": prompt}]
-                                ी]
+                                )
                                 khung_ke_hoach = response.choices[0].message.content
                             else:
                                 st.error("❌ Không tìm thấy khóa API `sk-` hợp lệ. Thầy vui lòng kiểm tra lại ô nhập API Key ở menu bên trái.")
 
                         if khung_ke_hoach:
-                            # Làm sạch dấu ** ngay lập tức
                             st.session_state.ket_qua_chuyen_de = khung_ke_hoach.replace("**", "")
                             st.rerun()
                     except Exception as e:
@@ -182,7 +181,6 @@ def render_ke_hoach():
                 try:
                     doc = Document()
                     
-                    # Thiết lập lề trang giấy chuẩn hành chính
                     sections = doc.sections
                     for section in sections:
                         section.top_margin = Inches(1.0)
@@ -190,7 +188,6 @@ def render_ke_hoach():
                         section.left_margin = Inches(1.2)
                         section.right_margin = Inches(0.8)
                     
-                    # Tiêu đề chính
                     p_title = doc.add_paragraph()
                     p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     run_title = p_title.add_run("KẾ HOẠCH TRIỂN KHAI CHUYÊN ĐỀ")
@@ -198,7 +195,6 @@ def render_ke_hoach():
                     run_title.font.size = Pt(13)
                     p_title.paragraph_format.space_after = Pt(16)
 
-                    # Xử lý nội dung văn bản (loại bỏ dấu **)
                     raw_text = st.session_state.get("ket_qua_chuyen_de", "").replace("**", "")
                     for line in raw_text.split('\n'):
                         clean_line = line.strip()
@@ -209,7 +205,6 @@ def render_ke_hoach():
                         p.paragraph_format.space_after = Pt(4)
                         p.paragraph_format.line_spacing = 1.15
                         
-                        # In đậm các đề mục lớn (I., II., III., IV., V., 1., 2., 3...)
                         if clean_line.startswith(('I.', 'II.', 'III.', 'IV.', 'V.', 'VI.', '1.', '2.', '3.', '4.', '5.')) and len(clean_line) < 90 and not clean_line.startswith('-'):
                             run = p.add_run(clean_line)
                             run.bold = True
