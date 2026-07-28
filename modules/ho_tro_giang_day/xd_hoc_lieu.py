@@ -3,8 +3,9 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_giang_day/xd_hoc_lieu.py
 Nhiệm vụ: Trợ lý Tổng hợp & Thiết kế Học liệu.
-Nâng cấp: Hỗ trợ đa nguồn (Văn bản, File PDF/Word, Link Web/YouTube).
-Đầu ra đa dạng: Tóm tắt, Sơ đồ tư duy, Kịch bản Slides, Flashcards.
+Nâng cấp: 
+- Hỗ trợ Tải Video trực tiếp từ máy tính.
+- Ép AI bám sát phụ đề/lời thoại (Transcript) và tóm tắt lời thoại trước khi tạo học liệu.
 ============================================================
 """
 
@@ -26,7 +27,7 @@ try:
 except ImportError:
     AIEngine2 = None
 
-# Hàm đọc nội dung từ file tài liệu
+# Hàm đọc nội dung từ file tài liệu (Văn bản)
 def extract_text_from_file(uploaded_file):
     if not uploaded_file:
         return ""
@@ -56,31 +57,40 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
         st.session_state["hl_topic"] = "Hoc_Lieu"
 
     st.markdown("### 📚 Trợ lý Tổng hợp & Thiết kế Học liệu Đa phương tiện")
-    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản dài, File PDF/Word, Link Web, hoặc Link Video YouTube) để chuyển hóa thành các định dạng học liệu ngắn gọn, trực quan như Sơ đồ tư duy, Flashcards hay Kịch bản trình chiếu.")
+    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản dài, File PDF/Word, Tải Video trực tiếp, hoặc Link YouTube) để chuyển hóa thành các định dạng học liệu trực quan. Đặc biệt bám sát phụ đề/lời thoại để đảm bảo tính chính xác.")
 
     with st.container(border=True):
         st.markdown("#### 1️⃣ Cấu hình Nguồn Dữ liệu (Input)")
         
         nguon_nhap = st.radio(
             "Chọn phương thức nạp kiến thức thô:",
-            ["✍️ Dán văn bản trực tiếp", "📁 Tải lên Tệp (PDF, Word, TXT)", "🌐 Dán Link Web / YouTube"],
+            ["✍️ Dán văn bản", "📁 Tải lên Tài liệu (PDF/Word)", "🎬 Tải lên Video", "🌐 Dán Link Web / YouTube"],
             horizontal=True
         )
 
         input_data_content = ""
         uploaded_file = None
+        uploaded_video = None
 
         if "văn bản" in nguon_nhap:
             input_data_content = st.text_area("Dán nội dung kiến thức thô vào đây:", height=150, placeholder="Ví dụ: Đoạn văn bản dài về Lịch sử Việt Nam, tài liệu khoa học...")
-        elif "Tệp" in nguon_nhap:
-            uploaded_file = st.file_uploader("Tải lên tài liệu tham khảo:", type=["pdf", "docx", "txt", "md"])
+        
+        elif "Tài liệu" in nguon_nhap:
+            uploaded_file = st.file_uploader("Tải lên tài liệu tham khảo (PDF, DOCX, TXT):", type=["pdf", "docx", "txt", "md"])
             if uploaded_file:
                 with st.spinner("Đang đọc dữ liệu từ tệp..."):
                     input_data_content = extract_text_from_file(uploaded_file)
-                    st.success(f"✅ Đã đọc thành công: {uploaded_file.name}")
+                    st.success(f"✅ Đã đọc thành công tài liệu: {uploaded_file.name}")
+                    
+        elif "Video" in nguon_nhap:
+            uploaded_video = st.file_uploader("Tải lên Video bài giảng (MP4, MOV, AVI):", type=["mp4", "mov", "avi"])
+            if uploaded_video:
+                st.video(uploaded_video)
+                st.success(f"✅ Đã tải lên Video: {uploaded_video.name}. Sẵn sàng bóc tách lời thoại!")
+                
         else:
             input_data_content = st.text_input("Dán đường dẫn (URL) Website hoặc Video YouTube:", placeholder="https://www.youtube.com/watch?v=... hoặc https://vi.wikipedia.org/...")
-            st.caption("AI (Gemini 1.5 Pro) có khả năng tự động truy cập và phân tích phụ đề Video YouTube hoặc nội dung trang web công khai.")
+            st.caption("AI (Gemini 1.5 Pro) sẽ tự động truy cập, lắng nghe lời thoại và bóc tách phụ đề (transcript) của Video YouTube.")
 
         st.markdown("---")
         st.markdown("#### 2️⃣ Thiết lập Định dạng Đầu ra (Output)")
@@ -120,8 +130,8 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
             st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`.")
             return
 
-        if not input_data_content.strip() and not uploaded_file:
-            st.warning("⚠️ Vui lòng cung cấp văn bản, tải tệp hoặc dán Link tài liệu.")
+        if not input_data_content.strip() and not uploaded_file and not uploaded_video:
+            st.warning("⚠️ Vui lòng cung cấp văn bản, tải tệp, tải video hoặc dán Link tài liệu.")
         else:
             with st.spinner(f"⏳ AI đang tiêu hóa tài liệu và chuyển hóa thành {loai_hoc_lieu.split('(')[0]}..."):
                 prompt = f"""
@@ -134,22 +144,45 @@ Nhiệm vụ của bạn là phân tích nguồn dữ liệu do giáo viên cung
 - Yêu cầu bổ sung: {yeu_cau_them if yeu_cau_them else 'Không có'}
 
 --- NGUỒN DỮ LIỆU ĐẦU VÀO ---
-{input_data_content[:15000]}  # Giới hạn nội dung thô để tránh tràn context dài quá mức cần thiết
+{input_data_content[:15000] if input_data_content else "(Dữ liệu đầu vào là Video được đính kèm)"}
+
+--- [QUY TRÌNH XỬ LÝ VIDEO BẮT BUỘC] ---
+Nếu dữ liệu đầu vào là Video hoặc Link Video YouTube: Bạn BẮT BUỘC phải lắng nghe, bám sát vào phụ đề (transcript), lời thoại của nhân vật/giảng viên trong video. 
+Khởi đầu kết quả, BẮT BUỘC phải có mục:
+### 🎙️ Tóm tắt Lời thoại / Phụ đề Video
+(Chuyển hóa toàn bộ lời thoại/âm thanh trong video thành một văn bản tóm tắt nội dung cực kỳ chi tiết).
+SAY ĐÓ mới dùng chính nội dung tóm tắt này để thiết kế học liệu ở các phần tiếp theo. KHÔNG được tự bịa ra nội dung nếu không có trong lời thoại.
 
 --- QUY TẮC THIẾT KẾ BẮT BUỘC TÙY THEO ĐỊNH DẠNG ---
 1. Nếu là "Tóm tắt": Dùng Bullet points rõ ràng, bôi đậm từ khóa cốt lõi.
 2. Nếu là "Sơ đồ tư duy": Trình bày dạng cây phân cấp logic (Sử dụng các ký tự -, *, > để thụt lề rõ ràng, từ khóa ngắn gọn).
-3. Nếu là "Kịch bản Thuyết trình": Chia rõ từng trang [Slide 1, Slide 2...]. Mỗi Slide phải có: Tiêu đề, Nội dung chữ (ngắn gọn), và Gợi ý hình ảnh/video minh họa trực quan.
-4. Nếu là "Thẻ ghi nhớ (Flashcards)": Trình bày dạng bảng hoặc danh sách 2 cột: [Mặt trước: Câu hỏi/Khái niệm] - [Mặt sau: Trả lời/Định nghĩa ngắn gọn].
-5. Nếu là "Ngân hàng câu hỏi": Đưa ra câu hỏi, đáp án và giải thích chi tiết.
+3. Nếu là "Kịch bản Thuyết trình": Chia rõ từng trang [Slide 1, Slide 2...]. Mỗi Slide phải có: Tiêu đề, Nội dung chữ, và Gợi ý hình ảnh/video.
+4. Nếu là "Thẻ ghi nhớ (Flashcards)": Trình bày [Mặt trước: Câu hỏi] - [Mặt sau: Trả lời].
+5. Nếu là "Ngân hàng câu hỏi": Đưa ra câu hỏi, đáp án và giải thích.
 
 [KỶ LUẬT ĐỊNH DẠNG SỐNG CÒN]
 - Trình bày mạch lạc bằng Markdown.
-- NẾU có công thức Toán/Lý/Hóa, TUYỆT ĐỐI bọc trong dấu `$ ... $` (ví dụ $H_2O$ hoặc $E=mc^2$). KHÔNG dùng backtick (`) cho công thức Toán.
+- NẾU có công thức Toán/Lý/Hóa, TUYỆT ĐỐI bọc trong dấu `$ ... $`. KHÔNG dùng backtick (`) cho công thức Toán.
 """
                 try:
-                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro") # Dùng bản Pro để đọc hiểu Link/YouTube tốt nhất
-                    result = engine_v2.generate_text(prompt, temperature=0.7)
+                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
+                    
+                    # Xử lý nếu có tải lên Video (Multimodal)
+                    if uploaded_video:
+                        # Gói file video vào định dạng từ điển theo chuẩn API
+                        video_part = {
+                            "mime_type": uploaded_video.type,
+                            "data": uploaded_video.getvalue()
+                        }
+                        contents = [prompt, video_part]
+                        
+                        if hasattr(engine_v2, "generate_multimodal"):
+                            result = engine_v2.generate_multimodal(contents)
+                        else:
+                            result = "❌ Cần cập nhật hàm `generate_multimodal` trong `AIEngine2` để có thể nhận trực tiếp file Video."
+                    else:
+                        # Xử lý Text / Document / Link bình thường
+                        result = engine_v2.generate_text(prompt, temperature=0.7)
                     
                     if result.startswith("❌") or result.startswith("⚠️"):
                         st.error(result)
