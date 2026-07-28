@@ -2,65 +2,87 @@
 r"""
 ============================================================
 MODULE: modules/ung_dung_khac/the_04_quan_sat.py
-Nhiệm vụ: Trợ lý Phân tích Màn hình & Giọng nói (Đa phương thức).
-Chức năng: Nhận ảnh chụp màn hình + Ghi âm giọng nói để AI phân tích.
+Nhiệm vụ: Trợ lý Phân tích Đa phương thức (Ảnh/Video Màn hình & Giọng nói).
+Giao diện: Lấy cảm hứng từ Dashboard Recorder.
 ============================================================
 """
 
 import streamlit as st
 import tempfile
 import os
+import time
 
 def render_the_04(ai_engine=None):
-    st.markdown("### 👁️‍🗨️ Trợ lý Phân tích Màn hình & Lệnh Giọng nói")
-    st.caption("Chụp lại màn hình máy tính (bài toán, lỗi phần mềm, trang web...) và ghi âm yêu cầu. AI sẽ kết hợp cả hai để giải quyết vấn đề ngay lập tức.")
+    st.markdown("### 👁️‍🗨️ Studio Phân Tích Màn Hình & Giọng Nói (AI Vision)")
+    st.caption("Cung cấp hình ảnh/video quay màn hình và ghi âm lệnh của thầy. AI sẽ kết hợp đa phương thức để phân tích vấn đề.")
 
-    col1, col2 = st.columns([1, 1], gap="medium")
+    # ==========================================
+    # GIAO DIỆN BẢNG ĐIỀU KHIỂN (Giống Camtasia)
+    # ==========================================
+    st.markdown("#### 🎛️ Bảng điều khiển Đầu vào (Inputs)")
+    
+    # Tạo 3 cột giống giao diện Camtasia
+    col_screen, col_mic, col_sys = st.columns(3)
+    
+    with col_screen:
+        st.info("🖥️ **Màn hình (Screen/Video)**")
+        use_screen = st.toggle("Kích hoạt tải Màn hình", value=True, key="tgl_screen")
+        
+    with col_mic:
+        st.info("🎙️ **Microphone (Voice)**")
+        use_mic = st.toggle("Kích hoạt Micro bên ngoài", value=True, key="tgl_mic")
+        
+    with col_sys:
+        st.info("🔊 **System Audio**")
+        st.toggle("Âm thanh máy tính", value=False, disabled=True, help="Web Browser hiện chưa hỗ trợ thu trực tiếp System Audio. Vui lòng quay video có sẵn âm thanh hệ thống để tải lên ô Màn hình.")
 
-    with col1:
-        st.markdown("#### 1️⃣ Cung cấp Màn hình / Hình ảnh")
-        
-        # Khung hướng dẫn dán ảnh nổi bật
-        st.success(
-            "🎯 **CÁCH DÁN ẢNH SIÊU NHANH:**\n"
-            "1. Chụp màn hình bằng phím tắt `Windows + Shift + S`.\n"
-            "2. **Click chuột 1 lần vào khung đứt nét bên dưới**.\n"
-            "3. Bấm phím **`Ctrl + V`** để dán ảnh vào ngay lập tức!"
-        )
-        
-        uploaded_img = st.file_uploader(
-            "👇 CLICK VÀO KHU VỰC NÀY VÀ BẤM CTRL + V:", 
-            type=["png", "jpg", "jpeg"],
-            key="the4_img_upload"
-        )
-        
-        if uploaded_img:
-            st.image(uploaded_img, caption="Ảnh màn hình đã ghi nhận", use_column_width=True)
+    st.markdown("---")
 
-        st.markdown("#### 2️⃣ Ghi âm yêu cầu (Tùy chọn)")
-        st.write("Sử dụng micro để nói yêu cầu thay vì gõ chữ (Ví dụ: 'Hãy giải thích cho tôi đoạn code trên màn hình này là gì?').")
-        
-        recorded_audio = st.audio_input("Bấm vào biểu tượng Micro để bắt đầu nói:", key="the4_audio")
-        
-        st.markdown("#### 3️⃣ Hoặc nhập yêu cầu bằng văn bản")
-        text_prompt = st.text_area(
-            "Nội dung yêu cầu:", 
-            placeholder="Nếu đã ghi âm ở trên, thầy có thể bỏ trống ô này...",
-            height=100
-        )
+    # ==========================================
+    # KHU VỰC THU THẬP DỮ LIỆU DỰA TRÊN TOGGLES
+    # ==========================================
+    uploaded_media = None
+    recorded_audio = None
+    text_prompt = ""
 
-        btn_analyze = st.button("🚀 GỬI TẤT CẢ CHO AI PHÂN TÍCH", type="primary", use_container_width=True)
+    c_left, c_right = st.columns([1.2, 1], gap="large")
 
-    with col2:
-        st.markdown("#### 🧠 Kết quả từ Trợ lý AI")
+    with c_left:
+        if use_screen:
+            st.markdown("**1. Hình ảnh / Video Màn hình**")
+            st.caption("Dán ảnh (Ctrl+V) hoặc tải lên Video quay màn hình (MP4, MOV).")
+            uploaded_media = st.file_uploader(
+                "Tải lên Ảnh/Video màn hình", 
+                type=["png", "jpg", "jpeg", "mp4", "mov", "webm", "avi"],
+                label_visibility="collapsed",
+                key="the4_media"
+            )
+            
+            if uploaded_media:
+                file_ext = os.path.splitext(uploaded_media.name)[1].lower()
+                if file_ext in [".png", ".jpg", ".jpeg"]:
+                    st.image(uploaded_media, caption="Ảnh màn hình đã nhận", use_column_width=True)
+                else:
+                    st.video(uploaded_media)
+
+        if use_mic:
+            st.markdown("**2. Ghi âm lệnh (Microphone)**")
+            recorded_audio = st.audio_input("Ghi âm giọng nói của thầy:", key="the4_mic_input")
+
+        st.markdown("**3. Lệnh văn bản bổ sung**")
+        text_prompt = st.text_area("Nhập câu hỏi (Ví dụ: Lỗi ở dòng code nào?):", height=68)
+
+        btn_analyze = st.button("🔴 BẮT ĐẦU PHÂN TÍCH (REC)", type="primary", use_container_width=True)
+
+    # ==========================================
+    # KHU VỰC XỬ LÝ VÀ HIỂN THỊ KẾT QUẢ AI
+    # ==========================================
+    with c_right:
+        st.markdown("#### 🧠 Trợ lý AI Phản hồi")
         
         if btn_analyze:
-            if not uploaded_img:
-                st.warning("⚠️ Vui lòng cung cấp ít nhất một bức ảnh chụp màn hình bằng cách Tải lên hoặc Dán (Ctrl + V).")
-                st.stop()
-                
-            if not recorded_audio and not text_prompt.strip():
-                st.warning("⚠️ Vui lòng ghi âm yêu cầu hoặc nhập yêu cầu bằng văn bản.")
+            if not uploaded_media and not text_prompt.strip() and not recorded_audio:
+                st.warning("⚠️ Vui lòng cung cấp ít nhất một dữ liệu (Màn hình, Giọng nói hoặc Văn bản).")
                 st.stop()
                 
             api_key = None
@@ -73,53 +95,77 @@ def render_the_04(ai_engine=None):
                 st.error("❌ Hệ thống chưa tìm thấy API Key của Google Gemini ở thanh Sidebar.")
                 st.stop()
 
-            with st.spinner("🤖 Trợ lý AI đang quan sát màn hình và lắng nghe..."):
+            with st.spinner("🤖 AI đang đồng bộ và phân tích dữ liệu đa phương thức..."):
                 try:
                     import google.generativeai as genai
                     genai.configure(api_key=api_key)
                     model = genai.GenerativeModel("gemini-2.5-flash")
                     
                     contents = []
-                    
-                    master_prompt = "Dưới đây là một bức ảnh chụp màn hình. "
+                    master_prompt = "Hãy đóng vai một chuyên gia, phân tích các dữ liệu tôi cung cấp. "
                     if text_prompt.strip():
-                        master_prompt += f"Người dùng có yêu cầu văn bản như sau: '{text_prompt.strip()}'. "
-                    
+                        master_prompt += f"\nYêu cầu bằng văn bản: '{text_prompt.strip()}'. "
                     if recorded_audio:
-                        master_prompt += "Đồng thời, người dùng có gửi kèm một đoạn ghi âm giọng nói yêu cầu. Hãy nghe kỹ đoạn ghi âm này kết hợp với ảnh màn hình để đưa ra câu trả lời chính xác nhất."
-                    
+                        master_prompt += "\nTôi có gửi kèm một đoạn ghi âm giọng nói (Microphone). Hãy nghe và thực hiện theo yêu cầu trong đó."
+                        
                     contents.append(master_prompt)
                     
+                    # Xử lý File Ghi âm (Mic)
                     uploaded_audio_file = None
                     if recorded_audio:
-                        audio_ext = ".wav" 
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=audio_ext) as tmp_audio:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
                             tmp_audio.write(recorded_audio.read())
                             tmp_audio_path = tmp_audio.name
-                            
                         uploaded_audio_file = genai.upload_file(path=tmp_audio_path)
                         contents.append(uploaded_audio_file)
 
-                    from PIL import Image
-                    img = Image.open(uploaded_img)
-                    contents.append(img)
+                    # Xử lý Ảnh/Video Màn hình
+                    uploaded_vision_file = None
+                    if uploaded_media:
+                        ext = os.path.splitext(uploaded_media.name)[1].lower()
+                        if ext in [".png", ".jpg", ".jpeg"]:
+                            from PIL import Image
+                            img = Image.open(uploaded_media)
+                            contents.append(img)
+                        else:
+                            # Nếu là Video, đẩy lên Gemini
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_vid:
+                                tmp_vid.write(uploaded_media.read())
+                                tmp_vid_path = tmp_vid.name
+                                
+                            status_txt = st.empty()
+                            status_txt.info("⏳ Đang tải Video màn hình lên máy chủ AI...")
+                            uploaded_vision_file = genai.upload_file(path=tmp_vid_path)
+                            
+                            while uploaded_vision_file.state.name == "PROCESSING":
+                                time.sleep(2)
+                                uploaded_vision_file = genai.get_file(uploaded_vision_file.name)
+                            status_txt.empty()
+                            
+                            contents.append(uploaded_vision_file)
                     
+                    # Gọi AI sinh kết quả
                     response = model.generate_content(contents)
                     
-                    st.success("🎉 AI đã xử lý xong!")
+                    st.success("🎉 Hoàn tất phân tích!")
                     st.session_state["the4_result"] = response.text
                     
                 except Exception as e:
                     st.error(f"❌ Lỗi xử lý Đa phương thức: {e}")
                 finally:
+                    # Dọn dẹp Rác (Files tạm)
                     if 'uploaded_audio_file' in locals() and uploaded_audio_file:
-                        try:
-                            genai.delete_file(uploaded_audio_file.name)
-                        except:
-                            pass
+                        try: genai.delete_file(uploaded_audio_file.name)
+                        except: pass
+                    if 'uploaded_vision_file' in locals() and uploaded_vision_file:
+                        try: genai.delete_file(uploaded_vision_file.name)
+                        except: pass
                     if 'tmp_audio_path' in locals() and os.path.exists(tmp_audio_path):
                         os.remove(tmp_audio_path)
+                    if 'tmp_vid_path' in locals() and os.path.exists(tmp_vid_path):
+                        os.remove(tmp_vid_path)
 
+        # Hiển thị
         if st.session_state.get("the4_result"):
             with st.container(border=True):
                 st.markdown(st.session_state["the4_result"])
