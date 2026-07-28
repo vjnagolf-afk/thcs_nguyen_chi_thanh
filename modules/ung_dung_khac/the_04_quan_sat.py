@@ -12,6 +12,32 @@ import tempfile
 import os
 import time
 
+def get_clean_gemini_key(ai_engine=None):
+    """Hàm tự động dọn dẹp và lấy API Key chuẩn của Google"""
+    # 1. Lấy từ ô nhập liệu ở Sidebar
+    key = st.session_state.get("user_api_key", "")
+    if key and isinstance(key, str) and key.strip().startswith("AI"):
+        return key.strip()
+        
+    # 2. Lấy từ bộ nhớ AI Engine (nếu có)
+    if ai_engine:
+        for attr in ["api_key", "key", "_api_key"]:
+            if hasattr(ai_engine, attr):
+                val = getattr(ai_engine, attr)
+                if val and isinstance(val, str) and val.strip().startswith("AI"):
+                    return val.strip()
+                    
+    # 3. Lấy từ thư mục bảo mật
+    try:
+        if "GEMINI_API_KEY" in st.secrets:
+            sec_key = st.secrets["GEMINI_API_KEY"]
+            if sec_key and isinstance(sec_key, str) and sec_key.strip().startswith("AI"):
+                return sec_key.strip()
+    except Exception:
+        pass
+        
+    return None
+
 def render_the_04(ai_engine=None):
     st.markdown("### 👁️‍🗨️ Studio Phân Tích Đa Phương Thức (AI Vision)")
     st.caption("Cung cấp hình ảnh/video quay màn hình, chụp camera và ghi âm. AI sẽ kết hợp tất cả để phân tích vấn đề một cách toàn diện nhất.")
@@ -56,7 +82,6 @@ def render_the_04(ai_engine=None):
         if use_screen:
             st.markdown("**1A. Hình ảnh / Video Màn hình**")
             
-            # Hướng dẫn chi tiết vượt rào Trình duyệt
             with st.expander("💡 HƯỚNG DẪN DÁN (CTRL+V) VÀ KÉO THẢ ĐÚNG CÁCH", expanded=False):
                 st.write("""
                 * **Để Dán (Ctrl+V):** Chụp màn hình (Win+Shift+S) -> **Click chuột trực tiếp vào biểu tượng Đám Mây** bên dưới để khung sáng lên -> Bấm `Ctrl+V`.
@@ -77,7 +102,7 @@ def render_the_04(ai_engine=None):
                 else:
                     st.video(uploaded_media)
 
-        # NHÁNH 2: CAMERA (TÍNH NĂNG MỚI BỔ SUNG)
+        # NHÁNH 2: CAMERA 
         if use_cam:
             st.markdown("**1B. Chụp ảnh từ Webcam**")
             st.caption("Thầy có thể giơ trực tiếp SGK, bài toán viết tay lên trước Camera.")
@@ -120,20 +145,15 @@ def render_the_04(ai_engine=None):
         st.markdown("#### 🧠 Trợ lý AI Phản hồi")
         
         if btn_analyze:
-            # Kiểm tra xem có bất kỳ nguồn ảnh/video nào không
             has_visual = uploaded_media is not None or captured_img is not None
             if not has_visual and not text_prompt.strip() and not recorded_audio:
                 st.warning("⚠️ Vui lòng cung cấp ít nhất một dữ liệu (Hình ảnh, Giọng nói hoặc Văn bản).")
                 st.stop()
                 
-            api_key = None
-            if st.session_state.get("user_api_key"):
-                api_key = st.session_state["user_api_key"]
-            elif "GEMINI_API_KEY" in st.secrets:
-                api_key = st.secrets["GEMINI_API_KEY"]
+            api_key = get_clean_gemini_key(ai_engine)
 
             if not api_key:
-                st.error("❌ Hệ thống chưa tìm thấy API Key của Google Gemini ở thanh Sidebar.")
+                st.error("❌ Lỗi: Mã API Key không hợp lệ hoặc chưa được nhập. Mã chuẩn của Google Gemini phải bắt đầu bằng chữ 'AIza...'. Thầy vui lòng kiểm tra lại ở thanh Sidebar!")
                 st.stop()
 
             with st.spinner("🤖 AI đang đồng bộ và phân tích dữ liệu đa phương thức..."):
@@ -161,13 +181,13 @@ def render_the_04(ai_engine=None):
                         uploaded_audio_file = genai.upload_file(path=tmp_audio_path)
                         contents.append(uploaded_audio_file)
 
-                    # 2. Gửi Ảnh từ Webcam (Nếu có)
+                    # 2. Gửi Ảnh từ Webcam
                     if captured_img:
                         from PIL import Image
                         img_cam = Image.open(captured_img)
                         contents.append(img_cam)
 
-                    # 3. Gửi File Upload / Dán (Ảnh hoặc Video)
+                    # 3. Gửi File Upload / Dán
                     uploaded_vision_file = None
                     tmp_vid_path = None
                     if uploaded_media:
@@ -199,7 +219,12 @@ def render_the_04(ai_engine=None):
                     st.session_state["the4_result"] = response.text
                     
                 except Exception as e:
-                    st.error(f"❌ Lỗi xử lý Đa phương thức: {e}")
+                    # Bắt và hiển thị lỗi rõ ràng hơn nếu vẫn bị lỗi
+                    error_str = str(e)
+                    if "API_KEY_INVALID" in error_str:
+                        st.error("❌ Lỗi: Mã API Key bị Google từ chối (API_KEY_INVALID). Thầy hãy kiểm tra lại mã đã nhập ở Sidebar, đảm bảo sao chép chính xác từ Google AI Studio.")
+                    else:
+                        st.error(f"❌ Lỗi xử lý Đa phương thức: {error_str}")
                 finally:
                     if 'uploaded_audio_file' in locals() and uploaded_audio_file:
                         try: genai.delete_file(uploaded_audio_file.name)
