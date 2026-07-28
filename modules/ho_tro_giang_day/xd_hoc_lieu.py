@@ -4,8 +4,8 @@ r"""
 MODULE: modules/ho_tro_giang_day/xd_hoc_lieu.py
 Nhiệm vụ: Trợ lý Tổng hợp & Thiết kế Học liệu.
 Nâng cấp: 
-- Hỗ trợ Tải Video trực tiếp từ máy tính.
-- TỰ ĐỘNG CÀO PHỤ ĐỀ YOUTUBE (Transcript) & WEB trước khi gửi cho AI.
+- TỰ ĐỘNG CÀO PHỤ ĐỀ YOUTUBE (Transcript) & WEB.
+- ĐÃ FIX LỖI THƯ VIỆN & TÍCH HỢP TÍNH NĂNG TỰ ĐỘNG DỊCH VIDEO NƯỚC NGOÀI.
 ============================================================
 """
 
@@ -51,7 +51,7 @@ def extract_text_from_file(uploaded_file):
         st.error(f"Không thể đọc file {file_name}. Vui lòng kiểm tra định dạng.")
     return extracted_text
 
-# HÀM MỚI: Tự động trích xuất nội dung từ Link Web / YouTube
+# HÀM MỚI SIÊU VIỆT: Tự động trích xuất và Dịch nội dung từ Link Web / YouTube
 def extract_content_from_url(url):
     text_content = ""
     url = url.strip()
@@ -59,6 +59,7 @@ def extract_content_from_url(url):
     if "youtube.com" in url or "youtu.be" in url:
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
+            
             # Trích xuất Video ID
             parsed_url = urlparse.urlparse(url)
             video_id = ""
@@ -69,20 +70,42 @@ def extract_content_from_url(url):
                     video_id = urlparse.parse_qs(parsed_url.query)['v'][0]
             
             if video_id:
-                # Ưu tiên lấy phụ đề tiếng Việt, nếu không có lấy tiếng Anh
-                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
-                text_content = " ".join([entry['text'] for entry in transcript])
-                return True, f"[PHỤ ĐỀ YOUTUBE TỰ ĐỘNG TRÍCH XUẤT]:\n{text_content}"
+                try:
+                    # Lấy danh sách tất cả phụ đề hiện có của Video
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                    available_langs = [t.language_code for t in transcript_list]
+                    
+                    # Logic: Có Tiếng Việt -> Lấy luôn. Nếu không, lấy Tiếng Anh/khác rồi Dịch sang Tiếng Việt
+                    if 'vi' in available_langs:
+                        transcript = transcript_list.find_transcript(['vi'])
+                    elif 'en' in available_langs:
+                        transcript = transcript_list.find_transcript(['en']).translate('vi')
+                    else:
+                        first_lang = available_langs[0]
+                        transcript = transcript_list.find_transcript([first_lang]).translate('vi')
+                        
+                    transcript_data = transcript.fetch()
+                    text_content = " ".join([entry['text'] for entry in transcript_data])
+                    return True, f"[PHỤ ĐỀ YOUTUBE ĐÃ TRÍCH XUẤT]:\n{text_content}"
+                    
+                except Exception as inner_e:
+                    # Fallback (dự phòng) trong trường hợp list_transcripts bị lỗi
+                    try:
+                        transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
+                        text_content = " ".join([entry['text'] for entry in transcript_data])
+                        return True, f"[PHỤ ĐỀ YOUTUBE ĐÃ TRÍCH XUẤT]:\n{text_content}"
+                    except:
+                        return False, f"❌ Video này không có phụ đề (CC) hoặc đã bị chủ kênh khóa. Vui lòng chọn video khác."
             else:
                 return False, "❌ Không thể nhận diện được Video ID từ đường link YouTube này."
                 
         except ImportError:
-            return False, "❌ Hệ thống thiếu thư viện. Vui lòng thêm `youtube-transcript-api` vào file requirements.txt"
+            return False, "❌ Hệ thống thiếu thư viện. Vui lòng chạy lệnh: pip install youtube-transcript-api==0.6.2"
         except Exception as e:
-            return False, f"❌ Không thể lấy phụ đề (Video này có thể không hỗ trợ phụ đề hoặc bị khóa). Lỗi chi tiết: {e}"
+            return False, f"❌ Đã xảy ra lỗi khi lấy phụ đề: {e}"
             
     else:
-        # Xử lý Link Web bình thường
+        # Xử lý Link Website bình thường
         try:
             import requests
             from bs4 import BeautifulSoup
@@ -93,7 +116,7 @@ def extract_content_from_url(url):
             text_content = "\n".join([p.get_text() for p in paragraphs])
             return True, f"[NỘI DUNG WEBSITE TỰ ĐỘNG TRÍCH XUẤT]:\n{text_content}"
         except ImportError:
-            return False, "❌ Hệ thống thiếu thư viện. Vui lòng thêm `beautifulsoup4` và `requests` vào file requirements.txt"
+            return False, "❌ Hệ thống thiếu thư viện. Vui lòng cài đặt: pip install beautifulsoup4 requests"
         except Exception as e:
             return False, f"❌ Không thể truy cập trang web này (Có thể trang web chặn bot). Lỗi chi tiết: {e}"
 
@@ -104,7 +127,7 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
         st.session_state["hl_topic"] = "Hoc_Lieu"
 
     st.markdown("### 📚 Trợ lý Tổng hợp & Thiết kế Học liệu Đa phương tiện")
-    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản, File, Upload Video, hoặc Link). Đối với Link YouTube, hệ thống sẽ tự động bóc tách phụ đề (transcript) để đảm bảo độ chính xác 100%.")
+    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản, File, Upload Video, hoặc Link). Đối với Link YouTube (kể cả video Tiếng Anh, Hàn...), hệ thống sẽ tự động bóc tách phụ đề và dịch sang Tiếng Việt để đảm bảo độ chính xác 100%.")
 
     with st.container(border=True):
         st.markdown("#### 1️⃣ Cấu hình Nguồn Dữ liệu (Input)")
@@ -187,10 +210,10 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
             with st.spinner("⏳ Đang cào dữ liệu Phụ đề (Transcript) từ Link..."):
                 success, extracted_info = extract_content_from_url(url_input)
                 if not success:
-                    st.error(extracted_info) # Báo lỗi nếu video không có phụ đề
+                    st.error(extracted_info) # Báo lỗi rõ ràng nếu video không có phụ đề
                     return
                 else:
-                    st.success("✅ Đã lấy được nội dung từ Link! Đang chuyển cho AI xử lý...")
+                    st.success("✅ Đã lấy được toàn bộ phụ đề! Đang chuyển cho AI xử lý...")
                     input_data_content = extracted_info
 
         with st.spinner(f"⏳ AI đang tiêu hóa tài liệu và chuyển hóa thành {loai_hoc_lieu.split('(')[0]}..."):
@@ -204,13 +227,13 @@ Nhiệm vụ của bạn là phân tích nguồn dữ liệu do giáo viên cung
 - Yêu cầu bổ sung: {yeu_cau_them if yeu_cau_them else 'Không có'}
 
 --- NGUỒN DỮ LIỆU ĐẦU VÀO ---
-{input_data_content[:20000] if input_data_content else "(Dữ liệu đầu vào là Video được đính kèm trực tiếp)"}
+{input_data_content[:30000] if input_data_content else "(Dữ liệu đầu vào là Video được đính kèm trực tiếp)"}
 
 --- [QUY TRÌNH XỬ LÝ BẮT BUỘC] ---
 Nếu dữ liệu đầu vào là văn bản Trích xuất từ Video/YouTube hoặc Video đính kèm: 
 Bắt buộc mục đầu tiên trong kết quả của bạn phải là:
 ### 🎙️ Tóm tắt Nội dung cốt lõi của Video
-SAY ĐÓ mới dùng chính nội dung này để thiết kế học liệu ở các phần tiếp theo. KHÔNG được tự bịa ra nội dung bên ngoài.
+SAU ĐÓ mới dùng chính nội dung này để thiết kế học liệu ở các phần tiếp theo. KHÔNG được tự bịa ra nội dung bên ngoài.
 
 --- QUY TẮC THIẾT KẾ BẮT BUỘC TÙY THEO ĐỊNH DẠNG ---
 1. Nếu là "Tóm tắt": Dùng Bullet points rõ ràng, bôi đậm từ khóa.
