@@ -202,9 +202,9 @@ if menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     
     tab_titles_gv = [
         "1. KHBD", "2. Đề kiểm tra", "3. Ma trận từ đề", 
-        "4. Chấm viết", "5. Chủ nhiệm", "6. Chuyển đổi", 
+        "4. Chấm bài", "5. Chủ nhiệm", "6. Chuyển đổi học liệu", 
         "7. Live", "8. Mô phỏng", "9. Quizizz", 
-        "10. Rubric", "11. STEM", "12. Tạo học liệu/Prompt"
+        "10. Rubric", "11. STEM", "12. Tạo Prompt"
     ]
     tabs_gv = st.tabs(tab_titles_gv)
     
@@ -258,10 +258,10 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
     st.markdown("## 🎓 Phân hệ: Hỗ trợ Giảng dạy")
     
     tab_titles_gd = [
-        "1. RAG Ask", "2. Cá nhân hóa", "3. Camera", 
-        "4. Chấm nhanh", "5. Học liệu", "6. Kiểm tra nhanh", 
-        "7. Ngân hàng đề", "8. Phân tích", "9. Phân tích BH", 
-        "10. Sinh video", "11. Trò chơi", "12. Mô phỏng (Đang phát triển)"
+        "1. RAG Ask", "2. Game AI", "3. Camera", 
+        "4. Chấm nhanh", "5. Học liệu đa phương tiện", "6. Kiểm tra nhanh", 
+        "7. Ngân hàng đề", "8. Phân tích KQHT", "9. Phân tích BH", 
+        "10. Sinh video", "11. Trò chơi", "12. ChatBot (Đang phát triển)"
     ]
     tabs_gd = st.tabs(tab_titles_gd)
     
