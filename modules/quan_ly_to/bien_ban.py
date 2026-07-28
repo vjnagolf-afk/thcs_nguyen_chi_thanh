@@ -83,13 +83,6 @@ def render_bien_ban(ai_engine=None):
             if not noidung_du_thao.strip():
                 st.warning("⚠️ Thầy vui lòng cung cấp nội dung hoặc file Dự thảo trước nhé!")
             else:
-                # Lấy API Key đồng bộ với các thẻ đang chạy tốt khác
-                api_key = None
-                if st.session_state.get("user_api_key"):
-                    api_key = st.session_state["user_api_key"]
-                elif "GEMINI_API_KEY" in st.secrets:
-                    api_key = st.secrets["GEMINI_API_KEY"]
-
                 with st.spinner("🧠 Thư ký AI đang tổng hợp và soạn thảo biên bản..."):
                     prompt = f"""
                     BẠN LÀ THƯ KÝ TỔ CHUYÊN MÔN TRƯỜNG THCS. HÃY VIẾT MỘT "BIÊN BẢN CUỘC HỌP" CHI TIẾT, MANG VĂN PHONG HÀNH CHÍNH TRANG TRỌNG.
@@ -116,25 +109,35 @@ def render_bien_ban(ai_engine=None):
                     '''{noidung_du_thao}'''
                     """
                     
+                    bien_ban = None
                     try:
-                        bien_ban = ""
-                        # Ưu tiên gọi trực tiếp qua google.generativeai nếu có key
-                        if api_key and isinstance(api_key, str) and api_key.strip().startswith("AI"):
-                            import google.generativeai as genai
-                            genai.configure(api_key=api_key.strip())
-                            model = genai.GenerativeModel("gemini-2.5-flash")
-                            response = model.generate_content(prompt)
-                            bien_ban = response.text
-                        elif ai_engine and hasattr(ai_engine, "generate_text"):
+                        # 1. Thử gọi qua ai_engine chuẩn được truyền vào hoặc lưu trong session
+                        if ai_engine and hasattr(ai_engine, "generate_text"):
                             bien_ban = ai_engine.generate_text(prompt)
                         elif "ai_engine" in st.session_state and st.session_state.ai_engine:
-                            bien_ban = st.session_state.ai_engine.generate_text(prompt)
-                        else:
-                            st.error("❌ Không tìm thấy API Key hợp lệ. Vui lòng kiểm tra lại thanh Sidebar.")
-                            st.stop()
+                            if hasattr(st.session_state.ai_engine, "generate_text"):
+                                bien_ban = st.session_state.ai_engine.generate_text(prompt)
+                        
+                        # 2. Nếu chưa có, tự gọi trực tiếp OpenAI sử dụng key sk- của thầy
+                        if not bien_ban:
+                            api_key = st.session_state.get("user_api_key", "")
+                            if not api_key and "OPENAI_API_KEY" in st.secrets:
+                                api_key = st.secrets["OPENAI_API_KEY"]
                             
-                        st.session_state.ket_qua_bien_ban = bien_ban
-                        st.rerun()
+                            if api_key and api_key.startswith("sk-"):
+                                from openai import OpenAI
+                                client = OpenAI(api_key=api_key)
+                                response = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[{"role": "user", "content": prompt}]
+                                )
+                                bien_ban = response.choices[0].message.content
+
+                        if bien_ban:
+                            st.session_state.ket_qua_bien_ban = bien_ban
+                            st.rerun()
+                        else:
+                            st.error("❌ Không tìm thấy AI Engine hợp lệ. Vui lòng kiểm tra lại khóa API ở menu bên trái.")
                     except Exception as e:
                         st.error(f"❌ Lỗi khi gọi AI: {e}")
 
