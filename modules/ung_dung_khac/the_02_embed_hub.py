@@ -9,7 +9,6 @@ bài tập tương tác do Canva thiết kế vào hệ thống Streamlit.
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 def render_the_02(ai_engine=None):
     st.markdown("### 🌐 Không gian Nhúng Tài nguyên (YouTube & Canva Embed)")
@@ -31,7 +30,8 @@ def render_the_02(ai_engine=None):
         if yt_input:
             if "<iframe" in yt_input:
                 st.markdown("**Bản xem trước từ mã nhúng:**")
-                components.html(yt_input, height=450, scrolling=True)
+                # Thay thế components.html bằng st.markdown (unsafe_allow_html=True) chuẩn mới
+                st.markdown(f'<div style="width: 100%; height: 450px;">{yt_input}</div>', unsafe_allow_html=True)
             else:
                 try:
                     st.markdown("**Bản xem trước trực tiếp:**")
@@ -67,6 +67,7 @@ def render_the_02(ai_engine=None):
             if canva_input and "<iframe" in canva_input:
                 st.success("🎉 Đã tải thành công thiết kế/trò chơi từ Canva lên hệ thống!")
                 st.markdown("**Bản xem trước tương tác trực tiếp:**")
-                components.html(canva_input, height=iframe_height, scrolling=True)
+                # Thay thế components.html bằng st.markdown (unsafe_allow_html=True) chuẩn mới
+                st.markdown(f'<div style="width: 100%; height: {iframe_height}px;">{canva_input}</div>', unsafe_allow_html=True)
             else:
                 st.warning("⚠️ Vui lòng dán đúng định dạng mã nhúng chứa thẻ `<iframe ...></iframe>` do Canva cung cấp.")
