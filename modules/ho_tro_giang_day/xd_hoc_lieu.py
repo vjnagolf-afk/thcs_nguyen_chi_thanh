@@ -4,12 +4,13 @@ r"""
 MODULE: modules/ho_tro_giang_day/xd_hoc_lieu.py
 Nhiệm vụ: Trợ lý Tổng hợp & Thiết kế Học liệu.
 Nâng cấp: 
-- TỰ ĐỘNG CÀO PHỤ ĐỀ YOUTUBE (Transcript) & WEB.
-- ĐÃ FIX LỖI THƯ VIỆN & TÍCH HỢP TÍNH NĂNG TỰ ĐỘNG DỊCH VIDEO NƯỚC NGOÀI.
+- TỰ ĐỘNG CÀO PHỤ ĐỀ YOUTUBE (Transcript).
+- VƯỢT TƯỜNG LỬA WEBSITE & LẤY TOÀN BỘ VĂN BẢN (Giả lập Chrome).
 ============================================================
 """
 
 import io
+import re
 import urllib.parse as urlparse
 import logging
 import streamlit as st
@@ -75,7 +76,7 @@ def extract_content_from_url(url):
                     transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                     available_langs = [t.language_code for t in transcript_list]
                     
-                    # Logic: Có Tiếng Việt -> Lấy luôn. Nếu không, lấy Tiếng Anh/khác rồi Dịch sang Tiếng Việt
+                    # Logic: Có Tiếng Việt -> Lấy luôn. Nếu không, lấy ngôn ngữ đầu tiên rồi Dịch sang Tiếng Việt
                     if 'vi' in available_langs:
                         transcript = transcript_list.find_transcript(['vi'])
                     elif 'en' in available_langs:
@@ -88,8 +89,8 @@ def extract_content_from_url(url):
                     text_content = " ".join([entry['text'] for entry in transcript_data])
                     return True, f"[PHỤ ĐỀ YOUTUBE ĐÃ TRÍCH XUẤT]:\n{text_content}"
                     
-                except Exception as inner_e:
-                    # Fallback (dự phòng) trong trường hợp list_transcripts bị lỗi
+                except Exception:
+                    # Dự phòng nếu Video không có phụ đề
                     try:
                         transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['vi', 'en'])
                         text_content = " ".join([entry['text'] for entry in transcript_data])
@@ -105,20 +106,45 @@ def extract_content_from_url(url):
             return False, f"❌ Đã xảy ra lỗi khi lấy phụ đề: {e}"
             
     else:
-        # Xử lý Link Website bình thường
+        # XỬ LÝ LINK WEBSITE THÔNG THƯỜNG (CẢI TIẾN)
         try:
             import requests
             from bs4 import BeautifulSoup
-            response = requests.get(url, timeout=10)
+            
+            # Thêm Header giả lập trình duyệt thật (Tránh bị chặn bởi tường lửa Anti-Bot của các trang báo, Wikipedia...)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Connection": "keep-alive",
+            }
+            
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status() # Bắt lỗi nếu trang web báo 403 Forbidden hoặc 404 Not Found
+            
             soup = BeautifulSoup(response.content, 'html.parser')
-            # Lấy toàn bộ chữ trong các thẻ p (đoạn văn)
-            paragraphs = soup.find_all('p')
-            text_content = "\n".join([p.get_text() for p in paragraphs])
+            
+            # Quét sạch rác: Xóa các thẻ chứa mã code, menu, quảng cáo, chân trang...
+            for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+                element.extract()
+                
+            # Trích xuất MỌI văn bản còn lại (không phụ thuộc vào thẻ <p>)
+            text_content = soup.get_text(separator='\n', strip=True)
+            
+            # Dọn dẹp các khoảng trắng thừa
+            text_content = re.sub(r'\n+', '\n', text_content)
+            
+            if len(text_content) < 50:
+                return False, "❌ Trang web này yêu cầu đăng nhập, hoặc sử dụng cơ chế bảo mật cao chống sao chép nội dung."
+                
             return True, f"[NỘI DUNG WEBSITE TỰ ĐỘNG TRÍCH XUẤT]:\n{text_content}"
+            
         except ImportError:
             return False, "❌ Hệ thống thiếu thư viện. Vui lòng cài đặt: pip install beautifulsoup4 requests"
+        except requests.exceptions.HTTPError as e:
+            return False, f"❌ Trang web từ chối truy cập (Lỗi {e.response.status_code}). Web này có thể chặn công cụ tự động."
         except Exception as e:
-            return False, f"❌ Không thể truy cập trang web này (Có thể trang web chặn bot). Lỗi chi tiết: {e}"
+            return False, f"❌ Không thể truy cập trang web. Lỗi chi tiết: {e}"
 
 def render_xd_hoc_lieu(ai_engine_cu=None):
     if "hl_result" not in st.session_state:
@@ -127,7 +153,7 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
         st.session_state["hl_topic"] = "Hoc_Lieu"
 
     st.markdown("### 📚 Trợ lý Tổng hợp & Thiết kế Học liệu Đa phương tiện")
-    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản, File, Upload Video, hoặc Link). Đối với Link YouTube (kể cả video Tiếng Anh, Hàn...), hệ thống sẽ tự động bóc tách phụ đề và dịch sang Tiếng Việt để đảm bảo độ chính xác 100%.")
+    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn (Văn bản, File, Upload Video, hoặc Link). Tính năng vượt tường lửa giả lập trình duyệt giúp bóc tách chữ từ Web và phụ đề từ YouTube cực chuẩn.")
 
     with st.container(border=True):
         st.markdown("#### 1️⃣ Cấu hình Nguồn Dữ liệu (Input)")
@@ -160,8 +186,8 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
                 st.success(f"✅ Đã tải lên Video: {uploaded_video.name}. Sẵn sàng bóc tách bằng Multimodal AI!")
                 
         else:
-            url_input = st.text_input("Dán đường dẫn (URL) Website hoặc Video YouTube:", placeholder="https://www.youtube.com/watch?v=...")
-            st.caption("Hệ thống sẽ tự động truy cập và cào dữ liệu phụ đề (transcript) của Video trước khi gửi cho AI.")
+            url_input = st.text_input("Dán đường dẫn (URL) Website hoặc Video YouTube:", placeholder="https://vi.wikipedia.org/... hoặc https://www.youtube.com/watch?v=...")
+            st.caption("Hệ thống giả lập trình duyệt để cào nội dung Web, vượt tường lửa lấy phụ đề YouTube trước khi nạp cho AI.")
 
         st.markdown("---")
         st.markdown("#### 2️⃣ Thiết lập Định dạng Đầu ra (Output)")
@@ -207,13 +233,13 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
 
         # Nếu người dùng nhập URL, tiến hành cào dữ liệu trước
         if "Link" in nguon_nhap and url_input.strip():
-            with st.spinner("⏳ Đang cào dữ liệu Phụ đề (Transcript) từ Link..."):
+            with st.spinner("⏳ Đang giả lập trình duyệt để cào dữ liệu từ Website/YouTube..."):
                 success, extracted_info = extract_content_from_url(url_input)
                 if not success:
-                    st.error(extracted_info) # Báo lỗi rõ ràng nếu video không có phụ đề
+                    st.error(extracted_info) # Báo lỗi rõ ràng nếu bị chặn
                     return
                 else:
-                    st.success("✅ Đã lấy được toàn bộ phụ đề! Đang chuyển cho AI xử lý...")
+                    st.success("✅ Đã lấy được toàn bộ nội dung! Đang chuyển cho AI xử lý...")
                     input_data_content = extracted_info
 
         with st.spinner(f"⏳ AI đang tiêu hóa tài liệu và chuyển hóa thành {loai_hoc_lieu.split('(')[0]}..."):
@@ -230,9 +256,9 @@ Nhiệm vụ của bạn là phân tích nguồn dữ liệu do giáo viên cung
 {input_data_content[:30000] if input_data_content else "(Dữ liệu đầu vào là Video được đính kèm trực tiếp)"}
 
 --- [QUY TRÌNH XỬ LÝ BẮT BUỘC] ---
-Nếu dữ liệu đầu vào là văn bản Trích xuất từ Video/YouTube hoặc Video đính kèm: 
+Nếu dữ liệu đầu vào là văn bản Trích xuất từ Video/YouTube, Trang Web hoặc Video đính kèm: 
 Bắt buộc mục đầu tiên trong kết quả của bạn phải là:
-### 🎙️ Tóm tắt Nội dung cốt lõi của Video
+### 🎙️ Tóm tắt Nội dung cốt lõi của Tài liệu
 SAU ĐÓ mới dùng chính nội dung này để thiết kế học liệu ở các phần tiếp theo. KHÔNG được tự bịa ra nội dung bên ngoài.
 
 --- QUY TẮC THIẾT KẾ BẮT BUỘC TÙY THEO ĐỊNH DẠNG ---
