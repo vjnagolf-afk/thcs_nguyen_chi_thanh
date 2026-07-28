@@ -3,9 +3,8 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_giang_day/xd_sinh_video.py
 Nhiệm vụ: Trợ lý AI Sinh Video & Video Tương tác.
-Chức năng: 
-1. Lên kịch bản & viết Prompt tiếng Anh cho HeyGen/Runway.
-2. Thiết kế Video Tương tác (Edpuzzle/H5P style) tự động chèn câu hỏi vào Timestamp.
+Nâng cấp: Tích hợp chuyên sâu 3 nhóm công cụ AI Video (Điện ảnh, Avatar, Tự động hóa)
+và hệ thống Video Tương tác Timestamp thông minh.
 ============================================================
 """
 
@@ -35,63 +34,97 @@ def render_xd_sinh_video(ai_engine_cu=None):
         st.session_state["vid_interactive_result"] = None
 
     st.markdown("### 🎬 Trợ lý Sản xuất Video Học liệu & Tương tác")
-    st.info("💡 **Góc chuyên gia:** Phân hệ gồm 2 công cụ cốt lõi: Tạo kịch bản cho các công cụ Sinh Video AI (HeyGen, Sora, Runway) và Thiết kế Video Tương tác (chèn câu hỏi tự động theo mốc thời gian như Edpuzzle, H5P).")
+    st.info("💡 **Góc chuyên gia:** Phân hệ chuyên nghiệp hỗ trợ xây dựng kịch bản, cấu trúc Prompt và chiến lược sản xuất video dựa trên 3 hệ sinh thái AI hàng đầu thế giới kết hợp công nghệ Video Tương tác.")
 
-    # Tạo 2 Tabs cho 2 luồng công việc hoàn toàn khác biệt
-    tab1, tab2 = st.tabs(["🎥 1. Lên Kịch bản & Prompt Sinh Video AI", "👆 2. Thiết kế Video Tương tác (Interactive Video)"])
+    # Tạo 2 Tabs cho 2 luồng công việc
+    tab1, tab2 = st.tabs(["🎥 1. Sinh Kịch bản & Prompt theo Hệ sinh thái AI Video", "👆 2. Thiết kế Video Tương tác (Edpuzzle / H5P Style)"])
 
     # ========================================================
-    # TAB 1: NHÓM AI SINH VIDEO (AI VIDEO GENERATION)
+    # TAB 1: NHÓM AI SINH VIDEO (3 NHÓM CHUYÊN BIỆT)
     # ========================================================
     with tab1:
-        st.markdown("#### Tạo Kịch bản cho Avatar AI hoặc Text-to-Video")
+        st.markdown("#### Xây dựng Kịch bản tối ưu hóa cho từng Công cụ AI")
+        
         with st.container(border=True):
-            col_info, col_setting = st.columns([1, 1])
+            chu_de_video = st.text_input("Chủ đề bài học / Nội dung Video:", placeholder="VD: Khám phá hệ mặt trời, Sóng thần hình thành như thế nào, Đối thoại lịch sử...")
             
-            with col_info:
-                chu_de_video = st.text_input("Chủ đề Video:", placeholder="VD: Khủng hoảng kinh tế 1929, Sự hình thành lỗ đen...")
-                đoi_tuong = st.selectbox("Khán giả mục tiêu:", ["Học sinh Tiểu học (Vui nhộn, đơn giản)", "Học sinh THCS (Trực quan, logic)", "Học sinh THPT (Chuyên sâu, học thuật)", "Giáo viên (Đào tạo chuyên môn/Lesson Study)"])
-                
-            with col_setting:
-                cong_cu_ai = st.selectbox(
-                    "Định hướng công cụ AI sẽ sử dụng:", 
+            col_nhom, col_doi_tuong = st.columns(2)
+            with col_nhom:
+                nhom_cong_cu = st.selectbox(
+                    "Chọn Nhóm Công cụ AI mục tiêu:",
                     [
-                        "🤖 Giáo viên Ảo (HeyGen / Synthesia) - Tập trung vào kịch bản MC, biểu cảm.", 
-                        "🌌 Cảnh phim chân thực (Runway Gen-3 / Sora / Luma) - Tập trung Prompt góc máy, chuyển động."
+                        "1️⃣ Điện ảnh & Nghệ thuật (Runway Gen-3, Kling AI, Google Veo 3, Sora, Luma)",
+                        "2️⃣ Thuyết trình & Đào tạo - Avatar AI (HeyGen, Synthesia, DeepBrain)",
+                        "3️⃣ Tự động hóa & Kịch bản ngắn (InVideo AI, CapCut AI, Canva, Pictory)"
                     ]
                 )
-                thoi_luong = st.selectbox("Thời lượng dự kiến:", ["Short/Reel/TikTok (Dưới 1 phút)", "1 - 3 phút", "3 - 5 phút"])
-                
-            noi_dung_chinh = st.text_area("Các ý chính bắt buộc phải có trong video (Giáo án tóm tắt):", height=80, placeholder="1. Nguyên nhân, 2. Diễn biến, 3. Hậu quả...")
-            
-            btn_tao_script = st.button("📝 XÂY DỰNG KỊCH BẢN & PROMPT", type="primary", use_container_width=True)
+            with col_doi_tuong:
+                doi_tuong_nhom1 = st.selectbox("Khán giả mục tiêu:", ["Học sinh Tiểu học (Trực quan, sinh động)", "Học sinh THCS (Logic, rõ ràng)", "Học sinh THPT (Học thuật, chuyên sâu)", "Đồng nghiệp / Tổ chuyên môn (Lesson Study)"])
 
-        if btn_tao_script:
+            col_thoi_luong, col_phong_cach = st.columns(2)
+            with col_thoi_luong:
+                thoi_luong_nhom1 = st.selectbox("Thời lượng video:", ["Dưới 1 phút (Shorts/Reels/TikTok)", "1 - 3 phút (Video bài giảng ngắn)", "3 - 5 phút (Chuyên đề chi tiết)"])
+            with col_phong_cach:
+                phong_cach_nhom1 = st.selectbox("Phong cách hình ảnh:", ["Điện ảnh thực tế (Cinematic Photorealistic)", "Hoạt hình giáo dục 2D/3D (Animation)", "Tài liệu khoa học (Documentary)", "Bảng trắng / Đồ họa trực quan (Whiteboard/Infographic)"])
+
+            noi_dung_chinh_nhom1 = st.text_area("Các ý chính bắt buộc phải có (Giáo án tóm tắt):", height=90, placeholder="1. Khái niệm, 2. Ví dụ thực tế, 3. Bài học rút ra...")
+            
+            btn_tao_script_chuyen_sau = st.button("🚀 SINH KỊCH BẢN & PROMPT CHUYÊN SÂU", type="primary", use_container_width=True)
+
+        if btn_tao_script_chuyen_sau:
             if not chu_de_video.strip():
                 st.warning("⚠️ Vui lòng nhập chủ đề video.")
             elif AIEngine2 is None:
                 st.error("❌ Chưa kết nối AI Engine.")
             else:
-                with st.spinner("⏳ AI đang phân cảnh và viết Prompt Tiếng Anh chuyên nghiệp..."):
-                    prompt_script = f"""
-BẠN LÀ MỘT ĐẠO DIỄN PHIM GIÁO DỤC VÀ CHUYÊN GIA PROMPT ENGINEERING.
-Hãy viết một kịch bản chi tiết để sản xuất video học tập.
-- Chủ đề: {chu_de_video}
-- Khán giả: {đoi_tuong}
-- Thời lượng: {thoi_luong}
-- Công cụ AI dự kiến sử dụng: {cong_cu_ai}
-- Nội dung cốt lõi: {noi_dung_chinh if noi_dung_chinh else 'Tự sáng tạo nội dung chuẩn kiến thức'}
+                with st.spinner("⏳ AI đang phân tích và lập trình kịch bản tối ưu hóa riêng cho nhóm công cụ đã chọn..."):
+                    
+                    # Tùy biến prompt theo Nhóm công cụ
+                    if "1️⃣ Điện ảnh" in nhom_cong_cu:
+                        huong_dan_nhom = """
+[ĐẶC THÙ NHÓM 1: ĐIỆN ẢNH & NGHỆ THUẬT - Runway, Kling, Veo, Sora, Luma]
+- Tập trung vào cấu trúc phân cảnh (Scene-by-scene).
+- Với mỗi cảnh, BẮT BUỘC cung cấp:
+  + [Visual Description]: Mô tả hình ảnh điện ảnh bằng tiếng Việt.
+  + [Camera & Physics Hint]: Gợi ý chuyển động camera (Pan, Zoom, Dolly) và mô phỏng vật lý (ánh sáng, khói, nước...).
+  + [Prompt Tiếng Anh tối ưu]: Viết câu lệnh Prompt tiếng Anh cực kỳ chi tiết, chuẩn cú pháp cho Runway/Sora/Kling (bao gồm thông số khung hình, ánh sáng volumetric, chất lượng 4K).
+"""
+                    elif "2️⃣ Thuyết trình" in nhom_cong_cu:
+                        huong_dan_nhom = """
+[ĐẶC THÙ NHÓM 2: THUYẾT TRÌNH & ĐÀO TẠO AVATAR - HeyGen, Synthesia, DeepBrain]
+- Tập trung vào kịch bản MC / Giáo viên ảo (Avatar AI).
+- Cấu trúc trình bày:
+  + [Slide / Slide Layout]: Gợi ý bố cục trên màn hình (vị trí đặt avatar, text, hình ảnh minh họa).
+  + [Biểu cảm & Cử chỉ (Gesture)]: Gợi ý hướng dẫn Avatar mỉm cười, nhấn mạnh, hoặc đổi góc nhìn.
+  + [Voiceover Script (Lời thoại chi tiết)]: Lời thoại tiếng Việt chuẩn văn phong sư phạm, ngắt nghỉ hợp lý để nạp vào HeyGen/Synthesia.
+"""
+                    else:
+                        huong_dan_nhom = """
+[ĐẶC THÙ NHÓM 3: TỰ ĐỘNG HÓA & KỊCH BẢN NGẮN - InVideo, CapCut, Canva, Pictory]
+- Tập trung vào tối ưu hóa tốc độ tạo video ngắn (Shorts/Reels).
+- Cấu trúc trình bày:
+  + [Master Prompt cho InVideo AI]: Câu lệnh tổng quan dài 1 đoạn để dán thẳng vào ô tạo prompt của InVideo AI.
+  + [Stock Footage Keywords (Từ khóa tìm kiếm video kho)] : Danh sách từ khóa tiếng Anh để tìm kiếm tư liệu (B-roll) chính xác.
+  + [Auto-Caption & Voice Guidelines]: Gợi ý nhạc nền, phong cách phụ đề tự động (CapCut style) và giọng đọc.
+"""
 
-YÊU CẦU TRÌNH BÀY (Dạng Bảng Markdown):
-Trình bày Kịch bản dưới dạng BẢNG 4 cột:
-1. **[Mốc Thời gian]**: Phân chia thời gian hợp lý (VD: 0:00 - 0:15).
-2. **[Chỉ đạo Hình ảnh & Cảm xúc]**: Mô tả bằng Tiếng Việt hình ảnh hiển thị trên màn hình.
-3. **[AI PROMPT Tiếng Anh]**: BẮT BUỘC có phần này. Viết câu lệnh Prompt chi tiết bằng Tiếng Anh (Camera angle, lighting, motion, character) để người dùng Copy và dán vào Midjourney/Runway/HeyGen.
-4. **[Lời thoại / Voiceover]**: Lời thoại Tiếng Việt chi tiết của MC/Giáo viên.
+                    prompt_script_v2 = f"""
+BẠN LÀ MỘT ĐẠO DIỄN SẢN XUẤT VIDEO GIÁO DỤC VÀ CHUYÊN GIA PROMPT ENGINEERING CẤP CAO.
+Hãy thiết kế một kịch bản và hệ thống Prompt chuyên sâu dựa trên thông số sau:
+- Chủ đề: {chu_de_video}
+- Nhóm công cụ AI dự kiến sử dụng: {nhom_cong_cu}
+- Khán giả mục tiêu: {doi_tuong_nhom1}
+- Thời lượng: {thoi_luong_nhom1}
+- Phong cách: {phong_cach_nhom1}
+- Nội dung cốt lõi: {noi_dung_chinh_nhom1 if noi_dung_chinh_nhom1 else 'Tự sáng tạo chuẩn kiến thức sư phạm'}
+
+{huong_dan_nhom}
+
+Trình bày kết quả thật mạch lạc bằng Markdown, sử dụng bảng hoặc tiêu đề nổi bật để giáo viên dễ dàng copy sử dụng ngay.
 """
                     try:
                         engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                        res_script = engine_v2.generate_text(prompt_script, temperature=0.7)
+                        res_script = engine_v2.generate_text(prompt_script_v2, temperature=0.7)
                         if res_script.startswith("❌"):
                             st.error(res_script)
                         else:
@@ -102,23 +135,22 @@ Trình bày Kịch bản dưới dạng BẢNG 4 cột:
         # Hiển thị kết quả Tab 1
         if st.session_state["vid_script_result"]:
             st.markdown("---")
-            st.markdown("### 🎞️ Kịch bản Video & AI Prompts")
+            st.markdown("### 🎞️ Kịch bản & Prompt Chuyên sâu theo Công cụ")
             st.markdown(st.session_state["vid_script_result"], unsafe_allow_html=True)
             
-            # Nút xuất file Tab 1
             if export_word:
                 word_bytes = export_word({"ai_generated_content": st.session_state["vid_script_result"], "is_dkt": False})
-                st.download_button(label="📘 Tải Kịch bản (.DOCX)", data=word_bytes, file_name="Kich_Ban_AI_Video.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="btn_down_script")
+                st.download_button(label="📘 Tải Kịch bản & Prompt (.DOCX)", data=word_bytes, file_name="Kich_Ban_Va_Prompt_AI_Video.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="btn_down_script_v2")
 
     # ========================================================
     # TAB 2: NHÓM VIDEO TƯƠNG TÁC (EDPUZZLE / H5P CLONE)
     # ========================================================
     with tab2:
         st.markdown("#### Trợ lý phân tích và chèn Câu hỏi (Hotspots) vào Video")
-        st.caption("Ứng dụng thuật toán AI Đa phương tiện để tự động 'xem' video, xác định các điểm cao trào và tạo bộ câu hỏi tương tác khớp với từng giây của video.")
+        st.caption("Sử dụng thuật toán AI Đa phương tiện để tự động 'xem' video, xác định các điểm cao trào và tạo bộ câu hỏi tương tác khớp với từng giây của video.")
         
         with st.container(border=True):
-            upl_interactive_vid = st.file_uploader("Tải lên Video Bài giảng hoặc Tiết học (MP4, MOV):", type=["mp4", "mov"], key="interactive_vid")
+            upl_interactive_vid = st.file_uploader("Tải lên Video Bài giảng hoặc Tiết học (MP4, MOV):", type=["mp4", "mov"], key="interactive_vid_v2")
             
             if upl_interactive_vid:
                 st.video(upl_interactive_vid)
@@ -182,7 +214,6 @@ Với mỗi điểm tương tác, hãy định dạng chính xác như sau:
             with st.container(border=True):
                 st.markdown(st.session_state["vid_interactive_result"], unsafe_allow_html=True)
                 
-            # Nút xuất file Tab 2
             if export_word:
                 word_bytes = export_word({"ai_generated_content": st.session_state["vid_interactive_result"], "is_dkt": False})
-                st.download_button(label="📘 Tải Kế hoạch Tương tác (.DOCX)", data=word_bytes, file_name="Video_Tuong_Tac_H5P.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="btn_down_interactive")
+                st.download_button(label="📘 Tải Kế hoạch Tương tác (.DOCX)", data=word_bytes, file_name="Video_Tuong_Tac_H5P.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="btn_down_interactive_v2")
