@@ -4,12 +4,14 @@ r"""
 MODULE: modules/quan_ly_to/bien_ban.py
 Nhiệm vụ: Trợ lý Thư ký - Xây dựng Biên bản Sinh hoạt.
 Chức năng: AI tự động soạn thảo biên bản họp bám sát cấu trúc 
-dự thảo kế hoạch (hỗ trợ nhập text hoặc tải file PDF).
+dự thảo kế hoạch (hỗ trợ nhập text hoặc tải file PDF) kèm cơ chế 
+gỡ lỗi chi tiết (Traceback).
 ============================================================
 """
 
 import streamlit as st
 from pypdf import PdfReader
+import traceback
 
 def render_bien_ban(ai_engine=None):
     st.markdown("### 📝 Trợ lý Thư ký: Xây dựng Biên bản Sinh hoạt")
@@ -21,9 +23,8 @@ def render_bien_ban(ai_engine=None):
     if "ket_qua_bien_ban" not in st.session_state:
         st.session_state.ket_qua_bien_ban = None
 
-    # 1. KHU VỰC THÔNG TIN CUỘC HỌP (Bố trí đúng 2 hàng ngang)
+    # 1. KHU VỰC THÔNG TIN CUỘC HỌP
     with st.expander("📌 Bước 1: Thông tin cơ bản", expanded=True):
-        # --- Hàng ngang 1 (3 cột) ---
         h1_c1, h1_c2, h1_c3 = st.columns([2, 1.5, 1.5])
         with h1_c1:
             loai_cuoc_hop = st.selectbox("📌 Loại hình sinh hoạt:", [
@@ -39,7 +40,6 @@ def render_bien_ban(ai_engine=None):
         with h1_c3:
             dia_diem = st.text_input("📍 Địa điểm:", placeholder="VD: Văn phòng Trường")
 
-        # --- Hàng ngang 2 (4 cột) ---
         h2_c1, h2_c2, h2_c3, h2_c4 = st.columns(4)
         with h2_c1:
             chu_toa = st.selectbox("👨‍🏫 Chủ tọa:", ds_gv, index=0)
@@ -87,7 +87,7 @@ def render_bien_ban(ai_engine=None):
                     prompt = f"""
                     BẠN LÀ THƯ KÝ TỔ CHUYÊN MÔN TRƯỜNG THCS. HÃY VIẾT MỘT "BIÊN BẢN CUỘC HỌP" CHI TIẾT, MANG VĂN PHONG HÀNH CHÍNH TRANG TRỌNG.
                     
-                    THÔNG TIN CHUNG (Trình bày rõ ở phần Mở đầu):
+                    THÔNG TIN CHUNG:
                     - Loại hình cuộc họp: {loai_cuoc_hop}
                     - Thời gian: {thoi_gian}
                     - Địa điểm: {dia_diem}
@@ -95,15 +95,14 @@ def render_bien_ban(ai_engine=None):
                     - Chủ tọa: {chu_toa}
                     - Thư ký: {thu_ky}
                     
-                    NGUYÊN TẮC BẮT BUỘC (QUAN TRỌNG NHẤT):
-                    Bên dưới là văn bản Dự thảo kế hoạch. Bạn PHẢI bám sát TUYỆT ĐỐI cấu trúc các đề mục của bản dự thảo này (Ví dụ: I, II, III... 1, 2, 3... a, b, c...). 
-                    Không được tự ý bỏ sót bất kỳ mục nào có trong dự thảo.
+                    NGUYÊN TẮC BẮT BUỘC:
+                    Bên dưới là văn bản Dự thảo kế hoạch. Bạn PHẢI bám sát TUYỆT ĐỐI cấu trúc các đề mục của bản dự thảo này (Ví dụ: I, II, III... 1, 2, 3... a, b, c...). Không được tự ý bỏ sót bất kỳ mục nào.
                     
                     YÊU CẦU NỘI DUNG:
-                    1. Mở đầu biên bản chuẩn thể thức hành chính, bao gồm đầy đủ Thông tin chung đã cung cấp ở trên.
-                    2. Tại mỗi đề mục lớn/nhỏ, hãy trình bày nội dung của Chủ tọa, sau đó TỰ ĐỘNG THÊM VÀO các ý kiến thảo luận giả định (hợp lý, logic mang tính sư phạm) của các thành viên trong tổ.
+                    1. Mở đầu biên bản chuẩn thể thức hành chính, bao gồm đầy đủ Thông tin chung.
+                    2. Tại mỗi đề mục, trình bày nội dung của Chủ tọa, sau đó TỰ ĐỘNG THÊM VÀO các ý kiến thảo luận giả định mang tính sư phạm của các thành viên.
                     3. Cuối mỗi mục lớn phải có kết luận chốt lại vấn đề của Chủ tọa.
-                    4. Phần cuối biên bản là thời gian kết thúc và chữ ký (Chủ tọa, Thư ký).
+                    4. Phần cuối biên bản là thời gian kết thúc và chữ ký.
                     
                     DỰ THẢO KẾ HOẠCH:
                     '''{noidung_du_thao}'''
@@ -111,22 +110,28 @@ def render_bien_ban(ai_engine=None):
                     
                     bien_ban = None
                     try:
-                        # 1. Thử gọi qua ai_engine chuẩn được truyền vào hoặc lưu trong session
-                        if ai_engine and hasattr(ai_engine, "generate_text"):
-                            bien_ban = ai_engine.generate_text(prompt)
-                        elif "ai_engine" in st.session_state and st.session_state.ai_engine:
-                            if hasattr(st.session_state.ai_engine, "generate_text"):
-                                bien_ban = st.session_state.ai_engine.generate_text(prompt)
+                        # Thử quét tất cả các nguồn ai_engine có thể có
+                        engine_to_use = ai_engine
+                        if not engine_to_use and "ai_engine" in st.session_state:
+                            engine_to_use = st.session_state.ai_engine
+
+                        if engine_to_use and hasattr(engine_to_use, "generate_text"):
+                            bien_ban = engine_to_use.generate_text(prompt)
                         
-                        # 2. Nếu chưa có, tự gọi trực tiếp OpenAI sử dụng key sk- của thầy
+                        # Nếu vẫn chưa có, tự gọi trực tiếp OpenAI bằng mọi khóa có trong session_state hoặc secrets
                         if not bien_ban:
-                            api_key = st.session_state.get("user_api_key", "")
+                            api_key = None
+                            for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+                                if st.session_state.get(k):
+                                    api_key = st.session_state.get(k)
+                                    break
+                            
                             if not api_key and "OPENAI_API_KEY" in st.secrets:
                                 api_key = st.secrets["OPENAI_API_KEY"]
-                            
-                            if api_key and api_key.startswith("sk-"):
+
+                            if api_key and str(api_key).startswith("sk-"):
                                 from openai import OpenAI
-                                client = OpenAI(api_key=api_key)
+                                client = OpenAI(api_key=str(api_key).strip())
                                 response = client.chat.completions.create(
                                     model="gpt-4o-mini",
                                     messages=[{"role": "user", "content": prompt}]
@@ -137,9 +142,10 @@ def render_bien_ban(ai_engine=None):
                             st.session_state.ket_qua_bien_ban = bien_ban
                             st.rerun()
                         else:
-                            st.error("❌ Không tìm thấy AI Engine hợp lệ. Vui lòng kiểm tra lại khóa API ở menu bên trái.")
+                            st.error("❌ Không thể gọi AI do không tìm thấy đối tượng `ai_engine` hợp lệ hoặc khóa API chưa được thiết lập chính xác.")
                     except Exception as e:
-                        st.error(f"❌ Lỗi khi gọi AI: {e}")
+                        st.error(f"❌ Phát hiện lỗi chi tiết khi gọi AI:")
+                        st.code(traceback.format_exc())
 
     with col_btn2:
         if st.button("🗑️ Xóa / Làm lại", type="secondary", use_container_width=True):
