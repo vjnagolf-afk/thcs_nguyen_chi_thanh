@@ -1,4 +1,15 @@
 # -*- coding: utf-8 -*-
+r"""
+============================================================
+MODULE: modules/quan_ly_to/viet_sang_kien.py
+Mô tả: Trợ lý AI hỗ trợ phác thảo và xây dựng Sáng kiến Kinh nghiệm.
+Tính năng:
+    - Đọc tài liệu hướng dẫn (PDF, DOCX)
+    - Đọc dữ liệu minh chứng thực tế (XLSX, DOCX, PDF)
+    - Phác thảo cấu trúc sáng kiến bám sát bối cảnh giáo dục
+    - Hỗ trợ gọi AI linh hoạt qua hệ thống hoặc khóa sk- trực tiếp
+============================================================
+"""
 
 import streamlit as st
 import io
@@ -149,6 +160,52 @@ V. CẤU TRÚC ĐỀ XUẤT
 """
 
 # ============================================================
+# HÀM GỌI AI ENGINE LINH HOẠT (Hỗ trợ app.py và khóa sk- trực tiếp)
+# ============================================================
+def call_ai_for_writing(ai_engine, prompt):
+    # 1. Thử gọi qua ai_engine chuẩn
+    if ai_engine and hasattr(ai_engine, "generate_text"):
+        try:
+            result = ai_engine.generate_text(prompt)
+            if isinstance(result, str):
+                return result.strip()
+            if hasattr(result, "text"):
+                return result.text.strip()
+            if isinstance(result, dict):
+                for key in ["text", "content", "response", "result"]:
+                    if key in result:
+                        return str(result[key]).strip()
+        except Exception:
+            pass
+
+    # 2. Dự phòng gọi trực tiếp OpenAI bằng khóa sk-
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
+    
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+    
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+
+    if api_key:
+        from openai import OpenAI
+        client = OpenAI(api_key=str(api_key).strip())
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
+
+    raise RuntimeError("Không tìm thấy AI Engine hoặc khóa API `sk-` hợp lệ. Vui lòng kiểm tra lại cấu hình.")
+
+# ============================================================
 # GIAO DIỆN CHÍNH
 # ============================================================
 def render_viet_sang_kien(ai_engine):
@@ -169,10 +226,6 @@ def render_viet_sang_kien(ai_engine):
         chu_de = st.text_input("Tên đề tài:", placeholder="Nhập tên sáng kiến", key="sk_chu_de")
 
     if st.button("🚀 PHÁC THẢO DÀN Ý & VIẾT NỘI DUNG", use_container_width=True, type="primary"):
-        if ai_engine is None:
-            st.error("❌ AI Engine chưa được khởi tạo.")
-            return
-
         if not chu_de.strip():
             st.warning("⚠️ Thầy vui lòng nhập tên đề tài.")
             return
@@ -190,22 +243,9 @@ def render_viet_sang_kien(ai_engine):
             prompt = build_sang_kien_prompt(nam_hoc, doi_tuong, mon_hoc, chu_de, huong_dan_text, du_lieu_text)
 
             try:
-                # Đã loại bỏ các params (model, temp...) để dùng thẳng hàm chuẩn của app
-                result = ai_engine.generate_text(prompt)
-                
-                # Trích xuất text an toàn từ kết quả AI
-                final_text = ""
-                if isinstance(result, str):
-                    final_text = result.strip()
-                elif hasattr(result, "text"):
-                    final_text = result.text.strip()
-                elif isinstance(result, dict):
-                    for key in ["text", "content", "response", "result"]:
-                        if key in result:
-                            final_text = str(result[key]).strip()
-                            break
-                            
-                st.session_state["sk_viet_result"] = final_text
+                final_text = call_ai_for_writing(ai_engine, prompt)
+                st.session_state["sk_viet_result"] = final_text.replace("**", "")
+                st.success("✅ Đã phác thảo thành công bản thảo sáng kiến!")
             except Exception as e:
                 st.error(f"❌ Lỗi khi gọi AI Engine: {str(e)}")
 
