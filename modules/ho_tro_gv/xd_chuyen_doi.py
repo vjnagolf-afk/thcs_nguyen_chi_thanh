@@ -3,7 +3,8 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_gv/xd_chuyen_doi.py
 Nhiệm vụ: Trợ lý Xử lý, Làm sạch & Chuyển đổi Dữ liệu.
-NÂNG CẤP ĐỈNH CAO: Ép AI xuất Toán học trên 1 dòng để File Word render Native.
+NÂNG CẤP: Tích hợp cơ chế tự động dự phòng sang OpenAI (sk-) 
+khi Gemini Pro bị cạn hạn mức (429 Resource Exhausted).
 ============================================================
 """
 
@@ -23,6 +24,59 @@ try:
     from utils.ai_engine_2 import AIEngine2
 except ImportError:
     AIEngine2 = None
+
+def safe_generate(prompt):
+    """
+    Hàm gọi AI thông minh: Thử Gemini Pro -> Gemini Flash -> Tự động chuyển sang OpenAI (sk-) nếu hết hạn mức (429).
+    """
+    # 1. Thử gọi qua AIEngine2 với model Pro
+    if AIEngine2 is not None:
+        try:
+            engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
+            res = engine_v2.generate_text(prompt)
+            if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                return res
+        except Exception:
+            pass
+        
+        # 2. Nếu Pro lỗi, thử sang Flash
+        try:
+            engine_flash = AIEngine2(default_model="gemini-2.5-flash")
+            res = engine_flash.generate_text(prompt)
+            if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                return res
+        except Exception:
+            pass
+
+    # 3. Dự phòng tự động gọi trực tiếp OpenAI bằng khóa sk- đang có sẵn trong hệ thống
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
+    
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+    
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+
+    if api_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=str(api_key).strip())
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as open_err:
+            raise RuntimeError(f"Cả Gemini và OpenAI đều gặp sự cố: {open_err}")
+
+    raise RuntimeError("Hạn mức Gemini đã cạn (429 Resource Exhausted) và không tìm thấy khóa API OpenAI dự phòng trong hệ thống.")
 
 def render_xd_chuyen_doi(ai_engine_cu=None):
     # Khởi tạo session state để giữ kết quả không bị mất khi bấm tải file
@@ -54,10 +108,6 @@ def render_xd_chuyen_doi(ai_engine_cu=None):
         btn_chuyen_doi = st.button("⚙️ THỰC THI CHUYỂN ĐỔI BẰNG AI", type="primary", use_container_width=True)
 
     if btn_chuyen_doi:
-        if AIEngine2 is None:
-            st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`. Vui lòng kiểm tra lại cấu trúc dự án.")
-            return
-
         if not van_ban_goc.strip():
             st.warning("⚠️ Vui lòng cung cấp văn bản gốc.")
         else:
@@ -111,9 +161,8 @@ Nhiệm vụ: Viết lại đoạn văn bản sau sang văn phong Hành chính /
 {van_ban_goc}
 """
                 try:
-                    # Khởi tạo AIEngine2 (Dùng Pro để khả năng suy luận logic Toán học cao nhất)
-                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                    result = engine_v2.generate_text(prompt)
+                    # Gọi hàm an toàn có tích hợp cơ chế tự động dự phòng (Fallback)
+                    result = safe_generate(prompt)
                     
                     if result.startswith("❌") or result.startswith("⚠️"):
                         st.error(result)
