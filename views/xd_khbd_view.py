@@ -3,7 +3,7 @@ r"""
 ============================================================
 VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY
 FILE: views/xd_khbd_view.py
-Nâng cấp: Giao diện trực quan, Gọi Smart Fallback, Xuất Word hoàn hảo
+Nâng cấp: Bổ sung 4 mô hình AI (Định tuyến thông minh)
 ============================================================
 """
 
@@ -61,7 +61,16 @@ def render_xd_khbd(ai_engine_client=None):
             horizontal=True
         )
     with c_md2:
-        model_name = st.selectbox("Mô hình AI", ["3.5 Flash", "3.1 Pro"])
+        # TÍCH HỢP 4 MÔ HÌNH NHƯ THẦY YÊU CẦU ĐỂ ĐẢM BẢO CHIỀU SÂU VÀ THỰC THI
+        model_name = st.selectbox(
+            "Mô hình AI (Đa tuyến & Dự phòng)", 
+            [
+                "Gemini 1.5 Flash (Tốc độ nhanh, Mặc định)", 
+                "Gemini 1.5 Pro (Phân tích chuyên sâu)",
+                "GPT-4o Mini (Ổn định, tiết kiệm)",
+                "GPT-4o (Cao cấp, logic xuất sắc)"
+            ]
+        )
 
     st.subheader("📤 Tài liệu đầu vào")
     if mode == "chinh_sua":
@@ -124,9 +133,6 @@ def render_xd_khbd(ai_engine_client=None):
 
     st.divider()
     if st.button("⚡ TẠO KẾ HOẠCH BÀI DẠY BẰNG AI", type="primary", use_container_width=True):
-        if ai_engine_client is None:
-            st.error("❌ Chưa cấu hình API Key hoặc Client AI bị lỗi.")
-            st.stop()
         if not ten_bai.strip():
             st.warning("⚠️ Vui lòng nhập Tên bài học.")
             st.stop()
@@ -137,7 +143,7 @@ def render_xd_khbd(ai_engine_client=None):
             st.warning("⚠️ Vui lòng tải SGK / Tài liệu kiến thức lên (Chế độ Soạn mới).")
             st.stop()
 
-        with st.spinner("⏳ Đang phân tích và xử lý dữ liệu KHBD..."):
+        with st.spinner(f"⏳ Hệ thống đang sử dụng mô hình [{model_name}] để phân tích và xử lý KHBD..."):
             try:
                 noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if file_sgk else ""
                 noi_dung_ga = read_multiple_files(file_ga) if mode == "chinh_sua" and file_ga else ""
@@ -182,7 +188,7 @@ def render_xd_khbd(ai_engine_client=None):
                     "so_tiet": so_tiet,
                     "ai_generated_content": raw_result
                 }
-                st.success("🎉 Khởi tạo giáo án thành công!")
+                st.success(f"🎉 Khởi tạo giáo án thành công với mô hình {model_name}!")
                 st.rerun()
 
             except Exception as e:
