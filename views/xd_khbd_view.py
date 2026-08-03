@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 ============================================================
-VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY (FIX TRIỆT ĐỂ NÚT TẢI WORD)
+VIEW: GIAO DIỆN XÂY DỰNG KẾ HOẠCH BÀI DẠY
 FILE: views/xd_khbd_view.py
+Nâng cấp: Giao diện trực quan, Gọi Smart Fallback, Xuất Word hoàn hảo
 ============================================================
 """
 
@@ -22,8 +23,7 @@ try:
         format_nls,
         build_prompt,
         generate_ai,
-        validate_khbd_result,
-        diagnose_source_quality
+        validate_khbd_result
     )
 except Exception as e:
     st.error(f"❌ Không thể nạp module logic: {e}")
@@ -38,6 +38,7 @@ def render_xd_khbd(ai_engine_client=None):
     init_session_state()
 
     st.title("📘 XÂY DỰNG KẾ HOẠCH BÀI DẠY (CHUẨN 5512 & TT18)")
+    st.caption("Ứng dụng sức mạnh AI tạo sinh để soạn giáo án bài bản, khoa học và chống lỗi hoàn hảo.")
     
     st.subheader("🎛️ Thông tin bài dạy")
     col1, col2, col3 = st.columns([1.5, 1.5, 1])
@@ -60,7 +61,7 @@ def render_xd_khbd(ai_engine_client=None):
             horizontal=True
         )
     with c_md2:
-        model_name = st.selectbox("Mô hình AI (Khuyên dùng 3.1 Pro cho KHBD phức tạp, nhiều Toán/Hóa)", ["3.5 Flash", "3.1 Pro", "Tư duy mở rộng"])
+        model_name = st.selectbox("Mô hình AI", ["3.5 Flash", "3.1 Pro"])
 
     st.subheader("📤 Tài liệu đầu vào")
     if mode == "chinh_sua":
@@ -77,50 +78,49 @@ def render_xd_khbd(ai_engine_client=None):
     if file_sgk and mode == "tu_dong":
         range_trang = st.text_input("Phạm vi trang SGK cần đọc (Rất quan trọng với file PDF lớn)", placeholder="Ví dụ: 45-48")
 
-    st.subheader("🔧 Tích hợp chuyên sâu (Hòa nhập, AI, Số hóa)")
-    
-    tich_hop_ai = st.checkbox("🤖 Tích hợp hoạt động sử dụng AI trong bài học")
-    
-    tich_hop_hoa_nhap = st.checkbox("🤝 Tích hợp Dạy học hòa nhập (HS Khuyết tật)")
-    nhu_cau_hoa_nhap = []
-    if tich_hop_hoa_nhap:
-        with st.container(border=True):
-            st.markdown("**Cấu hình Dạy học Hòa nhập:**")
-            nhu_cau_hoa_nhap = st.multiselect(
-                "Đặc điểm học sinh khuyết tật trong lớp:", 
-                ["Vận động", "Nghe", "Nói", "Nhìn", "Trí tuệ", "Tự kỷ / Tăng động (ADHD)", "Khác"], 
-                default=["Nhìn"]
-            )
+    with st.expander("🔧 Tích hợp chuyên sâu (Hòa nhập, AI, Số hóa)", expanded=False):
+        tich_hop_ai = st.checkbox("🤖 Tích hợp hoạt động sử dụng AI trong bài học")
+        
+        tich_hop_hoa_nhap = st.checkbox("🤝 Tích hợp Dạy học hòa nhập (HS Khuyết tật)")
+        nhu_cau_hoa_nhap = []
+        if tich_hop_hoa_nhap:
+            with st.container(border=True):
+                st.markdown("**Cấu hình Dạy học Hòa nhập:**")
+                nhu_cau_hoa_nhap = st.multiselect(
+                    "Đặc điểm học sinh khuyết tật trong lớp:", 
+                    ["Vận động", "Nghe", "Nói", "Nhìn", "Trí tuệ", "Tự kỷ / Tăng động (ADHD)", "Khác"], 
+                    default=["Nhìn"]
+                )
 
-    tich_hop_nls = st.checkbox("💻 Tích hợp Năng lực số (Theo Thông tư 18)")
-    if tich_hop_nls:
-        with st.container(border=True):
-            st.markdown("**Cấu hình Năng lực số (DigComp / TT18):**")
-            loai_khung = st.radio("Đối tượng áp dụng", ["Giáo viên (Thông tư 18)", "Học sinh (Khung DigComp)"], horizontal=True)
-            st.session_state["khbd_loai_khung_nls"] = loai_khung
-            
-            col_nls1, col_nls2, col_nls3 = st.columns(3)
-            with col_nls1:
-                linh_vuc = st.selectbox("Miền năng lực", get_nls_domains(loai_khung), key="khbd_nls_linh_vuc")
-            with col_nls2:
-                thanh_phan = st.selectbox("Năng lực thành phần", get_nls_components(loai_khung, linh_vuc), key="khbd_nls_thanh_phan")
-            with col_nls3:
-                muc_do = st.selectbox("Mức độ", get_nls_levels(loai_khung, linh_vuc, thanh_phan), key="khbd_nls_muc_do")
+        tich_hop_nls = st.checkbox("💻 Tích hợp Năng lực số (Theo Thông tư 18)")
+        if tich_hop_nls:
+            with st.container(border=True):
+                st.markdown("**Cấu hình Năng lực số (DigComp / TT18):**")
+                loai_khung = st.radio("Đối tượng áp dụng", ["Giáo viên (Thông tư 18)", "Học sinh (Khung DigComp)"], horizontal=True)
+                st.session_state["khbd_loai_khung_nls"] = loai_khung
                 
-            noi_dung_nls = get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do)
-            st.info(f"**Mô tả NLS:** {noi_dung_nls}")
-            st.session_state["khbd_nls_noi_dung"] = noi_dung_nls
-            
-            if st.button("➕ Thêm Năng lực số này vào KHBD"):
-                add_nls()
-                st.toast("Đã thêm yêu cầu NLS!")
+                col_nls1, col_nls2, col_nls3 = st.columns(3)
+                with col_nls1:
+                    linh_vuc = st.selectbox("Miền năng lực", get_nls_domains(loai_khung), key="khbd_nls_linh_vuc")
+                with col_nls2:
+                    thanh_phan = st.selectbox("Năng lực thành phần", get_nls_components(loai_khung, linh_vuc), key="khbd_nls_thanh_phan")
+                with col_nls3:
+                    muc_do = st.selectbox("Mức độ", get_nls_levels(loai_khung, linh_vuc, thanh_phan), key="khbd_nls_muc_do")
+                    
+                noi_dung_nls = get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do)
+                st.info(f"**Mô tả NLS:** {noi_dung_nls}")
+                st.session_state["khbd_nls_noi_dung"] = noi_dung_nls
                 
-            if st.session_state.khbd_nls_list:
-                st.markdown("**Danh sách Năng lực số đã chọn:**")
-                st.markdown(format_nls())
-                if st.button("🗑️ Xóa danh sách NLS"):
-                    st.session_state.khbd_nls_list = []
-                    st.rerun()
+                if st.button("➕ Thêm Năng lực số này vào KHBD"):
+                    add_nls()
+                    st.toast("Đã thêm yêu cầu NLS!")
+                    
+                if st.session_state.khbd_nls_list:
+                    st.markdown("**Danh sách Năng lực số đã chọn:**")
+                    st.markdown(format_nls())
+                    if st.button("🗑️ Xóa danh sách NLS"):
+                        st.session_state.khbd_nls_list = []
+                        st.rerun()
 
     st.divider()
     if st.button("⚡ TẠO KẾ HOẠCH BÀI DẠY BẰNG AI", type="primary", use_container_width=True):
@@ -137,7 +137,7 @@ def render_xd_khbd(ai_engine_client=None):
             st.warning("⚠️ Vui lòng tải SGK / Tài liệu kiến thức lên (Chế độ Soạn mới).")
             st.stop()
 
-        with st.spinner("⏳ Đang quét tài liệu... (Nếu là ảnh Scan, AI Vision sẽ tự động nhận diện chữ, vui lòng đợi thêm 30s)"):
+        with st.spinner("⏳ Đang phân tích và xử lý dữ liệu KHBD..."):
             try:
                 noi_dung_chinh = read_multiple_files(file_sgk, range_trang, is_pdf_target=True) if file_sgk else ""
                 noi_dung_ga = read_multiple_files(file_ga) if mode == "chinh_sua" and file_ga else ""
@@ -189,7 +189,7 @@ def render_xd_khbd(ai_engine_client=None):
                 st.error(f"❌ Lỗi hệ thống: {e}")
 
     # ==========================================================
-    # HIỂN THỊ VÀ XUẤT WORD (ĐẢM BẢO NÚT TẢI LUÔN HOẠT ĐỘNG)
+    # HIỂN THỊ VÀ XUẤT WORD
     # ==========================================================
     if st.session_state.get('khbd_delete_trigger'):
         if 'current_khbd_data' in st.session_state:
@@ -212,21 +212,19 @@ def render_xd_khbd(ai_engine_client=None):
                 st.toast("Đã lưu cấu hình giáo án vào bộ nhớ an toàn!")
                 
         with col_download:
-            # GỌI XUẤT FILE WORD BẰNG ENGINE CHUẨN CÓ BẪY LỖI DỰ PHÒNG AN TOÀN TUYỆT ĐỐI
             word_file = None
             try:
                 if WordExportEngine and hasattr(WordExportEngine, 'export_to_word'):
                     word_file = WordExportEngine.export_to_word(khbd_cache)
                 elif WordExportEngine and hasattr(WordExportEngine, 'convert_markdown_to_docx_bytes'):
                     word_file = WordExportEngine.convert_markdown_to_docx_bytes(khbd_cache.get('ai_generated_content', ''), metadata=khbd_cache)
-            except Exception as e:
+            except Exception:
                 pass
 
-            # Fallback khẩn cấp ngay lập tức nếu engine gặp sự cố bất ngờ để nút bấm không bao giờ bị khóa
             if not word_file:
                 try:
                     fallback_doc = docx.Document()
-                    fallback_doc.add_paragraph(khbd_cache.get('ai_generated_content', ''))
+                    fallback_doc.add_paragraph(khbd_cache.get('ai_generated_content', '').replace("**", ""))
                     bio = io.BytesIO()
                     fallback_doc.save(bio)
                     word_file = bio.getvalue()
