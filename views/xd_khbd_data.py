@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 r"""
 ============================================================
-DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
+DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY
 FILE: views/xd_khbd_data.py
-Nâng cấp: Giữ nguyên 100% Khung năng lực, Tích hợp Smart Fallback (Chống lỗi 429)
+Nâng cấp: Đa mô hình, Định tuyến chéo (Cross-Fallback) chống đứt gãy.
 ============================================================
 """
 
@@ -56,6 +56,7 @@ def set_mode(mode: str):
         raise ValueError(f"Chế độ soạn không hợp lệ: {mode}")
     st.session_state.khbd_mode = mode
 
+# --- KHUNG NĂNG LỰC SỐ ---
 KHUNG_NLS_GV = {
     "1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ": {
         "1.1. Dạy học và giáo dục trong môi trường số": {
@@ -236,7 +237,7 @@ def add_nls():
 def format_nls():
     items = st.session_state.get("khbd_nls_list", [])
     if not items:
-        return "Không yêu cầu đặc thù về Năng lực số."
+        return "Không có yêu cầu đặc thù về Năng lực số."
     return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
 
 def safe_text(value):
@@ -351,12 +352,6 @@ def build_intermediate_knowledge_source(structured_data):
             source_lines.append(f"HÌNH MINH HỌA [IMAGE: {img['id']}]")
     return "\n\n".join(source_lines)
 
-def read_pdf(uploaded_file, range_str=""): 
-    return "\n".join([p["text"] for p in parse_pdf_structured(uploaded_file, range_str)["pages"]])
-
-def read_docx_ordered(source): 
-    return "\n".join([p["text"] for p in parse_docx_structured(source)["pages"]])
-
 def read_multiple_files(files, range_str="", is_pdf_target=False):
     combined = {"source_name": "multi_files", "pages": []}
     offset = 0
@@ -373,78 +368,95 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
     st.session_state["current_source_metadata"] = combined
     return build_intermediate_knowledge_source(combined)
 
-def generate_ai(ai_engine, prompt, model_name="3.5 Flash"):
+def generate_ai(ai_engine, prompt, model_name="Gemini 1.5 Flash (Tốc độ)"):
     """
-    Tích hợp Smart Fallback: Tự động chuyển qua OpenAI nếu Gemini cạn hạn mức (429).
+    Định tuyến đa mô hình (Cross-Routing).
+    - Ưu tiên OpenAI nếu tên mô hình có "GPT".
+    - Ưu tiên Gemini nếu tên mô hình có "Gemini".
+    - Tự động nhảy sang nền tảng đối lập nếu gặp lỗi (Quota/429).
     """
     system_instruction = r"""
-[KỶ LUẬT THÉP CẤP ĐỘ CAO NHẤT - HỦY BỎ MỌI THÓI QUEN CỦA AI]:
+[KỶ LUẬT THÉP XÂY DỰNG KHBD CHUẨN CÔNG VĂN 5512]:
 
-1. CẤM TUYỆT ĐỐI DÙNG DẤU BACKTICK (`) CHO CÔNG THỨC TOÁN:
+1. BẮT BUỘC TUÂN THỦ CẤU TRÚC 4 HOẠT ĐỘNG:
+Bạn phải giữ nguyên cấu trúc chuẩn sau đây:
+- Hoạt động 1: Mở đầu
+- Hoạt động 2: Hình thành kiến thức mới
+- Hoạt động 3: Luyện tập
+- Hoạt động 4: Vận dụng
+*Lưu ý: Tại mỗi hoạt động bắt buộc phải có đủ 4 mục: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
+
+2. QUY ĐỊNH VỀ CÔNG THỨC TOÁN HỌC (NẾU CÓ):
+- CẤM TUYỆT ĐỐI dùng dấu backtick (`) cho công thức Toán, Lý, Hóa. 
 - BẮT BUỘC dùng dấu $...$ cho TẤT CẢ công thức Toán, Lý, Hóa.
-- ĐÚNG: $\frac{\sin i}{\sin r}$ hoặc $c = 3 \times 10^8 \text{ m/s}$
 
-2. ÉP BUỘC CHÈN HÌNH ẢNH VÀ BẢNG:
-- BẠN BẮT BUỘC PHẢI COPY CHÍNH XÁC THẺ `[IMAGE: ID]` VÀ `[TABLE: ID]` VÀO NỘI DUNG BÀI SOẠN NẾU TÀI LIỆU NGUỒN CÓ NHẮC ĐẾN.
-
-3. CẤM TỰ Ý ĐÁNH SỐ THỨ TỰ HOẠT ĐỘNG KHÁC CÔNG VĂN 5512:
-- BẮT BUỘC Giữ nguyên Cấu trúc 4 Hoạt động cốt lõi: 
-  Hoạt động 1: MỞ ĐẦU
-  Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI
-  Hoạt động 3: LUYỆN TẬP
-  Hoạt động 4: VẬN DỤNG
-- Tại mỗi hoạt động bắt buộc phải có đủ 4 mục: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
-- Quy trình Tổ chức thực hiện phải rõ 4 bước: Giao nhiệm vụ, Thực hiện, Báo cáo, Kết luận.
+3. QUY TRÌNH "TỔ CHỨC THỰC HIỆN" (Giao - Thực - Báo - Kết):
+Tại phần d) Tổ chức thực hiện của mỗi hoạt động, trình bày rõ 4 bước: Giao nhiệm vụ, Thực hiện, Báo cáo thảo luận, Kết luận nhận định.
 """
     full_prompt = system_instruction + "\n\n" + prompt
 
-    # 1. Thử gọi AI Engine truyền vào (Gemini)
-    if ai_engine and hasattr(ai_engine, "generate_text"):
-        try:
-            res = ai_engine.generate_text(full_prompt)
-            if res and "429" not in res and "RESOURCE_EXHAUSTED" not in res and not res.startswith("❌"):
-                text_out = res
-                if isinstance(res, dict):
-                    text_out = res.get("text", str(res))
-                elif hasattr(res, "text"):
-                    text_out = res.text
-                return process_output_format(text_out)
-        except Exception:
-            pass # Tiếp tục chuyển sang Fallback
+    is_openai_preferred = "GPT" in model_name
+    is_pro_tier = "Pro" in model_name or "Cao cấp" in model_name or "GPT-4o (" in model_name
 
-    # 2. Fallback: Tự động tìm khóa OpenAI sk- trong hệ thống
-    api_key = None
-    for key, val in st.session_state.items():
-        if isinstance(val, str) and val.startswith("sk-"):
-            api_key = val
-            break
+    openai_model = "gpt-4o" if is_pro_tier else "gpt-4o-mini"
     
-    if not api_key:
-        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
-            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
-                api_key = st.session_state.get(k)
+    def call_openai():
+        api_key = None
+        for key, val in st.session_state.items():
+            if isinstance(val, str) and val.startswith("sk-"):
+                api_key = val
                 break
-                
-    if not api_key and "OPENAI_API_KEY" in st.secrets:
-        api_key = st.secrets["OPENAI_API_KEY"]
+        if not api_key:
+            for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+                if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                    api_key = st.session_state.get(k)
+                    break
+        if not api_key and "OPENAI_API_KEY" in st.secrets:
+            api_key = st.secrets["OPENAI_API_KEY"]
 
-    if api_key:
-        try:
+        if api_key:
             import openai
             client = openai.OpenAI(api_key=str(api_key).strip())
-            model_to_use = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
             response = client.chat.completions.create(
-                model=model_to_use,
+                model=openai_model,
                 messages=[
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": prompt}
                 ]
             )
-            return process_output_format(response.choices[0].message.content.strip())
-        except Exception as e:
-            raise RuntimeError(f"Lỗi Fallback OpenAI: {e}")
+            return response.choices[0].message.content.strip()
+        raise RuntimeError("Không tìm thấy khóa API OpenAI (sk-).")
 
-    raise RuntimeError("Tài khoản AI đang bị quá tải (Lỗi 429) và không tìm thấy khóa OpenAI (sk-) dự phòng trong hệ thống.")
+    def call_gemini():
+        try:
+            from utils.ai_engine_2 import AIEngine2
+            gemini_model = "gemini-2.5-pro" if is_pro_tier else "gemini-2.5-flash"
+            engine_v2 = AIEngine2(default_model=gemini_model)
+            res = engine_v2.generate_text(full_prompt)
+            if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                return res
+        except ImportError:
+            if ai_engine and hasattr(ai_engine, "generate_text"):
+                res = ai_engine.generate_text(full_prompt)
+                if res and "429" not in res and "RESOURCE_EXHAUSTED" not in res and not res.startswith("❌"):
+                    if isinstance(res, dict): return res.get("text", str(res))
+                    elif hasattr(res, "text"): return res.text
+                    return res
+        raise RuntimeError("Gemini bị quá tải hoặc lỗi 429.")
+
+    text_out = None
+    if is_openai_preferred:
+        try:
+            text_out = call_openai()
+        except Exception:
+            text_out = call_gemini()
+    else:
+        try:
+            text_out = call_gemini()
+        except Exception:
+            text_out = call_openai()
+
+    return process_output_format(text_out)
 
 def process_output_format(text_out):
     if not text_out: 
