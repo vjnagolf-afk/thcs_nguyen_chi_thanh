@@ -3,7 +3,7 @@ r"""
 ============================================================
 DATA & LOGIC: XÂY DỰNG KẾ HOẠCH BÀI DẠY (CẤU TRÚC DỮ LIỆU NGUỒN & CHỐNG CHUNG CHUNG)
 FILE: views/xd_khbd_data.py
-(Bản nâng cấp SDK Google GenAI mới nhất và Khóa chốt Metadata)
+Nâng cấp: Giữ nguyên 100% Khung năng lực, Tích hợp Smart Fallback (Chống lỗi 429)
 ============================================================
 """
 
@@ -171,7 +171,6 @@ KHUNG_NLS_GV = {
     }
 }
 
-
 KHUNG_NLS_HS = {
     "1. Sử dụng thông tin và dữ liệu số": {
         "1.1. Tìm kiếm và chọn lọc": {
@@ -237,7 +236,7 @@ def add_nls():
 def format_nls():
     items = st.session_state.get("khbd_nls_list", [])
     if not items:
-        return "- Năng lực 1. TỔ CHỨC DẠY HỌC, GIÁO DỤC TRONG MÔI TRƯỜNG SỐ > 1.1. Dạy học và giáo dục trong môi trường số (Thành thạo): Xây dựng kế hoạch bài dạy theo tiếp cận công nghệ."
+        return "Không yêu cầu đặc thù về Năng lực số."
     return "\n".join([f"- Năng lực {item['linh_vuc']} > {item['thanh_phan']} ({item['muc_do']}): {item['noi_dung']}" for item in items])
 
 def safe_text(value):
@@ -372,66 +371,82 @@ def read_multiple_files(files, range_str="", is_pdf_target=False):
         offset += len(parsed["pages"])
         
     st.session_state["current_source_metadata"] = combined
-    
     return build_intermediate_knowledge_source(combined)
 
-def generate_ai(client, prompt, model_name="3.5 Flash"):
+def generate_ai(ai_engine, prompt, model_name="3.5 Flash"):
+    """
+    Tích hợp Smart Fallback: Tự động chuyển qua OpenAI nếu Gemini cạn hạn mức (429).
+    """
     system_instruction = r"""
 [KỶ LUẬT THÉP CẤP ĐỘ CAO NHẤT - HỦY BỎ MỌI THÓI QUEN CỦA AI]:
 
 1. CẤM TUYỆT ĐỐI DÙNG DẤU BACKTICK (`) CHO CÔNG THỨC TOÁN:
-- Bạn đang dùng `sin i / sin r` hoặc `n21` -> ĐÂY LÀ LỖI RẤT NẶNG.
 - BẮT BUỘC dùng dấu $...$ cho TẤT CẢ công thức Toán, Lý, Hóa.
-- ĐÚNG: $\frac{\sin i}{\sin r}$
-- ĐÚNG: $n_{21}$
-- ĐÚNG: $c = 3 \times 10^8 \text{ m/s}$
+- ĐÚNG: $\frac{\sin i}{\sin r}$ hoặc $c = 3 \times 10^8 \text{ m/s}$
 
 2. ÉP BUỘC CHÈN HÌNH ẢNH VÀ BẢNG:
-- NGUYÊN TẮC: Phần mềm chỉ hiển thị được Ảnh và Bảng khi bạn viết đúng thẻ ID.
-- Nếu Nguồn Kiến Thức có ghi `HÌNH MINH HỌA [IMAGE: ID...]`, bạn CẤM được phép viết "Giáo viên mô tả hình vẽ".
-- BẠN BẮT BUỘC PHẢI COPY CHÍNH XÁC THẺ `[IMAGE: ID]` VÀ `[TABLE: ID]` VÀO NỘI DUNG BÀI SOẠN.
-- Ví dụ: Học sinh quan sát hình dưới đây: [IMAGE: IMG_P1_1]
+- BẠN BẮT BUỘC PHẢI COPY CHÍNH XÁC THẺ `[IMAGE: ID]` VÀ `[TABLE: ID]` VÀO NỘI DUNG BÀI SOẠN NẾU TÀI LIỆU NGUỒN CÓ NHẮC ĐẾN.
 
-3. CẤM TỰ Ý ĐÁNH SỐ THỨ TỰ HOẠT ĐỘNG:
-- BẮT BUỘC Giữ nguyên Cấu trúc Hoạt động cốt lõi: 
-  **Hoạt động 1: MỞ ĐẦU**
-  **Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI**
-  **Hoạt động 3: LUYỆN TẬP**
-  **Hoạt động 4: VẬN DỤNG**
-- CẤM TỰ CHIA NHỎ: Không được tự ý chế ra "Hoạt động 1: Tìm hiểu...", "Hoạt động 2: Định nghĩa..." nằm bên trong phần "HÌNH THÀNH KIẾN THỨC MỚI".
+3. CẤM TỰ Ý ĐÁNH SỐ THỨ TỰ HOẠT ĐỘNG KHÁC CÔNG VĂN 5512:
+- BẮT BUỘC Giữ nguyên Cấu trúc 4 Hoạt động cốt lõi: 
+  Hoạt động 1: MỞ ĐẦU
+  Hoạt động 2: HÌNH THÀNH KIẾN THỨC MỚI
+  Hoạt động 3: LUYỆN TẬP
+  Hoạt động 4: VẬN DỤNG
+- Tại mỗi hoạt động bắt buộc phải có đủ 4 mục: a) Mục tiêu, b) Nội dung, c) Sản phẩm, d) Tổ chức thực hiện.
+- Quy trình Tổ chức thực hiện phải rõ 4 bước: Giao nhiệm vụ, Thực hiện, Báo cáo, Kết luận.
 """
     full_prompt = system_instruction + "\n\n" + prompt
-    api_key = st.session_state.get("user_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+
+    # 1. Thử gọi AI Engine truyền vào (Gemini)
+    if ai_engine and hasattr(ai_engine, "generate_text"):
+        try:
+            res = ai_engine.generate_text(full_prompt)
+            if res and "429" not in res and "RESOURCE_EXHAUSTED" not in res and not res.startswith("❌"):
+                text_out = res
+                if isinstance(res, dict):
+                    text_out = res.get("text", str(res))
+                elif hasattr(res, "text"):
+                    text_out = res.text
+                return process_output_format(text_out)
+        except Exception:
+            pass # Tiếp tục chuyển sang Fallback
+
+    # 2. Fallback: Tự động tìm khóa OpenAI sk- trong hệ thống
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
     
-    try: 
-        api_key = api_key or st.secrets.get("GEMINI_API_KEY", "").strip()
-    except: 
-        pass
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+                
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
 
-    text_out = ""
-    try:
-        if api_key.startswith("sk-") or "proj-" in api_key:
+    if api_key:
+        try:
             import openai
-            oai_client = openai.OpenAI(api_key=api_key)
-            response = oai_client.chat.completions.create(
-                model="gpt-4o" if "Pro" in model_name else "gpt-4o-mini",
-                messages=[{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}],
-                max_tokens=8192
+            client = openai.OpenAI(api_key=str(api_key).strip())
+            model_to_use = "gpt-4o" if "Pro" in model_name else "gpt-4o-mini"
+            response = client.chat.completions.create(
+                model=model_to_use,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ]
             )
-            text_out = response.choices[0].message.content.strip()
-        else:
-            from google import genai
-            client_genai = genai.Client(api_key=api_key or "AIzaSy_dummy")
-            api_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
-            response = client_genai.models.generate_content(
-                model=api_model,
-                contents=full_prompt
-            )
-            text_out = response.text.strip()
-    except Exception as e:
-        logger.error(f"AI Generation Error: {e}")
-        raise RuntimeError(f"Lỗi kết nối AI: {e}")
+            return process_output_format(response.choices[0].message.content.strip())
+        except Exception as e:
+            raise RuntimeError(f"Lỗi Fallback OpenAI: {e}")
 
+    raise RuntimeError("Tài khoản AI đang bị quá tải (Lỗi 429) và không tìm thấy khóa OpenAI (sk-) dự phòng trong hệ thống.")
+
+def process_output_format(text_out):
     if not text_out: 
         raise RuntimeError("Không thể nhận phản hồi từ AI.")
         
