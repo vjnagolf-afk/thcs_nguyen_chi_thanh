@@ -59,11 +59,8 @@ AI_CATEGORIES = {
 # HÀM GỌI AI THÔNG MINH (CROSS-ROUTING FALLBACK)
 # ============================================================
 def call_prompt_engineer(ai_engine, prompt, model_name="Gemini 1.5 Flash"):
-    """
-    Tự động chuyển đổi giữa Gemini và OpenAI nếu gặp lỗi 429 hoặc quá tải.
-    """
     is_openai_preferred = "GPT" in model_name
-    openai_model = "gpt-4o" if "Pro" in model_name or "GPT-4o (" in model_name else "gpt-4o-mini"
+    openai_model = "gpt-4o" if ("Pro" in model_name or "GPT-4o (" in model_name) else "gpt-4o-mini"
     
     def run_openai():
         api_key = None
@@ -155,27 +152,36 @@ def render_xd_tao_prompt(ai_engine=None):
             st.warning("⚠️ Vui lòng trình bày ý tưởng thô của bạn trước khi bấm tạo.")
         else:
             with st.spinner(f"Đang biến ý tưởng thành Siêu Prompt chuyên dụng cho {nhom_ai}..."):
-                
                 lang_instruction = "Viết bằng TIẾNG VIỆT rõ ràng, chuẩn sư phạm."
                 if "Hình Ảnh" in nhom_ai or "Video" in nhom_ai or "Âm Thanh" in nhom_ai:
                     lang_instruction = "Viết bằng TIẾNG ANH (Vì các AI tạo Ảnh/Video/Âm thanh chỉ hiểu tốt tiếng Anh)."
                 
-                prompt_engineer_task = f"""Bạn là một "Siêu Chuyên gia Kỹ thuật Kích hoạt" (Master Prompt Engineer) cấp thế giới.
-Một giáo viên đang muốn sử dụng công cụ thuộc nhóm: {nhom_ai}
-Ý tưởng thô của giáo viên: "{chi_tiet}"
-
-NHIỆM VỤ CỦA BẠN:
-1. Xác định công cụ phù hợp nhất trong nhóm này để thực hiện ý tưởng.
-2. Viết lại ý tưởng thô thành MỘT ĐOẠN PROMPT HOÀN CHỈNH, TUYỆT HẢO NHẤT để giáo viên copy và dán vào công cụ đó.
-3. {lang_instruction}
-
-CẤU TRÚC ĐẦU RA BẮT BUỘC:
-
-### 🛠️ GỢI Ý CÔNG CỤ SỬ DỤNG
-(Chỉ đích danh công cụ tốt nhất. Ví dụ: Bạn nên copy lệnh này dán vào ChatGPT / Midjourney / Gamma AI...)
-
-### 📝 PROMPT ĐÃ TỐI ƯU (Bấm nút Copy ở góc phải)
-```text
-(Viết toàn bộ nội dung Prompt vào đây. 
-Nếu là LLM Text: Phải có Role, Context, Task, Format, Constraints.
-Nếu là Midjourney/Tạo ảnh: Phải có Subject, Environment, Lighting, Style, Parameters như --ar 16:9 --v 6.0)
+                # Nối chuỗi để an toàn tuyệt đối khi biên dịch Python
+                prompt_engineer_task = (
+                    f'Bạn là một "Siêu Chuyên gia Kỹ thuật Kích hoạt" (Master Prompt Engineer) cấp thế giới.\n'
+                    f'Một giáo viên đang muốn sử dụng công cụ thuộc nhóm: {nhom_ai}\n'
+                    f'Ý tưởng thô của giáo viên: "{chi_tiet}"\n\n'
+                    f'NHIỆM VỤ CỦA BẠN:\n'
+                    f'1. Xác định công cụ phù hợp nhất trong nhóm này để thực hiện ý tưởng.\n'
+                    f'2. Viết lại ý tưởng thô thành MỘT ĐOẠN PROMPT HOÀN CHỈNH, TUYỆT HẢO NHẤT để giáo viên copy và dán vào công cụ đó.\n'
+                    f'3. {lang_instruction}\n\n'
+                    f'CẤU TRÚC ĐẦU RA BẮT BUỘC:\n\n'
+                    f'### 🛠️ GỢI Ý CÔNG CỤ SỬ DỤNG\n'
+                    f'(Chỉ đích danh công cụ tốt nhất. Ví dụ: Bạn nên copy lệnh này dán vào ChatGPT / Midjourney / Gamma AI...)\n\n'
+                    f'### 📝 PROMPT ĐÃ TỐI ƯU (Bấm nút Copy ở góc phải)\n'
+                    f'```text\n'
+                    f'(Viết toàn bộ nội dung Prompt vào đây. \n'
+                    f'Nếu là LLM Text: Phải có Role, Context, Task, Format, Constraints.\n'
+                    f'Nếu là Midjourney/Tạo ảnh: Phải có Subject, Environment, Lighting, Style, Parameters như --ar 16:9 --v 6.0)\n'
+                    f'```\n\n'
+                    f'### 💡 HƯỚNG DẪN THÊM\n'
+                    f'(Giải thích ngắn gọn 1-2 câu vì sao Prompt này hiệu quả, hoặc cần thay đổi tham số nào nếu giáo viên muốn tùy biến).'
+                )
+                
+                try:
+                    res = call_prompt_engineer(ai_engine, prompt_engineer_task, model_name)
+                    st.markdown("---")
+                    st.success("🎉 Đã thiết kế xong Siêu Prompt!")
+                    st.markdown(res)
+                except Exception as e:
+                    st.error(f"❌ Lỗi hệ thống: {e}")
