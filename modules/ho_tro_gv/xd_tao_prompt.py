@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-r"""
-============================================================
-MODULE: views/xd_tao_prompt.py (Hoặc tên file cấu hình của thầy)
-Nhiệm vụ: Siêu Trung Tâm Tạo Prompt & Gợi ý Công cụ AI Đa Năng
-Nâng cấp: Hệ sinh thái 12 nhóm AI, Tool Recommender, Cross-Routing
-============================================================
-"""
-
 import streamlit as st
 
 # ============================================================
@@ -96,7 +88,7 @@ def call_prompt_engineer(ai_engine, prompt, model_name="Gemini 1.5 Flash"):
                 temperature=0.7
             )
             return response.choices[0].message.content.strip()
-        raise RuntimeError("Không có API Key OpenAI.")
+        raise RuntimeError("Không có API Key OpenAI (sk-).")
 
     def run_gemini():
         try:
@@ -110,17 +102,23 @@ def call_prompt_engineer(ai_engine, prompt, model_name="Gemini 1.5 Flash"):
             if ai_engine and hasattr(ai_engine, "generate_text"):
                 res = ai_engine.generate_text(prompt)
                 if res and "429" not in res and "RESOURCE_EXHAUSTED" not in res and not res.startswith("❌"):
-                    if isinstance(res, dict): return res.get("text", str(res))
-                    elif hasattr(res, "text"): return res.text
+                    if isinstance(res, dict): 
+                        return res.get("text", str(res))
+                    elif hasattr(res, "text"): 
+                        return res.text
                     return res
         raise RuntimeError("Gemini lỗi hoặc quá hạn mức 429.")
 
     if is_openai_preferred:
-        try: return run_openai()
-        except Exception: return run_gemini()
+        try: 
+            return run_openai()
+        except Exception: 
+            return run_gemini()
     else:
-        try: return run_gemini()
-        except Exception: return run_openai()
+        try: 
+            return run_gemini()
+        except Exception: 
+            return run_openai()
 
 # ============================================================
 # GIAO DIỆN CHÍNH
@@ -135,13 +133,11 @@ def render_xd_tao_prompt(ai_engine=None):
         st.markdown("#### 🎯 Lựa chọn nền tảng")
         nhom_ai = st.selectbox("Bạn đang muốn sử dụng nhóm AI nào?", list(AI_CATEGORIES.keys()))
         
-        # Cấu hình Model AI để sinh Prompt
         model_name = st.selectbox(
             "Động cơ sinh Prompt:", 
             ["Gemini 1.5 Flash (Tốc độ)", "Gemini 1.5 Pro (Sâu sắc)", "GPT-4o Mini", "GPT-4o (Cao cấp)"]
         )
         
-        # Hiển thị thẻ thông tin tư vấn công cụ
         st.info(f"**💡 Chức năng:** {AI_CATEGORIES[nhom_ai]['desc']}\n\n**🚀 Công cụ khuyến nghị:**\n{AI_CATEGORIES[nhom_ai]['tools']}")
 
     with col2:
@@ -160,12 +156,11 @@ def render_xd_tao_prompt(ai_engine=None):
         else:
             with st.spinner(f"Đang biến ý tưởng thành Siêu Prompt chuyên dụng cho {nhom_ai}..."):
                 
-                # Logic chuyển đổi ngôn ngữ linh hoạt
-                lang_instruction = "Viết bằng TIẾNG ANH (Vì các AI tạo Ảnh/Video/Âm thanh chỉ hiểu tốt tiếng Anh)." if "Hình Ảnh" in nhom_ai or "Video" in nhom_ai or "Âm Thanh" in nhom_ai else "Viết bằng TIẾNG VIỆT rõ ràng, chuẩn sư phạm."
+                lang_instruction = "Viết bằng TIẾNG VIỆT rõ ràng, chuẩn sư phạm."
+                if "Hình Ảnh" in nhom_ai or "Video" in nhom_ai or "Âm Thanh" in nhom_ai:
+                    lang_instruction = "Viết bằng TIẾNG ANH (Vì các AI tạo Ảnh/Video/Âm thanh chỉ hiểu tốt tiếng Anh)."
                 
-                # Prompt Engineer System
-                prompt_engineer_task = f"""
-Bạn là một "Siêu Chuyên gia Kỹ thuật Kích hoạt" (Master Prompt Engineer) cấp thế giới.
+                prompt_engineer_task = f"""Bạn là một "Siêu Chuyên gia Kỹ thuật Kích hoạt" (Master Prompt Engineer) cấp thế giới.
 Một giáo viên đang muốn sử dụng công cụ thuộc nhóm: {nhom_ai}
 Ý tưởng thô của giáo viên: "{chi_tiet}"
 
