@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-r"""
-============================================================
-MODULE: views/xd_tao_prompt.py
-Nhiệm vụ: Siêu Trung Tâm Tạo Prompt & Gợi ý Công cụ AI Đa Năng
-Nâng cấp: "Zero-Edit" Meta-Templates cho KHBD, Đề, Slide, Video.
-============================================================
-"""
-
 import streamlit as st
 
 # ============================================================
@@ -23,11 +15,13 @@ AI_CATEGORIES = {
     },
     "🎬 AI Tạo Video Giáo Dục": {
         "desc": "Sinh video từ văn bản, hình ảnh kết hợp lời thoại.",
-        "tools": "- **Veo / Sora / Kling (Hình ảnh):** Dùng phần Visual Prompt tiếng Anh.\n- **Vbee / ElevenLabs (Âm thanh):** Dùng phần Lời thoại tiếng Việt."
+        "tools": "- **Veo / Sora / Kling (Hình ảnh):** Dùng phần Visual Prompt tiếng Anh.
+- **Vbee / ElevenLabs (Âm thanh):** Dùng phần Lời thoại tiếng Việt."
     },
     "👨‍🏫 AI Cho Giáo Viên (EdTech)": {
         "desc": "Các công cụ chuyên biệt tối ưu hóa nghiệp vụ sư phạm.",
-        "tools": "- **MagicSchool AI:** Tối ưu hóa ma trận đề, rubric.\n- **NotebookLM:** Xây dựng kho tri thức (RAG) từ SGK."
+        "tools": "- **MagicSchool AI:** Tối ưu hóa ma trận đề, rubric.
+- **NotebookLM:** Xây dựng kho tri thức (RAG) từ SGK."
     },
     "🎨 AI Tạo Hình Ảnh": {
         "desc": "Sinh hình ảnh minh họa, sơ đồ, nghệ thuật trực quan cho bài giảng.",
@@ -73,33 +67,49 @@ def call_prompt_engineer(ai_engine, prompt, model_name="Gemini 1.5 Flash"):
                 temperature=0.7
             )
             return response.choices[0].message.content.strip()
-        raise RuntimeError("Không có API Key OpenAI (sk-).")
+        raise RuntimeError("Hệ thống chưa được cấu hình API Key OpenAI (sk-).")
 
     def run_gemini():
         try:
             from utils.ai_engine_2 import AIEngine2
-            gemini_model = "gemini-2.5-pro" if "Pro" in model_name else "gemini-2.5-flash"
+            # HẠ CẤP VỀ 1.5 PRO ĐỂ TRÁNH LỖI LIMIT:0 CỦA BẢN 2.5
+            gemini_model = "gemini-1.5-pro" if "Pro" in model_name else "gemini-1.5-flash"
             engine_v2 = AIEngine2(default_model=gemini_model)
             res = engine_v2.generate_text(prompt)
             if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
                 return res
+            raise RuntimeError(f"Hạn mức Gemini cạn kiệt.")
         except ImportError:
             if ai_engine and hasattr(ai_engine, "generate_text"):
                 res = ai_engine.generate_text(prompt)
-                if res and "429" not in res and "RESOURCE_EXHAUSTED" not in res and not res.startswith("❌"):
-                    if isinstance(res, dict): 
-                        return res.get("text", str(res))
-                    elif hasattr(res, "text"): 
-                        return res.text
+                if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                    if isinstance(res, dict): return res.get("text", str(res))
+                    elif hasattr(res, "text"): return res.text
                     return res
-        raise RuntimeError("Gemini lỗi hoặc quá hạn mức 429.")
+                raise RuntimeError("Hạn mức Gemini Engine 1 cạn kiệt.")
+        except Exception as e:
+            raise RuntimeError(f"Lỗi từ máy chủ Google: {str(e)}")
+        raise RuntimeError("Google Gemini từ chối kết nối.")
 
+    error_messages = []
     if is_openai_preferred:
         try: return run_openai()
-        except Exception: return run_gemini()
+        except Exception as e1: 
+            error_messages.append(f"OpenAI: {e1}")
+            try: return run_gemini()
+            except Exception as e2: error_messages.append(f"Gemini: {e2}")
     else:
         try: return run_gemini()
-        except Exception: return run_openai()
+        except Exception as e1: 
+            error_messages.append(f"Gemini: {e1}")
+            try: return run_openai()
+            except Exception as e2: error_messages.append(f"OpenAI: {e2}")
+            
+    raise RuntimeError(f"Cả 2 nền tảng AI đều gặp sự cố:
+- {error_messages[0]}
+- {error_messages[1]}
+
+👉 Khắc phục: Vui lòng chờ 1 phút để Gemini hồi phục, hoặc thêm khóa `sk-` của OpenAI để hệ thống chạy ổn định 100%.")
 
 # ============================================================
 # GIAO DIỆN CHÍNH
@@ -119,14 +129,20 @@ def render_xd_tao_prompt(ai_engine=None):
             ["Gemini 1.5 Flash (Tốc độ)", "Gemini 1.5 Pro (Sâu sắc)", "GPT-4o Mini", "GPT-4o (Cao cấp)"]
         )
         
-        st.info(f"**💡 Chức năng:** {AI_CATEGORIES[nhom_ai]['desc']}\n\n**🚀 Nơi dán Prompt:**\n{AI_CATEGORIES[nhom_ai]['tools']}")
+        st.info(f"**💡 Chức năng:** {AI_CATEGORIES[nhom_ai]['desc']}
+
+**🚀 Nơi dán Prompt:**
+{AI_CATEGORIES[nhom_ai]['tools']}")
 
     with col2:
         st.markdown("#### ✍️ Trình bày ý tưởng ngắn gọn")
         chi_tiet = st.text_area(
             "Nhập chủ đề hoặc yêu cầu thô (AI sẽ tự động đắp khuôn mẫu chuyên nghiệp):", 
             height=180, 
-            placeholder="- Nếu làm KHBD: Soạn giáo án bài Định lý Pytago lớp 8.\n- Nếu làm Slide: Slide bài Hệ tuần hoàn sinh học 8.\n- Nếu làm Đề: 20 câu trắc nghiệm Lịch sử 9 phong trào Cần Vương.\n- Nếu làm Video: Video về sự hình thành mưa."
+            placeholder="- Nếu làm KHBD: Soạn giáo án bài Định lý Pytago lớp 8.
+- Nếu làm Slide: Slide bài Hệ tuần hoàn sinh học 8.
+- Nếu làm Đề: 20 câu trắc nghiệm Lịch sử 9 phong trào Cần Vương.
+- Nếu làm Video: Video về sự hình thành mưa."
         )
         
         btn_prompt = st.button("🪄 TẠO PROMPT COPY-PASTE NGAY", type="primary", use_container_width=True)
@@ -139,27 +155,58 @@ def render_xd_tao_prompt(ai_engine=None):
                 
                 # SIÊU PROMPT ÉP KHUÔN SƯ PHẠM TRỰC TIẾP
                 prompt_engineer_task = (
-                    f'Bạn là "Master Prompt Engineer" chuyên phục vụ giáo viên Việt Nam.\n'
-                    f'Giáo viên yêu cầu: "{chi_tiet}"\n'
-                    f'Nhóm công cụ mục tiêu: {nhom_ai}\n\n'
-                    f'NHIỆM VỤ: Sinh ra MỘT ĐOẠN PROMPT DUY NHẤT để giáo viên COPY và PASTE thẳng vào AI mục tiêu (ChatGPT, Gamma, Veo...) MÀ KHÔNG CẦN CHỈNH SỬA THÊM.\n\n'
-                    f'BẮT BUỘC PHẢI NHÚNG CÁC LUẬT SAU VÀO TRONG PROMPT BẠN TẠO RA DỰA THEO LOẠI YÊU CẦU:\n\n'
-                    f'1. NẾU LÀ VIẾT GIÁO ÁN (KẾ HOẠCH BÀI DẠY):\n'
-                    f'Prompt tạo ra phải ép AI mục tiêu: Đóng vai chuyên gia giáo dục, tuân thủ tuyệt đối cấu trúc Công văn 5512 gồm 4 hoạt động: 1. Mở đầu, 2. Hình thành kiến thức mới, 3. Luyện tập, 4. Vận dụng. Mỗi hoạt động phải có đủ 4 mục (Mục tiêu, Nội dung, Sản phẩm, Tổ chức thực hiện).\n\n'
-                    f'2. NẾU LÀ LÀM ĐỀ KIỂM TRA:\n'
-                    f'Prompt tạo ra phải ép AI mục tiêu: Bám sát ma trận nhận thức (Nhận biết, Thông hiểu, Vận dụng). Câu hỏi trắc nghiệm phải có 4 đáp án A, B, C, D (không dùng số 1234), bôi đậm đáp án đúng và xuất kèm Bảng đáp án, giải thích chi tiết ở cuối.\n\n'
-                    f'3. NẾU LÀ LÀM SLIDE BÀI GIẢNG (Cho Gamma AI / ChatGPT):\n'
-                    f'Prompt tạo ra phải ép AI mục tiêu: Dàn dàn ý chi tiết cho 10-15 slide bằng Markdown. Mỗi slide phải ngắn gọn, chỉ dùng gạch đầu dòng (bullet points), không viết đoạn văn dài. Phải kèm theo dòng [Gợi ý hình ảnh: ...] bằng tiếng Anh để Gamma AI tự tìm ảnh.\n\n'
-                    f'4. NẾU LÀ TẠO VIDEO GIÁO DỤC (Cho Veo/Sora + AI Lồng tiếng):\n'
-                    f'Prompt tạo ra phải kẻ một BẢNG 3 CỘT. Cột 1: Thời gian (Giây). Cột 2: Visual Prompt (Mô tả hình ảnh bằng Tiếng Anh cực kỳ chi tiết, góc máy, ánh sáng để dán vào AI Video). Cột 3: Voiceover Script (Kịch bản lời thoại bằng Tiếng Việt, câu từ truyền cảm để dán vào AI Lồng tiếng).\n\n'
-                    f'5. NẾU LÀ TẠO HÌNH ẢNH MINH HỌA:\n'
-                    f'Prompt tạo ra phải 100% bằng TIẾNG ANH, cấu trúc theo thứ tự: Subject, Environment, Lighting, Color palette, Style, Camera angle.\n\n'
-                    f'ĐẦU RA BẮT BUỘC THEO ĐÚNG CẤU TRÚC SAU:\n\n'
-                    f'### 🛠️ NƠI SỬ DỤNG LỆNH NÀY\n'
-                    f'(Chỉ định tên công cụ nên dán vào)\n\n'
-                    f'### 📝 COPY TOÀN BỘ KHỐI BÊN DƯỚI DÁN VÀO AI\n'
-                    f'```text\n'
-                    f'(Nội dung Prompt siêu tối ưu của bạn)\n'
+                    f'Bạn là "Master Prompt Engineer" chuyên phục vụ giáo viên Việt Nam.
+'
+                    f'Giáo viên yêu cầu: "{chi_tiet}"
+'
+                    f'Nhóm công cụ mục tiêu: {nhom_ai}
+
+'
+                    f'NHIỆM VỤ: Sinh ra MỘT ĐOẠN PROMPT DUY NHẤT để giáo viên COPY và PASTE thẳng vào AI mục tiêu (ChatGPT, Gamma, Veo...) MÀ KHÔNG CẦN CHỈNH SỬA THÊM.
+
+'
+                    f'BẮT BUỘC PHẢI NHÚNG CÁC LUẬT SAU VÀO TRONG PROMPT BẠN TẠO RA DỰA THEO LOẠI YÊU CẦU:
+
+'
+                    f'1. NẾU LÀ VIẾT GIÁO ÁN (KẾ HOẠCH BÀI DẠY):
+'
+                    f'Prompt tạo ra phải ép AI mục tiêu: Đóng vai chuyên gia giáo dục, tuân thủ tuyệt đối cấu trúc Công văn 5512 gồm 4 hoạt động: 1. Mở đầu, 2. Hình thành kiến thức mới, 3. Luyện tập, 4. Vận dụng. Mỗi hoạt động phải có đủ 4 mục (Mục tiêu, Nội dung, Sản phẩm, Tổ chức thực hiện).
+
+'
+                    f'2. NẾU LÀ LÀM ĐỀ KIỂM TRA:
+'
+                    f'Prompt tạo ra phải ép AI mục tiêu: Bám sát ma trận nhận thức (Nhận biết, Thông hiểu, Vận dụng). Câu hỏi trắc nghiệm phải có 4 đáp án A, B, C, D (không dùng số 1234), bôi đậm đáp án đúng và xuất kèm Bảng đáp án, giải thích chi tiết ở cuối.
+
+'
+                    f'3. NẾU LÀ LÀM SLIDE BÀI GIẢNG (Cho Gamma AI / ChatGPT):
+'
+                    f'Prompt tạo ra phải ép AI mục tiêu: Dàn dàn ý chi tiết cho 10-15 slide bằng Markdown. Mỗi slide phải ngắn gọn, chỉ dùng gạch đầu dòng (bullet points), không viết đoạn văn dài. Phải kèm theo dòng [Gợi ý hình ảnh: ...] bằng tiếng Anh để Gamma AI tự tìm ảnh.
+
+'
+                    f'4. NẾU LÀ TẠO VIDEO GIÁO DỤC (Cho Veo/Sora + AI Lồng tiếng):
+'
+                    f'Prompt tạo ra phải kẻ một BẢNG 3 CỘT. Cột 1: Thời gian (Giây). Cột 2: Visual Prompt (Mô tả hình ảnh bằng Tiếng Anh cực kỳ chi tiết, góc máy, ánh sáng để dán vào AI Video). Cột 3: Voiceover Script (Kịch bản lời thoại bằng Tiếng Việt, câu từ truyền cảm để dán vào AI Lồng tiếng).
+
+'
+                    f'5. NẾU LÀ TẠO HÌNH ẢNH MINH HỌA:
+'
+                    f'Prompt tạo ra phải 100% bằng TIẾNG ANH, cấu trúc theo thứ tự: Subject, Environment, Lighting, Color palette, Style, Camera angle.
+
+'
+                    f'ĐẦU RA BẮT BUỘC THEO ĐÚNG CẤU TRÚC SAU:
+
+'
+                    f'### 🛠️ NƠI SỬ DỤNG LỆNH NÀY
+'
+                    f'(Chỉ định tên công cụ nên dán vào)
+
+'
+                    f'### 📝 COPY TOÀN BỘ KHỐI BÊN DƯỚI DÁN VÀO AI
+'
+                    f'```text
+'
+                    f'(Nội dung Prompt siêu tối ưu của bạn)
+'
                     f'```'
                 )
                 
@@ -169,4 +216,4 @@ def render_xd_tao_prompt(ai_engine=None):
                     st.success("🎉 Đã tạo Prompt thành công! Thầy/cô chỉ việc copy khối text bên dưới và dán vào công cụ tương ứng.")
                     st.markdown(res)
                 except Exception as e:
-                    st.error(f"❌ Lỗi hệ thống: {e}")
+                    st.error(f"❌ {e}")
