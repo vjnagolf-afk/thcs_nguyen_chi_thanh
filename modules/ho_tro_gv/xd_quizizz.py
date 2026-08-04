@@ -1,29 +1,20 @@
 # -*- coding: utf-8 -*-
-r"""
-============================================================
-MODULE: modules/ho_tro_gv/xd_quizizz.py
-Nhiệm vụ: Trợ lý Tạo tệp Import Quizizz / Kahoot / Blooket & Mã nhúng tương tác.
-Hỗ trợ đa nguồn: Nhập chủ đề, File (PDF/Word/Ảnh), YouTube, Trang web.
-Hỗ trợ 4 định dạng câu hỏi: Trắc nghiệm, Trả lời ngắn, Đúng/Sai, Bài luận.
-============================================================
-"""
-
 import io
 import os
 import logging
 import streamlit as st
 from PIL import Image
-from docx import Document
+import urllib.parse as urlparse
 
 logger = logging.getLogger(__name__)
 
-# Kết nối bộ xuất Word của dự án
+# Kết nối bộ xuất Word
 try:
     from export.export_word import export_word
 except ImportError:
     export_word = None
 
-# Bắt buộc import AIEngine2 để dùng Smart Router
+# Bắt buộc import AIEngine2 để dùng tính năng Multimodal
 try:
     from utils.ai_engine_2 import AIEngine2
 except ImportError:
@@ -44,11 +35,12 @@ def extract_content_from_source(uploaded_file):
 
     try:
         if file_name.endswith(('.png', '.jpg', '.jpeg', '.webp')):
-            img = Image.open(io.BytesIO(file_bytes))
+            img = Image.open(io.BytesIO(file_bytes)).convert('RGB')
             images.append(img)
             extracted_text = "[Học sinh/Giáo viên tải lên hình ảnh tài liệu]"
             
         elif file_name.endswith('.docx'):
+            from docx import Document
             doc = Document(io.BytesIO(file_bytes))
             texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
             for table in doc.tables:
@@ -66,7 +58,7 @@ def extract_content_from_source(uploaded_file):
                 for img_info in page.get_images(full=True):
                     try:
                         base_image = doc.extract_image(img_info[0])
-                        img = Image.open(io.BytesIO(base_image["image"]))
+                        img = Image.open(io.BytesIO(base_image["image"])).convert('RGB')
                         images.append(img)
                     except: pass
             extracted_text = "\n".join(texts)
@@ -79,19 +71,99 @@ def extract_content_from_source(uploaded_file):
         
     return extracted_text, images
 
+# HÀM CROSS-ROUTING FALLBACK CHỐNG LỖI 429
+def safe_generate_quiz(ai_engine_cu, prompt, extracted_images=[]):
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
+            
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+                
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+
+    def run_openai():
+        if not api_key:
+            raise RuntimeError("Chưa cấu hình API Key OpenAI (sk-) để dự phòng.")
+        import openai
+        import base64
+        client = openai.OpenAI(api_key=str(api_key).strip())
+        
+        content_array = [{"type": "text", "text": prompt}]
+        for img in extracted_images:
+            buffered = io.BytesIO()
+            img.save(buffered, format="JPEG")
+            base64_img = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            content_array.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}
+            })
+            
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": content_array}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+
+    def run_gemini():
+        try:
+            from utils.ai_engine_2 import AIEngine2
+            engine_v2 = AIEngine2(default_model="gemini-1.5-flash")
+            
+            if extracted_images:
+                contents = [prompt]
+                for img in extracted_images:
+                    buffered = io.BytesIO()
+                    img.save(buffered, format="JPEG")
+                    contents.append({
+                        "mime_type": "image/jpeg",
+                        "data": buffered.getvalue()
+                    })
+                if hasattr(engine_v2, "generate_multimodal"):
+                    res = engine_v2.generate_multimodal(contents)
+                else:
+                    raise RuntimeError("❌ Thiếu hàm generate_multimodal.")
+            else:
+                res = engine_v2.generate_text(prompt, temperature=0.7)
+                
+            if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                return res
+            raise RuntimeError("Hạn mức Gemini cạn kiệt.")
+        except Exception as e:
+            raise RuntimeError(f"Lỗi Gemini: {str(e)}")
+
+    error_msgs = []
+    try:
+        return run_gemini()
+    except Exception as e1:
+        error_msgs.append(f"Gemini: {e1}")
+        try:
+            return run_openai()
+        except Exception as e2:
+            error_msgs.append(f"OpenAI: {e2}")
+            
+    raise RuntimeError(f"Hệ thống quá tải hoặc hết hạn mức:\n- {error_msgs[0]}\n- {error_msgs[1]}\n\n👉 Nạp Key OpenAI (sk-) vào hệ thống để chạy ổn định.")
+
+
 def render_xd_quizizz(ai_engine_cu=None):
     if "quiz_result" not in st.session_state:
         st.session_state["quiz_result"] = None
     if "quiz_topic" not in st.session_state:
         st.session_state["quiz_topic"] = "Bo_Cau_Hoi"
 
-    st.markdown("### ⚡ Trợ lý Tạo tệp Import Quizizz / Kahoot / Blooket & Tương tác")
-    st.info("💡 **Góc chuyên gia:** Tạo bộ câu hỏi trắc nghiệm, trả lời ngắn, đúng/sai và tự luận từ đa nguồn (Chủ đề, Tệp PDF/Word/Ảnh, YouTube, Website). Đồng thời hỗ trợ **nhúng trực tiếp** giao diện phòng quiz tương tác ngay trong ứng dụng.")
+    st.markdown("### ⚡ Trợ lý Tạo Bộ Câu Hỏi & Tổ Chức Quiz Trực Tuyến")
+    st.info("💡 **Góc chuyên gia:** Tạo bộ câu hỏi từ đa nguồn (Văn bản, File, YouTube, Web). Đặc biệt: Tích hợp phòng tương tác Real-time để học sinh tham gia thi đấu trực tiếp ngay trên hệ thống!")
 
-    # TẠO 2 TAB CHÍNH
     tab_tao_de, tab_nhung = st.tabs([
-        "🛠️ 1. Soạn thảo & Tạo bộ câu hỏi (AI Builder)", 
-        "🌐 2. Mã nhúng Giao diện Tương tác Trực tiếp"
+        "🛠️ 1. Soạn thảo Bộ câu hỏi (AI Builder)", 
+        "🏆 2. Phòng Thi Đấu Real-time (Host & Client)"
     ])
 
     # ========================================================
@@ -101,7 +173,6 @@ def render_xd_quizizz(ai_engine_cu=None):
         with st.container(border=True):
             st.markdown("#### 🎯 Chọn phương thức nạp dữ liệu (Nguồn AI)")
             
-            # 4 Nút lựa chọn nguồn dữ liệu chuẩn giao diện Quiz AI
             nguon_nhap = st.radio(
                 "Nguồn dữ liệu đầu vào:",
                 [
@@ -150,20 +221,13 @@ def render_xd_quizizz(ai_engine_cu=None):
             
             btn_tao_quiz = st.button("🚀 TẠO BỘ CÂU HỎI THÔNG MINH", type="primary", use_container_width=True)
 
-        # XỬ LÝ GỌI AI TẠO QUIZ
         if btn_tao_quiz:
-            if AIEngine2 is None:
-                st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`.")
-                return
-
             if not input_data_content.strip() and not uploaded_file:
                 st.warning("⚠️ Vui lòng cung cấp nội dung chủ đề hoặc tải lên tệp tài liệu.")
             else:
-                with st.spinner("⏳ AI đang phân tích tài liệu và biên soạn bộ câu hỏi tương tác chuẩn Quizizz/Kahoot..."):
-                    
+                with st.spinner("⏳ AI đang phân tích tài liệu và biên soạn bộ câu hỏi..."):
                     types_str = ", ".join(do_ut_cau_hoi)
-                    prompt = f"""
-BẠN LÀ MỘT CHUYÊN GIA BIÊN SOẠN CÂU HỎI TRẮC NGHIỆM VÀ ĐÁNH GIÁ NĂNG LỰC HỌC SINH.
+                    prompt = f"""BẠN LÀ MỘT CHUYÊN GIA BIÊN SOẠN CÂU HỎI TRẮC NGHIỆM VÀ ĐÁNH GIÁ NĂNG LỰC HỌC SINH.
 Nhiệm vụ của bạn là xây dựng bộ câu hỏi chuẩn xác, sư phạm, phục vụ cho các nền tảng Quizizz, Kahoot, Blooket.
 
 --- THÔNG TIN CẤU HÌNH ---
@@ -189,26 +253,13 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
 
 [KỶ LUẬT ĐỊNH DẠNG]
 - Trình bày rõ ràng bằng Markdown.
-- NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`. Cấm dùng backtick (`).
-"""
+- NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`. Cấm dùng backtick (`)."""
+                    
                     try:
-                        # Gọi AI (Hỗ trợ cả ảnh nếu có tệp hình ảnh tải lên)
-                        engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                        
-                        if extracted_images:
-                            contents = [prompt] + extracted_images
-                            if hasattr(engine_v2, "generate_multimodal"):
-                                result = engine_v2.generate_multimodal(contents)
-                            else:
-                                result = engine_v2.generate_text(prompt)
-                        else:
-                            result = engine_v2.generate_text(prompt, temperature=0.7)
-                        
-                        if result.startswith("❌") or result.startswith("⚠️"):
-                            st.error(result)
-                        else:
-                            st.session_state["quiz_result"] = result
-                            st.session_state["quiz_topic"] = "Bo_Cau_Hoi_Quiz"
+                        # GỌI HÀM AN TOÀN CHỐNG 429
+                        result = safe_generate_quiz(ai_engine_cu, prompt, extracted_images)
+                        st.session_state["quiz_result"] = result
+                        st.session_state["quiz_topic"] = "Bo_Cau_Hoi_Quiz"
                     except Exception as e:
                         st.error(f"❌ Lỗi hệ thống: {e}")
 
@@ -234,7 +285,8 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
                 if export_word:
                     try:
                         export_data = {"ai_generated_content": st.session_state["quiz_result"], "is_dkt": False}
-                        word_bytes = export_word(export_data)
+                        with st.spinner("Đang kết xuất Word..."):
+                            word_bytes = export_word(export_data)
                         st.download_button(
                             label="📘 Tải bộ câu hỏi (.DOCX)",
                             data=word_bytes,
@@ -247,49 +299,123 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
                         st.error(f"Lỗi xuất Word: {e}")
                 else:
                     st.warning("⚠️ Module Word chưa sẵn sàng.")
-                    
-            if st.button("🔄 Tạo bộ câu hỏi mới", use_container_width=True):
-                st.session_state["quiz_result"] = None
-                st.rerun()
 
     # ========================================================
-    # TAB 2: MÃ NHÚNG GIAO DIỆN TƯƠNG TÁC TRỰC TIẾP
+    # TAB 2: PHÒNG THI ĐẤU REAL-TIME BẰNG CÔNG NGHỆ PUSHER
     # ========================================================
     with tab_nhung:
-        st.markdown("#### 🌐 Nhúng Phòng Tương tác Quiz Trực tiếp")
-        st.info("💡 **Hướng dẫn:** Thầy/Cô có thể dán đoạn mã nhúng (iframe code) hoặc đường dẫn liên kết công khai (Public Link) của phòng Quiz đã tạo trên nền tảng (như Quizizz, Kahoot, Zep, v.v.) để hiển thị và tương tác trực tiếp ngay tại đây.")
-
-        embed_input = st.text_input(
-            "Dán Link liên kết hoặc Mã nhúng (Iframe / URL):",
-            placeholder="VD: https://quiz.zep.us/vi/join hoặc dán <iframe src=...></iframe>"
-        )
-
-        # Xử lý bóc tách URL nếu người dùng dán nguyên đoạn mã iframe html
-        target_url = ""
-        if embed_input.strip():
-            if "src=" in embed_input:
-                try:
-                    import re
-                    match = re.search(r'src=["\'](.*?)["\']', embed_input)
-                    if match:
-                        target_url = match.group(1)
-                except:
+        st.markdown("#### 🏆 Nền Tảng Tương Tác: Thống Kê & Xếp Hạng")
+        st.info("💡 **Giải pháp tích hợp:** Để tạo phòng tương tác Real-time giữa các máy (Bấm giờ, tính điểm nhanh chậm) ngay trên Streamlit, thầy hãy đăng ký một tài khoản miễn phí trên [Pusher.com](https://pusher.com/). Sau đó nhập các khóa kết nối (API Keys) vào đây.")
+        
+        with st.expander("🔑 Cấu hình Máy chủ Pusher (Dành cho Quản trị viên)", expanded=False):
+            pusher_app_id = st.text_input("Pusher App ID:", type="password")
+            pusher_key = st.text_input("Pusher Key:", type="password")
+            pusher_secret = st.text_input("Pusher Secret:", type="password")
+            pusher_cluster = st.text_input("Pusher Cluster (VD: ap1):")
+            
+        vai_tro = st.radio("Thầy/Cô đang mở máy tính này với vai trò gì?", ["🖥️ Giáo viên (Host - Máy chủ)", "📱 Học sinh (Client - Máy trạm)"], horizontal=True)
+        
+        st.markdown("---")
+        
+        if not (pusher_app_id and pusher_key and pusher_secret and pusher_cluster):
+            st.warning("⚠️ Cần cấu hình Máy chủ Pusher để kích hoạt tính năng kết nối đa thiết bị.")
+            
+            # GIỮ LẠI MÃ NHÚNG CŨ (NẾU DÙNG BÊN THỨ 3 NHƯ ZEP / QUIZIZZ) LÀM FALLBACK
+            st.markdown("#### 🌐 Hoặc Nhúng Phòng từ Bên thứ 3 (Quizizz, Zep...)")
+            embed_input = st.text_input("Dán Link liên kết hoặc Mã nhúng (Iframe / URL):", placeholder="VD: https://quiz.zep.us/vi/join")
+            target_url = ""
+            if embed_input.strip():
+                if "src=" in embed_input:
+                    try:
+                        import re
+                        match = re.search(r'src=["\'](.*?)["\']', embed_input)
+                        if match: target_url = match.group(1)
+                    except: target_url = embed_input.strip()
+                else:
                     target_url = embed_input.strip()
-            else:
-                target_url = embed_input.strip()
 
-        if target_url:
-            st.markdown(f"##### 🖥️ Đang hiển thị khung tương tác từ nguồn:")
-            st.caption(target_url)
-            try:
-                st.components.v1.iframe(target_url, height=600, scrolling=True)
-            except Exception as e:
-                st.error(f"Không thể nhúng trang web này do chính sách bảo mật X-Frame-Options của bên thứ ba: {e}")
-                st.markdown(f"[🔗 Bấm vào đây để mở trực tiếp trong tab mới]({target_url})", unsafe_allow_html=True)
+            if target_url:
+                st.markdown(f"##### 🖥️ Đang hiển thị khung tương tác từ nguồn:")
+                st.caption(target_url)
+                try:
+                    st.components.v1.iframe(target_url, height=600, scrolling=True)
+                except Exception as e:
+                    st.error(f"Lỗi chính sách bảo mật X-Frame-Options: {e}")
+                    st.markdown(f"[🔗 Bấm vào đây mở trang trong tab mới]({target_url})", unsafe_allow_html=True)
+
         else:
-            st.markdown("""
-            > **Gợi ý sử dụng:**
-            > 1. Truy cập vào trang web tạo Quiz của thầy (VD: `https://quiz.zep.us` hoặc `Quizizz`).
-            > 2. Chọn tính năng **Chia sẻ (Share)** hoặc **Nhúng (Embed)** để lấy đường dẫn URL phòng học/bộ câu hỏi.
-            > 3. Dán vào ô trống phía trên để học sinh hoặc giáo viên có thể thao tác trực tiếp trên giao diện Streamlit này mà không cần chuyển tab!
-            """)
+            # GIAO DIỆN REAL-TIME SAU KHI CẤU HÌNH PUSHER THÀNH CÔNG
+            try:
+                import pusher
+                # Khởi tạo đối tượng Pusher
+                pusher_client = pusher.Pusher(
+                    app_id=pusher_app_id,
+                    key=pusher_key,
+                    secret=pusher_secret,
+                    cluster=pusher_cluster,
+                    ssl=True
+                )
+                
+                # --- VAI TRÒ GIÁO VIÊN ---
+                if "Giáo viên" in vai_tro:
+                    st.markdown("### 👑 BẢNG ĐIỀU KHIỂN GIÁO VIÊN")
+                    ma_phong = st.text_input("Tạo Mã Phòng thi (VD: 123456):", value="123456")
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        if st.button("🚀 PHÁT CÂU HỎI TIẾP THEO (GỬI LỆNH)"):
+                            # Gửi tín hiệu báo hiệu câu mới tới tất cả học sinh
+                            try:
+                                pusher_client.trigger(f'phong-{ma_phong}', 'cau_moi', {'message': 'start_timer'})
+                                st.success("✅ Đã phát tín hiệu câu hỏi đến tất cả máy học sinh!")
+                            except Exception as e:
+                                st.error(f"Lỗi kết nối Pusher: {e}")
+                    with col_btn2:
+                        if st.button("🛑 KẾT THÚC THỜI GIAN TRẢ LỜI"):
+                            try:
+                                pusher_client.trigger(f'phong-{ma_phong}', 'het_gio', {'message': 'stop_timer'})
+                                st.error("🛑 Đã khóa quyền trả lời của học sinh!")
+                            except: pass
+                            
+                    st.markdown("#### 🏆 Bảng Xếp Hạng & Tốc Độ (Leaderboard)")
+                    st.info("Giáo viên sẽ nhìn thấy tên nhóm, lựa chọn và thời gian trả lời của các máy học sinh đẩy về đây (Cần kết nối API Polling để lấy dữ liệu liên tục).")
+                    
+                # --- VAI TRÒ HỌC SINH ---
+                else:
+                    st.markdown("### 📱 GIAO DIỆN THI ĐẤU HỌC SINH")
+                    col_hs1, col_hs2 = st.columns(2)
+                    with col_hs1:
+                        nhap_ma_phong = st.text_input("Nhập Mã Phòng từ Giáo viên:")
+                    with col_hs2:
+                        ten_nhom = st.text_input("Tên Nhóm / Tên Học sinh:")
+                        
+                    if nhap_ma_phong and ten_nhom:
+                        st.markdown(f"#### ⏱️ Đang chờ tín hiệu từ phòng {nhap_ma_phong}...")
+                        # Khi học sinh bấm đáp án -> Gửi tín hiệu về Server Pusher -> Báo về máy Host của GV
+                        st.markdown("Vui lòng chọn nhanh đáp án khi giáo viên đọc câu hỏi:")
+                        
+                        ca, cb, cc, cd = st.columns(4)
+                        import time
+                        
+                        def gui_dap_an(dap_an):
+                            # Gửi đáp án kèm thời gian Timestamp để so sánh tốc độ
+                            timestamp = time.time()
+                            try:
+                                pusher_client.trigger(
+                                    f'phong-{nhap_ma_phong}', 
+                                    'nop_dap_an', 
+                                    {'nhom': ten_nhom, 'dap_an': dap_an, 'thoi_gian': timestamp}
+                                )
+                                st.success(f"✅ Đã nộp đáp án **{dap_an}** thành công!")
+                            except Exception as e:
+                                st.error("Lỗi mạng, không thể nộp bài.")
+                        
+                        if ca.button("🅰️ ĐÁP ÁN A", use_container_width=True): gui_dap_an("A")
+                        if cb.button("🅱️ ĐÁP ÁN B", use_container_width=True): gui_dap_an("B")
+                        if cc.button("🅲 ĐÁP ÁN C", use_container_width=True): gui_dap_an("C")
+                        if cd.button("🅳 ĐÁP ÁN D", use_container_width=True): gui_dap_an("D")
+                        
+            except ImportError:
+                st.error("❌ Thư viện kết nối thời gian thực chưa được cài đặt. Vui lòng cài đặt: `pip install pusher`")
+            except Exception as e:
+                st.error(f"❌ Cấu hình API không hợp lệ: {e}")
