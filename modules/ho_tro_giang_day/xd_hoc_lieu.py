@@ -1,13 +1,4 @@
 # -*- coding: utf-8 -*-
-r"""
-============================================================
-MODULE: modules/ho_tro_giang_day/xd_hoc_lieu.py
-Nhiệm vụ: Trợ lý Tổng hợp & Thiết kế Học liệu.
-Nâng cấp: 
-- FIX LỖI BỊ CHẶN BỞI TƯỜNG LỬA (.edu.vn) BẰNG CƠ CHẾ PROXY TRUNG GIAN (Jina AI).
-============================================================
-"""
-
 import io
 import re
 import urllib.parse as urlparse
@@ -21,12 +12,6 @@ try:
     from export.export_word import export_word
 except ImportError:
     export_word = None
-
-# Bắt buộc import AIEngine2 để dùng Smart Router
-try:
-    from utils.ai_engine_2 import AIEngine2
-except ImportError:
-    AIEngine2 = None
 
 # Hàm đọc nội dung từ file tài liệu (Văn bản)
 def extract_text_from_file(uploaded_file):
@@ -134,7 +119,83 @@ def extract_content_from_url(url):
         except ImportError:
             return False, "❌ Hệ thống thiếu thư viện. Vui lòng cài đặt: pip install beautifulsoup4 requests"
         except Exception as e:
-            return False, f"❌ Tường lửa của trang web này đã chặn kết nối máy chủ triệt để (Geo-blocking). Thầy vui lòng làm thủ công: Quét khối (Ctrl+A), Copy chữ trên web đó và paste vào ô 'Dán văn bản' nhé!"
+            return False, f"❌ Tường lửa của trang web này đã chặn kết nối máy chủ triệt để. Thầy vui lòng làm thủ công: Quét khối (Ctrl+A), Copy chữ trên web đó và paste vào ô 'Dán văn bản' nhé!"
+
+
+# HÀM CROSS-ROUTING FALLBACK CHỐNG LỖI 429
+def safe_generate_multimodal(ai_engine_cu, prompt, uploaded_video=None):
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
+            
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+                
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+
+    def run_openai():
+        if not api_key:
+            raise RuntimeError("Chưa cấu hình API Key OpenAI (sk-) để dự phòng.")
+        import openai
+        client = openai.OpenAI(api_key=str(api_key).strip())
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+
+    def run_gemini():
+        try:
+            from utils.ai_engine_2 import AIEngine2
+            engine_v2 = AIEngine2(default_model="gemini-1.5-flash")
+            
+            if uploaded_video:
+                video_part = {
+                    "mime_type": uploaded_video.type,
+                    "data": uploaded_video.getvalue()
+                }
+                contents = [prompt, video_part]
+                if hasattr(engine_v2, "generate_multimodal"):
+                    res = engine_v2.generate_multimodal(contents)
+                else:
+                    return "❌ File `utils/ai_engine_2.py` thiếu hàm `generate_multimodal`."
+            else:
+                res = engine_v2.generate_text(prompt)
+                
+            if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                return res
+            raise RuntimeError("Hạn mức Gemini cạn kiệt.")
+        except ImportError:
+            if not uploaded_video and ai_engine_cu and hasattr(ai_engine_cu, "generate_text"):
+                res = ai_engine_cu.generate_text(prompt)
+                if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                    if isinstance(res, dict): return res.get("text", str(res))
+                    elif hasattr(res, "text"): return res.text
+                    return res
+            raise RuntimeError("Hạn mức Gemini cạn kiệt hoặc không hỗ trợ Video qua engine cũ.")
+        except Exception as e:
+            raise RuntimeError(f"Lỗi Gemini: {str(e)}")
+
+    error_msgs = []
+    try:
+        return run_gemini()
+    except Exception as e1:
+        error_msgs.append(f"Gemini: {e1}")
+        try:
+            return run_openai()
+        except Exception as e2:
+            error_msgs.append(f"OpenAI: {e2}")
+            
+    err_str = f"Hệ thống quá tải hoặc hết hạn mức:\n- {error_msgs[0]}\n- {error_msgs[1]}\n\n👉 Khắc phục: Chờ 1 phút để Gemini hồi phục, hoặc nạp Key OpenAI (sk-) vào hệ thống."
+    raise RuntimeError(err_str)
+
 
 def render_xd_hoc_lieu(ai_engine_cu=None):
     if "hl_result" not in st.session_state:
@@ -143,7 +204,7 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
         st.session_state["hl_topic"] = "Hoc_Lieu"
 
     st.markdown("### 📚 Trợ lý Tổng hợp & Thiết kế Học liệu Đa phương tiện")
-    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn. Hỗ trợ tính năng vượt tường lửa 2 lớp để đọc báo mạng. (Lưu ý: Các trang nội bộ .edu.vn khóa IP nước ngoài gắt gao có thể cần copy tay).")
+    st.info("💡 **Góc chuyên gia:** Hệ thống tự động phân tích từ đa nguồn. Đã nhúng cơ chế Vượt tường lửa Jina AI và Chống sập do Lỗi 429 Quota.")
 
     with st.container(border=True):
         st.markdown("#### 1️⃣ Cấu hình Nguồn Dữ liệu (Input)")
@@ -213,10 +274,6 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
     # XỬ LÝ GỌI AI THIẾT KẾ HỌC LIỆU
     # ========================================================
     if btn_tao:
-        if AIEngine2 is None:
-            st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`.")
-            return
-
         if not input_data_content.strip() and not uploaded_file and not uploaded_video and not url_input.strip():
             st.warning("⚠️ Vui lòng cung cấp văn bản, tải tệp, tải video hoặc dán Link tài liệu.")
             return
@@ -233,8 +290,7 @@ def render_xd_hoc_lieu(ai_engine_cu=None):
                     input_data_content = extracted_info
 
         with st.spinner(f"⏳ AI đang tiêu hóa tài liệu và chuyển hóa thành {loai_hoc_lieu.split('(')[0]}..."):
-            prompt = f"""
-BẠN LÀ MỘT CHUYÊN GIA THIẾT KẾ HỌC LIỆU VÀ SƯ PHẠM ĐỈNH CAO.
+            prompt = f"""BẠN LÀ MỘT CHUYÊN GIA THIẾT KẾ HỌC LIỆU VÀ SƯ PHẠM ĐỈNH CAO.
 Nhiệm vụ của bạn là phân tích nguồn dữ liệu do giáo viên cung cấp và chuyển đổi nó thành định dạng học liệu chuyên nghiệp.
 
 --- THÔNG SỐ ĐẦU RA ---
@@ -246,7 +302,6 @@ Nhiệm vụ của bạn là phân tích nguồn dữ liệu do giáo viên cung
 {input_data_content[:30000] if input_data_content else "(Dữ liệu đầu vào là Video được đính kèm trực tiếp)"}
 
 --- [QUY TRÌNH XỬ LÝ BẮT BUỘC] ---
-Nếu dữ liệu đầu vào là văn bản Trích xuất từ Video/YouTube, Trang Web hoặc Video đính kèm: 
 Bắt buộc mục đầu tiên trong kết quả của bạn phải là:
 ### 🎙️ Tóm tắt Nội dung cốt lõi của Tài liệu
 SAU ĐÓ mới dùng chính nội dung này để thiết kế học liệu ở các phần tiếp theo. KHÔNG được tự bịa ra nội dung bên ngoài.
@@ -260,26 +315,11 @@ SAU ĐÓ mới dùng chính nội dung này để thiết kế học liệu ở 
 
 [KỶ LUẬT ĐỊNH DẠNG SỐNG CÒN]
 - Trình bày mạch lạc bằng Markdown.
-- NẾU có công thức Toán/Lý/Hóa, TUYỆT ĐỐI bọc trong dấu `$ ... $`. KHÔNG dùng backtick (`) cho công thức Toán.
-"""
+- NẾU có công thức Toán/Lý/Hóa, TUYỆT ĐỐI bọc trong dấu `$ ... $`. KHÔNG dùng backtick (`) cho công thức Toán."""
+
             try:
-                engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                
-                # Xử lý nếu có tải lên Video từ máy tính (Multimodal)
-                if uploaded_video:
-                    video_part = {
-                        "mime_type": uploaded_video.type,
-                        "data": uploaded_video.getvalue()
-                    }
-                    contents = [prompt, video_part]
-                    
-                    if hasattr(engine_v2, "generate_multimodal"):
-                        result = engine_v2.generate_multimodal(contents)
-                    else:
-                        result = "❌ Cần cập nhật hàm `generate_multimodal` trong `AIEngine2` để nhận file Video."
-                else:
-                    # Xử lý Text / Document / Web Transcript bình thường
-                    result = engine_v2.generate_text(prompt, temperature=0.7)
+                # Gọi hàm an toàn đã bọc Fallback chống 429
+                result = safe_generate_multimodal(ai_engine_cu, prompt, uploaded_video)
                 
                 if result.startswith("❌") or result.startswith("⚠️"):
                     st.error(result)
@@ -287,7 +327,7 @@ SAU ĐÓ mới dùng chính nội dung này để thiết kế học liệu ở 
                     st.session_state["hl_result"] = result
                     st.session_state["hl_topic"] = loai_hoc_lieu.split("(")[0].strip().replace(" ", "_")
             except Exception as e:
-                st.error(f"❌ Lỗi khi gọi AI: {e}")
+                st.error(f"❌ {e}")
 
     # ========================================================
     # HIỂN THỊ KẾT QUẢ & XUẤT FILE
