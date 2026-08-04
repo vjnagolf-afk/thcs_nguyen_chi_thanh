@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ====================================================
 AI Teacher Assistant
@@ -11,10 +12,9 @@ Chức năng:
 - Tự động chấm điểm
 - Lưu kết quả
 
-Version: 1.0
+Version: 1.1 (Đã đồng bộ tên hàm render_xd_quizizz)
 ====================================================
 """
-
 
 import streamlit as st
 import sqlite3
@@ -22,113 +22,69 @@ import os
 from datetime import datetime
 import pandas as pd
 
-
-
 # ==================================================
 # CẤU HÌNH DATABASE
 # ==================================================
 
-
 DB_FOLDER = "data"
-
 DB_FILE = os.path.join(
     DB_FOLDER,
     "quizizz.db"
 )
 
-
-
 def create_database():
-
     if not os.path.exists(DB_FOLDER):
         os.makedirs(DB_FOLDER)
 
-
     conn = sqlite3.connect(DB_FILE)
-
     cursor = conn.cursor()
 
-
     # Bảng bài kiểm tra
-
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS exams
     (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-
         title TEXT,
-
         subject TEXT,
-
         grade TEXT,
-
         topic TEXT,
-
         created TEXT
-
     )
     """)
 
-
-
     # Bảng câu hỏi
-
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS questions
     (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-
         exam_id INTEGER,
-
         content TEXT,
-
         option_a TEXT,
-
         option_b TEXT,
-
         option_c TEXT,
-
         option_d TEXT,
-
         answer TEXT
-
     )
     """)
 
-
-
     # Bảng kết quả
-
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS results
     (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-
         student TEXT,
-
         exam_id INTEGER,
-
         score REAL,
-
         submitted TEXT
-
     )
     """)
 
-
-
     conn.commit()
-
     conn.close()
-
-
-
-
 
 # ==================================================
 # XỬ LÝ DỮ LIỆU
 # ==================================================
-
 
 def add_exam(
         title,
@@ -136,9 +92,7 @@ def add_exam(
         grade,
         topic
 ):
-
     conn = sqlite3.connect(DB_FILE)
-
     conn.execute(
     """
     INSERT INTO exams
@@ -149,9 +103,7 @@ def add_exam(
         topic,
         created
     )
-
     VALUES(?,?,?,?,?)
-
     """,
     (
         title,
@@ -161,20 +113,11 @@ def add_exam(
         str(datetime.now())
     )
     )
-
-
     conn.commit()
-
     conn.close()
 
-
-
-
-
 def get_exams():
-
     conn = sqlite3.connect(DB_FILE)
-
     data = conn.execute(
         """
         SELECT *
@@ -182,15 +125,8 @@ def get_exams():
         ORDER BY id DESC
         """
     ).fetchall()
-
-
     conn.close()
-
     return data
-
-
-
-
 
 def add_question(
         exam_id,
@@ -201,10 +137,7 @@ def add_question(
         d,
         answer
 ):
-
     conn = sqlite3.connect(DB_FILE)
-
-
     conn.execute(
     """
     INSERT INTO questions
@@ -217,9 +150,7 @@ def add_question(
         option_d,
         answer
     )
-
     VALUES(?,?,?,?,?,?,?)
-
     """,
     (
         exam_id,
@@ -231,49 +162,28 @@ def add_question(
         answer
     )
     )
-
-
     conn.commit()
-
     conn.close()
 
-
-
-
-
 def get_questions(exam_id):
-
     conn = sqlite3.connect(DB_FILE)
-
-
     data = conn.execute(
     """
     SELECT *
     FROM questions
     WHERE exam_id=?
-
     """,
     (exam_id,)
     ).fetchall()
-
-
     conn.close()
-
     return data
-
-
-
-
 
 def save_result(
         student,
         exam_id,
         score
 ):
-
     conn = sqlite3.connect(DB_FILE)
-
-
     conn.execute(
     """
     INSERT INTO results
@@ -283,9 +193,7 @@ def save_result(
         score,
         submitted
     )
-
     VALUES(?,?,?,?)
-
     """,
     (
         student,
@@ -294,51 +202,28 @@ def save_result(
         str(datetime.now())
     )
     )
-
-
     conn.commit()
-
     conn.close()
 
-
-
-
-
 def get_results():
-
     conn = sqlite3.connect(DB_FILE)
-
-
     data = conn.execute(
     """
     SELECT *
     FROM results
     """
     ).fetchall()
-
-
     conn.close()
-
     return data
-
-
-
-
-
 
 # ==================================================
 # GIAO DIỆN GIÁO VIÊN
 # ==================================================
 
-
 def teacher_view():
-
-
     st.subheader(
         "👨‍🏫 Giáo viên - Xây dựng Quiz"
     )
-
-
 
     tab1, tab2 = st.tabs(
         [
@@ -347,42 +232,30 @@ def teacher_view():
         ]
     )
 
-
-
     with tab1:
-
-
         st.write(
             "### Tạo bài kiểm tra"
         )
-
 
         title = st.text_input(
             "Tên bài Quiz"
         )
 
-
         subject = st.text_input(
             "Môn học"
         )
-
 
         grade = st.text_input(
             "Khối lớp"
         )
 
-
         topic = st.text_input(
             "Chủ đề"
         )
 
-
-
         if st.button(
             "💾 Lưu bài Quiz"
         ):
-
-
             add_exam(
                 title,
                 subject,
@@ -390,74 +263,50 @@ def teacher_view():
                 topic
             )
 
-
             st.success(
                 "Đã tạo bài Quiz"
             )
 
-
-
-
         st.divider()
-
-
 
         exams = get_exams()
 
-
         if exams:
-
-
             exam_dict = {
-
                 e[1]:e[0]
-
                 for e in exams
-
             }
-
 
             selected = st.selectbox(
                 "Chọn bài để thêm câu hỏi",
                 exam_dict.keys()
             )
 
-
             exam_id = exam_dict[selected]
-
-
 
             st.write(
                 "### Thêm câu hỏi"
             )
 
-
-
             content = st.text_area(
                 "Nội dung câu hỏi"
             )
-
-
 
             a = st.text_input(
                 "Phương án A"
             )
 
-
             b = st.text_input(
                 "Phương án B"
             )
-
 
             c = st.text_input(
                 "Phương án C"
             )
 
-
             d = st.text_input(
                 "Phương án D"
             )
-
 
             answer = st.selectbox(
                 "Đáp án đúng",
@@ -469,13 +318,9 @@ def teacher_view():
                 ]
             )
 
-
-
             if st.button(
                 "➕ Thêm câu hỏi"
             ):
-
-
                 add_question(
                     exam_id,
                     content,
@@ -486,29 +331,19 @@ def teacher_view():
                     answer
                 )
 
-
                 st.success(
                     "Đã thêm câu hỏi"
                 )
 
-
-
-
     with tab2:
-
-
         st.write(
             "### Danh sách kết quả"
         )
 
-
-        data=get_results()
-
+        data = get_results()
 
         if data:
-
-
-            df=pd.DataFrame(
+            df = pd.DataFrame(
                 data,
                 columns=[
                     "ID",
@@ -519,103 +354,65 @@ def teacher_view():
                 ]
             )
 
-
             st.dataframe(
                 df,
                 use_container_width=True
             )
 
-
         else:
-
             st.info(
                 "Chưa có kết quả"
             )
-
-
-
-
-
-
 
 # ==================================================
 # GIAO DIỆN HỌC SINH
 # ==================================================
 
-
 def student_view():
-
-
     st.subheader(
         "👩‍🎓 Học sinh làm bài"
     )
-
 
     student = st.text_input(
         "Họ tên học sinh"
     )
 
-
-
-    exams=get_exams()
-
-
+    exams = get_exams()
 
     if not exams:
-
         st.warning(
             "Chưa có bài kiểm tra"
         )
-
         return
 
-
-
-    exam_dict={
-
+    exam_dict = {
         e[1]:e[0]
-
         for e in exams
-
     }
 
-
-
-    selected=st.selectbox(
+    selected = st.selectbox(
         "Chọn bài kiểm tra",
         exam_dict.keys()
     )
 
+    exam_id = exam_dict[selected]
 
-
-    exam_id=exam_dict[selected]
-
-
-
-    questions=get_questions(
+    questions = get_questions(
         exam_id
     )
 
+    answers = {}
 
-
-    answers={}
-
-
-
-    for i,q in enumerate(questions):
-
-
+    for i, q in enumerate(questions):
         st.write(
             f"### Câu {i+1}"
         )
-
 
         st.write(
             q[2]
         )
 
-
-        answers[i]=st.radio(
+        answers[i] = st.radio(
             "",
             [
                 q[3],
@@ -626,31 +423,20 @@ def student_view():
             key=f"q{i}"
         )
 
-
-
     if st.button(
         "📤 Nộp bài"
     ):
+        correct = 0
 
-
-        correct=0
-
-
-
-        for i,q in enumerate(questions):
-
-
-            options=[
-
+        for i, q in enumerate(questions):
+            options = [
                 q[3],
                 q[4],
                 q[5],
                 q[6]
-
             ]
 
-
-            index=[
+            index = [
                 "A",
                 "B",
                 "C",
@@ -659,28 +445,18 @@ def student_view():
                 q[7]
             )
 
+            if answers[i] == options[index]:
+                correct += 1
 
-
-            if answers[i]==options[index]:
-
-                correct+=1
-
-
-
-
-        score=0
-
+        score = 0
 
         if questions:
-
             score = round(
                 correct /
                 len(questions)
-                *10,
+                * 10,
                 2
             )
-
-
 
         save_result(
             student,
@@ -688,34 +464,20 @@ def student_view():
             score
         )
 
-
         st.success(
             f"🎉 Điểm của em: {score}/10"
         )
 
-
-
-
-
-
-
 # ==================================================
-# HÀM CHÍNH GỌI TỪ APP.PY
+# HÀM CHÍNH GỌI TỪ APP.PY (ĐÃ BỔ SUNG ĐỂ HẾT LỖI IMPORT)
 # ==================================================
 
-
-def run():
-
-
+def run(ai_engine_cu=None):
     create_database()
-
-
 
     st.title(
         "📝 AI Quizizz - Kiểm tra trực tuyến"
     )
-
-
 
     mode = st.sidebar.radio(
         "Vai trò",
@@ -725,13 +487,11 @@ def run():
         ]
     )
 
-
-
-    if mode=="👨‍🏫 Giáo viên":
-
+    if mode == "👨‍🏫 Giáo viên":
         teacher_view()
-
-
     else:
-
         student_view()
+
+def render_xd_quizizz(ai_engine_cu=None):
+    """Hàm tương thích chuẩn với hệ thống chính để chống lỗi Import Error"""
+    run(ai_engine_cu)
