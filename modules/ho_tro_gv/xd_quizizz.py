@@ -166,11 +166,11 @@ def render_xd_quizizz(ai_engine_cu=None):
         st.session_state["quiz_topic"] = "Bo_Cau_Hoi"
 
     st.markdown("### ⚡ Trợ lý Tạo Bộ Câu Hỏi & Tổ Chức Quiz Trực Tuyến")
-    st.info("💡 **Góc chuyên gia:** Tạo bộ câu hỏi từ đa nguồn. Hỗ trợ quét mã QR để học sinh thi đấu Real-time, tính điểm nhanh chậm ngay trên hệ thống!")
+    st.info("💡 **Góc chuyên gia:** Tạo bộ câu hỏi, quét QR code kết nối học sinh, trình chiếu link bất kỳ lên tivi và tự động chấm điểm dựa trên đáp án chuẩn của giáo viên!")
 
     tab_tao_de, tab_nhung = st.tabs([
         "🛠️ 1. Soạn thảo Bộ câu hỏi (AI Builder)", 
-        "🏆 2. Lớp Học Tương Tác (Host & Client)"
+        "🏆 2. Phòng Thi Đấu & Chấm Điểm Tự Động"
     ])
 
     # ========================================================
@@ -257,7 +257,6 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                     except Exception as e:
                         st.error(f"❌ Lỗi hệ thống: {e}")
 
-        # Hiển thị kết quả bộ câu hỏi
         if st.session_state.get("quiz_result"):
             st.markdown("---")
             st.markdown("### 📑 BỘ CÂU HỎI ĐÃ ĐƯỢC BIÊN SOẠN")
@@ -277,25 +276,34 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                         st.error(f"Lỗi xuất Word: {e}")
 
     # ========================================================
-    # TAB 2: LỚP HỌC TƯƠNG TÁC (QR CODE + PUSHER + IFRAME)
+    # TAB 2: PHÒNG THI ĐẤU & CHẤM ĐIỂM TỰ ĐỘNG
     # ========================================================
     with tab_nhung:
-        st.markdown("#### 🏆 Kịch Bản A: Hệ Thống Tương Tác Nội Bộ")
+        st.markdown("#### 🏆 Phòng Thi Đấu Trực Tuyến & Chấm Điểm Tự Động")
         
         with st.expander("🔑 Cấu hình Máy chủ Pusher (Nhập 1 lần)", expanded=False):
             pusher_app_id = st.text_input("Pusher App ID:", type="password")
             pusher_key = st.text_input("Pusher Key:", type="password")
             pusher_secret = st.text_input("Pusher Secret:", type="password")
             pusher_cluster = st.text_input("Pusher Cluster (VD: ap1):")
-            
-        vai_tro = st.radio("Thầy/Cô đang mở máy tính này với vai trò gì?", ["🖥️ Giáo viên (Host - Trình chiếu)", "📱 Học sinh (Client - Bấm đáp án)"], horizontal=True)
+        
+        query_params = st.query_params
+        default_phong = query_params.get("phong", "")
+        default_role_idx = 1 if default_phong else 0
+
+        vai_tro = st.radio(
+            "Thầy/Cô đang mở máy tính này với vai trò gì?", 
+            ["🖥️ Giáo viên (Host - Trình chiếu & Chấm điểm)", "📱 Học sinh (Client - Gửi đáp án)"], 
+            index=default_role_idx,
+            horizontal=True
+        )
         
         st.markdown("---")
         
         if not (pusher_app_id and pusher_key and pusher_secret and pusher_cluster):
-            st.warning("⚠️ Cần cấu hình Máy chủ Pusher để kích hoạt bảng điều khiển thi đấu.")
+            st.warning("⚠️ Cần cấu hình Máy chủ Pusher để kích hoạt tính năng thi đấu chấm điểm.")
             st.markdown("#### 🌐 Khung Trình Chiếu Đơn Thuần (Chưa kết nối)")
-            embed_input = st.text_input("Dán Link liên kết hoặc Mã nhúng (Iframe / URL):", placeholder="VD: https://quizizz.com/join/...")
+            embed_input = st.text_input("Dán Link liên kết hoặc Mã nhúng (Iframe / URL bất kỳ):", placeholder="VD: Link Quizizz, Blooket, Kahoot, hoặc Web tùy ý...")
             target_url = embed_input.strip()
             if "src=" in target_url:
                 try:
@@ -307,7 +315,6 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                 st.components.v1.iframe(target_url, height=600, scrolling=True)
 
         else:
-            # PUSHER ĐÃ SẴN SÀNG
             try:
                 import pusher
                 pusher_client = pusher.Pusher(
@@ -322,30 +329,38 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                 # MÀN HÌNH GIÁO VIÊN
                 # =========================================
                 if "Giáo viên" in vai_tro:
-                    st.markdown("### 👑 BẢNG ĐIỀU KHIỂN GIÁO VIÊN")
+                    st.markdown("### 👑 BẢNG ĐIỀU KHIỂN & CHẤM ĐIỂM GIÁO VIÊN")
                     
                     col_host1, col_host2 = st.columns([1, 2])
                     
                     with col_host1:
-                        st.markdown("#### 1. Mời Học Sinh")
-                        ma_phong = st.text_input("Tạo Mã Phòng (VD: 123456):", value="123456")
-                        app_url = st.text_input("Link phần mềm này:", placeholder="Dán link web của thầy vào đây để tạo mã QR")
+                        st.markdown("#### 1. Mời Học Sinh (QR Code)")
+                        ma_phong = st.text_input("Mã Phòng thi:", value="123456")
+                        app_url = st.text_input("Link phần mềm này:", placeholder="VD: https://thcsnguyenchithanh-lhd.streamlit.app/xd_quizizz")
                         
                         if app_url and HAS_QRCODE:
+                            parsed = urlparse.urlparse(app_url)
+                            query_dict = urlparse.parse_qs(parsed.query)
+                            query_dict["phong"] = [ma_phong]
+                            new_query = urlparse.urlencode(query_dict, doseq=True)
+                            deep_link = urlparse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+                            
                             qr = qrcode.QRCode(version=1, box_size=5, border=2)
-                            qr.add_data(app_url)
+                            qr.add_data(deep_link)
                             qr.make(fit=True)
                             img_qr = qr.make_image(fill_color="black", back_color="white")
-                            # FIX ERROR: Convert PilImage to BytesIO before sending to st.image
                             buf = io.BytesIO()
                             img_qr.save(buf, format="PNG")
-                            st.image(buf.getvalue(), caption=f"Quét để tham gia (Mã phòng: {ma_phong})", width=200)
+                            st.image(buf.getvalue(), caption=f"Quét để vào phòng: {ma_phong}", width=200)
                         elif not HAS_QRCODE:
                             st.warning("Cài đặt `pip install qrcode[pil]` để tạo mã QR.")
 
+                        st.markdown("#### 3. Đáp Án Chuẩn (Để chấm điểm)")
+                        dap_an_dung = st.selectbox("Chọn đáp án đúng cho câu hiện tại:", ["Chưa chọn", "A", "B", "C", "D"])
+
                     with col_host2:
-                        st.markdown("#### 2. Trình Chiếu Câu Hỏi (Quizizz / PDF...)")
-                        embed_input = st.text_input("Dán Link Quizizz / Website để trình chiếu:", placeholder="VD: https://quizizz.com/join/...")
+                        st.markdown("#### 2. Trình Chiếu Câu Hỏi Lên Tivi")
+                        embed_input = st.text_input("Dán Link bất kỳ (Quizizz, Blooket, Web sưu tầm...):", placeholder="VD: Link bài tập được chia sẻ...")
                         target_url = embed_input.strip()
                         if "src=" in target_url:
                             try:
@@ -354,67 +369,97 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                                 if match: target_url = match.group(1)
                             except: pass
                         if target_url:
-                            st.components.v1.iframe(target_url, height=350, scrolling=True)
+                            st.components.v1.iframe(target_url, height=450, scrolling=True)
                         else:
-                            st.info("💡 Dán link trình chiếu vào ô trên để câu hỏi hiện ra tại đây.")
+                            st.info("💡 Dán link vào ô trên để hiển thị câu hỏi lên màn hình tivi cho học sinh quan sát.")
 
-                    st.markdown("#### 3. Điều Khiển & Theo Dõi Tốc Độ")
+                    st.markdown("---")
+                    st.markdown("#### 🏆 BẢNG KẾT QUẢ & CHẤM ĐIỂM TRỰC TUYẾN")
+                    
                     col_btn1, col_btn2 = st.columns(2)
                     with col_btn1:
-                        if st.button("🚀 PHÁT CÂU HỎI TIẾP THEO (TÍNH GIỜ)", type="primary", use_container_width=True):
+                        if st.button("🚀 PHÁT TÍN HIỆU BẮT ĐẦU TRẢ LỜI", type="primary", use_container_width=True):
                             current_time = time.time()
                             pusher_client.trigger(f'phong-{ma_phong}', 'cau_moi', {'thoi_gian': current_time})
-                            st.success("✅ Đã phát tín hiệu! Học sinh có thể trả lời.")
+                            st.success("✅ Đã phát tín hiệu mở cổng trả lời cho học sinh!")
                     with col_btn2:
-                        if st.button("🛑 KẾT THÚC CÂU HỎI", use_container_width=True):
+                        if st.button("🛑 KHÓA CỔNG TRẢ LỜI", use_container_width=True):
                             pusher_client.trigger(f'phong-{ma_phong}', 'het_gio', {'message': 'stop'})
-                            st.error("🛑 Đã khóa nút bấm học sinh!")
+                            st.error("🛑 Đã khóa cổng trả lời!")
 
-                    # NHÚNG JAVASCRIPT ĐỂ LẮNG NGHE REAL-TIME (KHÔNG CẦN TẢI LẠI TRANG)
-                    st.markdown("##### 📡 Radar Nhận Tín Hiệu (Live)")
+                    # RADAR NHẬN ĐÁP ÁN & HIỂN THỊ DANH SÁCH + TỰ ĐỘNG CHẤM ĐIỂM
                     html_code = f"""
                     <!DOCTYPE html>
                     <html>
                     <head>
                       <script src="https://js.pusher.com/8.0/pusher.min.js"></script>
                       <style>
-                        body {{ font-family: sans-serif; font-size: 14px; margin: 0; }}
-                        .log-box {{ height: 250px; overflow-y: auto; background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 8px; font-family: monospace; line-height: 1.5; }}
-                        .alert {{ color: #ffeb3b; }}
-                        .student {{ color: #00bcd4; }}
+                        body {{ font-family: sans-serif; font-size: 14px; margin: 0; background: #f9f9f9; color: #333; }}
+                        .container {{ display: flex; gap: 15px; }}
+                        .box {{ flex: 1; height: 260px; overflow-y: auto; background: #1e1e1e; color: #00ff00; padding: 12px; border-radius: 8px; font-family: monospace; line-height: 1.4; }}
+                        .score-board {{ flex: 1; height: 260px; overflow-y: auto; background: #fff; color: #333; padding: 12px; border-radius: 8px; border: 1px solid #ccc; }}
+                        h4 {{ margin: 0 0 8px 0; font-size: 14px; color: #555; }}
+                        .correct {{ color: #4caf50; font-weight: bold; }}
+                        .incorrect {{ color: #f44336; font-weight: bold; }}
                       </style>
                     </head>
                     <body>
-                      <div class="log-box" id="log">
-                        [Hệ thống] Đang lắng nghe kênh: phong-{ma_phong}...<br>
+                      <div class="container">
+                        <div class="box">
+                          <h4>📡 Nhật ký kết nối (Live Log):</h4>
+                          <div id="log">[Hệ thống] Sẵn sàng nhận đáp án...<br></div>
+                        </div>
+                        <div class="score-board">
+                          <h4>🏆 Danh sách đáp án học sinh gửi về:</h4>
+                          <div id="results">Chưa có học sinh gửi đáp án.<br></div>
+                        </div>
                       </div>
                       <script>
                         var pusher = new Pusher('{pusher_key}', {{ cluster: '{pusher_cluster}' }});
                         var channel = pusher.subscribe('phong-{ma_phong}');
                         var logDiv = document.getElementById('log');
+                        var resDiv = document.getElementById('results');
+                        var studentAnswers = {{}};
                         var startTime = 0;
+                        var correctAns = "{dap_an_dung}";
 
                         channel.bind('hs_vao_phong', function(data) {{
-                          logDiv.innerHTML += '<span class="student">👋 [' + data.nhom + ']</span> đã quét mã tham gia.<br>';
+                          logDiv.innerHTML += '👋 [' + data.nhom + '] đã vào phòng.<br>';
                           logDiv.scrollTop = logDiv.scrollHeight;
                         }});
 
                         channel.bind('cau_moi', function(data) {{
                           startTime = data.thoi_gian;
-                          logDiv.innerHTML += '<br><span class="alert">🚀 ĐÃ PHÁT CÂU HỎI - BẮT ĐẦU TÍNH GIỜ!</span><br>';
+                          studentAnswers = {{}};
+                          resDiv.innerHTML = 'Đang chờ đáp án vòng mới...<br>';
+                          logDiv.innerHTML += '<br>🚀 BẮT ĐẦU CÂU HỎI MỚI!<br>';
                           logDiv.scrollTop = logDiv.scrollHeight;
                         }});
 
                         channel.bind('nop_dap_an', function(data) {{
-                          var timeTaken = startTime > 0 ? (data.thoi_gian - startTime).toFixed(3) + ' giây' : 'N/A';
-                          logDiv.innerHTML += '🎯 [' + data.nhom + '] chọn <b>' + data.dap_an + '</b> ⏱️ ' + timeTaken + '<br>';
+                          var timeTaken = startTime > 0 ? (data.thoi_gian - startTime).toFixed(2) + 's' : '';
+                          studentAnswers[data.nhom] = {{ ans: data.dap_an, time: timeTaken }};
+                          
+                          // Hiển thị lại bảng đáp án
+                          var html = '<ul>';
+                          for (var student in studentAnswers) {{
+                            var item = studentAnswers[student];
+                            var status = "";
+                            if (correctAns !== "Chưa chọn") {{
+                              status = (item.ans === correctAns) ? '<span class="correct"> ✔️ Đúng (+1đ)</span>' : '<span class="incorrect"> ❌ Sai</span>';
+                            }}
+                            html += '<li><b>' + student + '</b> chọn: <span style="font-size:16px; color:blue;">' + item.ans + '</span> (' + item.time + ')' + status + '</li>';
+                          }}
+                          html += '</ul>';
+                          resDiv.innerHTML = html;
+                          logDiv.innerHTML += '🎯 [' + student.nhom + '] vừa chọn ' + data.dap_an + '<br>';
                           logDiv.scrollTop = logDiv.scrollHeight;
                         }});
                       </script>
                     </body>
                     </html>
                     """
-                    st.components.v1.html(html_code, height=280, scrolling=True)
+                    st.components.v1.html(html_code, height=300, scrolling=True)
 
                 # =========================================
                 # MÀN HÌNH HỌC SINH
@@ -427,13 +472,12 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                     if "hs_phong" not in st.session_state:
                         st.session_state["hs_phong"] = ""
 
-                    # Form nhập thông tin
                     if not st.session_state["hs_nhom"]:
-                        st.info("Nhập thông tin để kết nối vào phòng thi của Thầy/Cô.")
-                        nhap_phong = st.text_input("Mã Phòng (Trên bảng):")
-                        nhap_ten = st.text_input("Tên Nhóm / Tên Em:")
+                        st.info("Nhập thông tin để kết nối vào phòng thi.")
+                        nhap_phong = st.text_input("Mã Phòng (Tự động điền nếu quét QR):", value=default_phong)
+                        nhap_ten = st.text_input("Tên Nhóm / Tên Học sinh:")
                         
-                        if st.button("🚪 VÀO PHÒNG", type="primary", use_container_width=True):
+                        if st.button("🚪 VÀO PHÒNG THI", type="primary", use_container_width=True):
                             if nhap_phong and nhap_ten:
                                 st.session_state["hs_phong"] = nhap_phong
                                 st.session_state["hs_nhom"] = nhap_ten
@@ -448,26 +492,24 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                             else:
                                 st.error("Vui lòng nhập đủ Mã phòng và Tên!")
                     
-                    # Giao diện bấm nút
                     else:
-                        st.success(f"🟢 Nhóm: **{st.session_state['hs_nhom']}** | Phòng: **{st.session_state['hs_phong']}**")
-                        st.markdown("#### ⚡ CHỌN NHANH ĐÁP ÁN:")
+                        st.success(f"🟢 Thí sinh: **{st.session_state['hs_nhom']}** | Phòng: **{st.session_state['hs_phong']}**")
+                        st.markdown("#### 📺 Quan sát câu hỏi trên tivi và chọn đáp án:")
                         
                         def send_answer(ans):
                             try:
                                 pusher_client.trigger(
                                     f'phong-{st.session_state["hs_phong"]}', 
                                     'nop_dap_an', 
-                                    {'nhom': st.session_state["hs_nhom"], 'dap_an': ans, 'thoi_gian': time.time()}
+                                    {'nhom': st.session_state['hs_nhom'], 'dap_an': ans, 'thoi_gian': time.time()}
                                 )
-                                st.success(f"Đã gửi đáp án {ans}!")
+                                st.success(f"✅ Đã gửi đáp án **{ans}** lên hệ thống!")
                             except:
-                                st.error("Lỗi mạng.")
+                                st.error("Lỗi kết nối mạng.")
 
-                        # CSS làm nút bấm to ra cho dễ bấm trên điện thoại
                         st.markdown("""
                         <style>
-                        div[data-testid="stButton"] button { height: 80px; font-size: 24px; font-weight: bold; }
+                        div[data-testid="stButton"] button { height: 90px; font-size: 28px; font-weight: bold; }
                         </style>
                         """, unsafe_allow_html=True)
                         
@@ -482,6 +524,7 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                         if st.button("Thoát phòng"):
                             st.session_state["hs_nhom"] = ""
                             st.session_state["hs_phong"] = ""
+                            st.query_params.clear()
                             st.rerun()
 
             except ImportError:
