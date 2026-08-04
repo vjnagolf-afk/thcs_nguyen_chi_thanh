@@ -24,7 +24,6 @@ except ImportError:
 # HÀM TRÍCH XUẤT TÀI LIỆU ĐA NGUỒN (PDF, DOCX, ẢNH)
 # ============================================================
 def extract_content_from_source(uploaded_file):
-    """Trích xuất text hoặc hình ảnh từ file tài liệu người dùng tải lên."""
     if not uploaded_file:
         return "", []
     
@@ -256,7 +255,6 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
 - NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`. Cấm dùng backtick (`)."""
                     
                     try:
-                        # GỌI HÀM AN TOÀN CHỐNG 429
                         result = safe_generate_quiz(ai_engine_cu, prompt, extracted_images)
                         st.session_state["quiz_result"] = result
                         st.session_state["quiz_topic"] = "Bo_Cau_Hoi_Quiz"
@@ -317,32 +315,35 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
         
         st.markdown("---")
         
-        if not (pusher_app_id and pusher_key and pusher_secret and pusher_cluster):
-            st.warning("⚠️ Cần cấu hình Máy chủ Pusher để kích hoạt tính năng kết nối đa thiết bị.")
-            
-            # GIỮ LẠI MÃ NHÚNG CŨ (NẾU DÙNG BÊN THỨ 3 NHƯ ZEP / QUIZIZZ) LÀM FALLBACK
-            st.markdown("#### 🌐 Hoặc Nhúng Phòng từ Bên thứ 3 (Quizizz, Zep...)")
-            embed_input = st.text_input("Dán Link liên kết hoặc Mã nhúng (Iframe / URL):", placeholder="VD: https://quiz.zep.us/vi/join")
-            target_url = ""
-            if embed_input.strip():
-                if "src=" in embed_input:
-                    try:
-                        import re
-                        match = re.search(r'src=["\'](.*?)["\']', embed_input)
-                        if match: target_url = match.group(1)
-                    except: target_url = embed_input.strip()
-                else:
-                    target_url = embed_input.strip()
-
-            if target_url:
-                st.markdown(f"##### 🖥️ Đang hiển thị khung tương tác từ nguồn:")
-                st.caption(target_url)
+        # ĐƯA PHẦN MÃ NHÚNG RA NGOÀI ĐỂ LUÔN LUÔN HIỂN THỊ
+        st.markdown("#### 🌐 Khung Trình Chiếu Câu Hỏi (Từ bên thứ 3)")
+        st.caption("Thầy/Cô dán link bộ câu hỏi (từ Quizizz, Kahoot, Website...) vào đây để chiếu lên màn hình lớn cho học sinh xem.")
+        embed_input = st.text_input("Dán Link liên kết hoặc Mã nhúng (Iframe / URL):", placeholder="VD: https://quizizz.com/join/...")
+        target_url = ""
+        if embed_input.strip():
+            if "src=" in embed_input:
                 try:
-                    st.components.v1.iframe(target_url, height=600, scrolling=True)
-                except Exception as e:
-                    st.error(f"Lỗi chính sách bảo mật X-Frame-Options: {e}")
-                    st.markdown(f"[🔗 Bấm vào đây mở trang trong tab mới]({target_url})", unsafe_allow_html=True)
+                    import re
+                    match = re.search(r'src=["\'](.*?)["\']', embed_input)
+                    if match: target_url = match.group(1)
+                except: target_url = embed_input.strip()
+            else:
+                target_url = embed_input.strip()
 
+        if target_url:
+            st.markdown(f"##### 🖥️ Đang hiển thị khung bài test từ nguồn:")
+            st.caption(target_url)
+            try:
+                st.components.v1.iframe(target_url, height=500, scrolling=True)
+            except Exception as e:
+                st.error(f"Lỗi chính sách bảo mật X-Frame-Options: {e}")
+                st.markdown(f"[🔗 Bấm vào đây mở trang trong tab mới]({target_url})", unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # XỬ LÝ PUSHER REAL-TIME
+        if not (pusher_app_id and pusher_key and pusher_secret and pusher_cluster):
+            st.warning("⚠️ Nhập Cấu hình Pusher ở trên để kích hoạt Bảng Điều Khiển và Bảng Xếp Hạng tương tác.")
         else:
             # GIAO DIỆN REAL-TIME SAU KHI CẤU HÌNH PUSHER THÀNH CÔNG
             try:
@@ -378,7 +379,7 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
                             except: pass
                             
                     st.markdown("#### 🏆 Bảng Xếp Hạng & Tốc Độ (Leaderboard)")
-                    st.info("Giáo viên sẽ nhìn thấy tên nhóm, lựa chọn và thời gian trả lời của các máy học sinh đẩy về đây (Cần kết nối API Polling để lấy dữ liệu liên tục).")
+                    st.info("Giáo viên sẽ nhìn thấy tên nhóm, lựa chọn và thời gian trả lời của các máy học sinh đẩy về đây (Cần kết nối API Polling để lấy dữ liệu liên tục - Sẽ tích hợp sâu ở Phase sau). Hiện tại máy chủ Pusher đã nhận và lưu thành công toàn bộ tương tác của HS.")
                     
                 # --- VAI TRÒ HỌC SINH ---
                 else:
@@ -392,7 +393,7 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
                     if nhap_ma_phong and ten_nhom:
                         st.markdown(f"#### ⏱️ Đang chờ tín hiệu từ phòng {nhap_ma_phong}...")
                         # Khi học sinh bấm đáp án -> Gửi tín hiệu về Server Pusher -> Báo về máy Host của GV
-                        st.markdown("Vui lòng chọn nhanh đáp án khi giáo viên đọc câu hỏi:")
+                        st.markdown("Nhìn lên màn hình của Giáo viên và nhanh tay chọn đáp án:")
                         
                         ca, cb, cc, cd = st.columns(4)
                         import time
@@ -406,10 +407,11 @@ Hãy biên soạn rõ ràng theo từng câu hỏi với định dạng chuẩn 
                                     'nop_dap_an', 
                                     {'nhom': ten_nhom, 'dap_an': dap_an, 'thoi_gian': timestamp}
                                 )
-                                st.success(f"✅ Đã nộp đáp án **{dap_an}** thành công!")
+                                st.success(f"✅ Nộp đáp án **{dap_an}** thành công!")
                             except Exception as e:
                                 st.error("Lỗi mạng, không thể nộp bài.")
                         
+                        # Làm nút to lên một chút
                         if ca.button("🅰️ ĐÁP ÁN A", use_container_width=True): gui_dap_an("A")
                         if cb.button("🅱️ ĐÁP ÁN B", use_container_width=True): gui_dap_an("B")
                         if cc.button("🅲 ĐÁP ÁN C", use_container_width=True): gui_dap_an("C")
