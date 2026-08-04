@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-r"""
-============================================================
-MODULE: modules/ho_tro_gv/xd_rubric.py
-Nhiệm vụ: Trợ lý Xây dựng Rubric Đánh Giá theo hướng phát triển năng lực.
-Tích hợp: Tiêu chí nội dung chuẩn, Phân bổ trọng số, Mô tả hành vi & Xuất Word.
-============================================================
-"""
-
 import logging
 import streamlit as st
 
@@ -18,14 +10,72 @@ try:
 except ImportError:
     export_word = None
 
-# Bắt buộc import AIEngine2 để dùng Smart Router
-try:
-    from utils.ai_engine_2 import AIEngine2
-except ImportError:
-    AIEngine2 = None
+def safe_generate(ai_engine_cu, prompt):
+    """
+    Hàm gọi AI thông minh: Thử Gemini Flash -> Tự động chuyển sang OpenAI (sk-) nếu hết hạn mức (429).
+    """
+    api_key = None
+    for key, val in st.session_state.items():
+        if isinstance(val, str) and val.startswith("sk-"):
+            api_key = val
+            break
+            
+    if not api_key:
+        for k in ["user_api_key", "api_key", "openai_api_key", "sk_key"]:
+            if st.session_state.get(k) and str(st.session_state.get(k)).startswith("sk-"):
+                api_key = st.session_state.get(k)
+                break
+                
+    if not api_key and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+
+    def run_openai():
+        if not api_key:
+            raise RuntimeError("Hệ thống chưa được cấu hình API Key OpenAI (sk-).")
+        import openai
+        client = openai.OpenAI(api_key=str(api_key).strip())
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+
+    def run_gemini():
+        try:
+            from utils.ai_engine_2 import AIEngine2
+            engine_v2 = AIEngine2(default_model="gemini-1.5-flash")
+            res = engine_v2.generate_text(prompt, temperature=0.7)
+            if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                return res
+            raise RuntimeError("Hạn mức Gemini cạn kiệt.")
+        except ImportError:
+            if ai_engine_cu and hasattr(ai_engine_cu, "generate_text"):
+                res = ai_engine_cu.generate_text(prompt)
+                if res and not res.startswith("❌") and not res.startswith("⚠️") and "429" not in res and "RESOURCE_EXHAUSTED" not in res:
+                    if isinstance(res, dict): return res.get("text", str(res))
+                    elif hasattr(res, "text"): return res.text
+                    return res
+                raise RuntimeError("Hạn mức Gemini cạn kiệt.")
+        except Exception as e:
+            raise RuntimeError(f"Lỗi máy chủ Google: {str(e)}")
+        raise RuntimeError("Google Gemini từ chối kết nối.")
+
+    error_msgs = []
+    try:
+        return run_gemini()
+    except Exception as e1:
+        error_msgs.append(f"Gemini: {e1}")
+        try:
+            return run_openai()
+        except Exception as e2:
+            error_msgs.append(f"OpenAI: {e2}")
+            
+    err_str = f"Cả 2 nền tảng AI đều gặp sự cố:\n- {error_msgs[0]}\n- {error_msgs[1]}\n\n👉 Khắc phục: Vui lòng chờ 1 phút để Gemini hồi phục, hoặc thêm khóa `sk-` của OpenAI để hệ thống chạy ổn định 100%."
+    raise RuntimeError(err_str)
+
 
 def render_xd_rubric(ai_engine_cu=None):
-    # Khởi tạo session state lưu kết quả
     if "rubric_result" not in st.session_state:
         st.session_state["rubric_result"] = None
     if "rubric_topic" not in st.session_state:
@@ -61,16 +111,11 @@ def render_xd_rubric(ai_engine_cu=None):
 
     # XỬ LÝ SỰ KIỆN KHI BẤM NÚT
     if btn_rubric:
-        if AIEngine2 is None:
-            st.error("❌ Không tìm thấy file `utils/ai_engine_2.py`. Vui lòng kiểm tra lại cấu trúc dự án.")
-            return
-
         if not yeu_cau_can_dat.strip():
             st.warning("⚠️ Vui lòng nhập Yêu cầu cần đạt.")
         else:
             with st.spinner("⏳ AI đang thiết kế ma trận tiêu chí đánh giá chuẩn đo lường giáo dục..."):
-                prompt = f"""
-BẠN LÀ CHUYÊN GIA ĐO LƯỜNG VÀ ĐÁNH GIÁ GIÁO DỤC CẤP CAO.
+                prompt = f"""BẠN LÀ CHUYÊN GIA ĐO LƯỜNG VÀ ĐÁNH GIÁ GIÁO DỤC CẤP CAO.
 Hãy xây dựng một bảng Rubric cực kỳ chi tiết, khoa học và chuyên nghiệp để đánh giá nhiệm vụ: {loai_nhiem_vu}.
 
 --- THÔNG TIN ĐẦU VÀO ---
@@ -92,19 +137,15 @@ Hãy xây dựng một bảng Rubric cực kỳ chi tiết, khoa học và chuy�
 
 [KỶ LUẬT ĐỊNH DẠNG]
 - Sử dụng Markdown chuyên nghiệp.
-- NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC dùng chuẩn LaTeX bọc trong dấu `$ ... $`. Cấm dùng backtick (`).
-"""
+- NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC dùng chuẩn LaTeX bọc trong dấu `$ ... $`. Cấm dùng backtick (`)."""
+                
                 try:
-                    engine_v2 = AIEngine2(default_model="gemini-2.5-pro")
-                    res = engine_v2.generate_text(prompt, temperature=0.7)
-                    
-                    if res.startswith("❌") or res.startswith("⚠️"):
-                        st.error(res)
-                    else:
-                        st.session_state["rubric_result"] = res
-                        st.session_state["rubric_topic"] = loai_nhiem_vu.replace(" ", "_")
+                    # GỌI HÀM AN TOÀN ĐÃ CÓ FALLBACK
+                    res = safe_generate(ai_engine_cu, prompt)
+                    st.session_state["rubric_result"] = res
+                    st.session_state["rubric_topic"] = loai_nhiem_vu.replace(" ", "_")
                 except Exception as e:
-                    st.error(f"Lỗi AI: {e}")
+                    st.error(f"❌ {e}")
 
     # ========================================================
     # HIỂN THỊ KẾT QUẢ & XUẤT FILE WORD
