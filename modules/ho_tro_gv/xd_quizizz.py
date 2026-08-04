@@ -336,7 +336,10 @@ NẾU có công thức Toán/Lý/Hóa, BẮT BUỘC bọc trong dấu `$ ... $`.
                             qr.add_data(app_url)
                             qr.make(fit=True)
                             img_qr = qr.make_image(fill_color="black", back_color="white")
-                            st.image(img_qr, caption=f"Quét để tham gia (Mã phòng: {ma_phong})", width=200)
+                            # FIX ERROR: Convert PilImage to BytesIO before sending to st.image
+                            buf = io.BytesIO()
+                            img_qr.save(buf, format="PNG")
+                            st.image(buf.getvalue(), caption=f"Quét để tham gia (Mã phòng: {ma_phong})", width=200)
                         elif not HAS_QRCODE:
                             st.warning("Cài đặt `pip install qrcode[pil]` để tạo mã QR.")
 
