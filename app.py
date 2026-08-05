@@ -43,9 +43,21 @@ try:
     from modules.quan_ly_to.phan_cong import render_phan_cong
     from modules.quan_ly_to.bien_ban import render_bien_ban
     from modules.quan_ly_to.xd_ke_hoach import render_ke_hoach
-    from modules.quan_ly_to.xd_kiem_tra_khbd import render_xd_kiem_tra_khbd
-    from modules.quan_ly_to.xd_cham_sang_kien import render_xd_cham_sang_kien
-    from modules.quan_ly_to.xd_viet_sang_kien import render_xd_viet_sang_kien
+    
+    # Xử lý an toàn tuyệt đối cho module Kiểm tra KHBD tránh lệch tên hàm
+    try:
+        from modules.quan_ly_to.xd_kiem_tra_khbd import render_xd_kiem_tra_khbd
+    except ImportError:
+        try:
+            from modules.quan_ly_to.xd_kiem_tra_khbd import render_kiem_tra_khbd as render_xd_kiem_tra_khbd
+        except ImportError:
+            try:
+                from modules.quan_ly_to.xd_kiem_tra_khbd import render as render_xd_kiem_tra_khbd
+            except ImportError:
+                render_xd_kiem_tra_khbd = None
+
+    from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
+    from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
     from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
     from modules.quan_ly_to.xd_thi_dua import render_thi_dua
     from modules.quan_ly_to.xd_tkb import render_tkb
@@ -329,8 +341,10 @@ elif menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
         try: render_ke_hoach()
         except NameError: st.warning("Module Kế hoạch chuyên đề chưa sẵn sàng.")
     with sub_tab[5]:
-        try: render_kiem_tra_khbd(ai_instance)
-        except NameError: st.warning("Module Kiểm tra KHBD chưa sẵn sàng.")
+        if render_xd_kiem_tra_khbd:
+            try: render_xd_kiem_tra_khbd(ai_instance)
+            except TypeError: render_xd_kiem_tra_khbd()
+        else: st.warning("Module Kiểm tra KHBD chưa sẵn sàng.")
     with sub_tab[6]:
         try: render_cham_sang_kien(ai_instance)
         except NameError: st.warning("Module Chấm sáng kiến chưa sẵn sàng.")
@@ -339,7 +353,7 @@ elif menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
         except NameError: st.warning("Module Viết sáng kiến chưa sẵn sàng.")
     with sub_tab[8]:
         try: render_tom_tat_gmail(ai_instance)
-        except NameError: st.warning("Module Tóm tắt Gmail chưa sẵn sàng.")
+        except NameError: st.warning("Module Tóm tắt Email chưa sẵn sàng.")
     with sub_tab[9]:
         try: render_sach_kn_so()
         except NameError: st.warning("Module Tủ sách số chưa sẵn sàng.")
