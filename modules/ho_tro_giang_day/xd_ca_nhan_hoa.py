@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_giang_day/xd_ca_nhan_hoa.py
 Nhiệm vụ: Trợ lý Chuyên gia Thiết kế Trò chơi Học tập (AI Edu-Game Architect).
-Kiến trúc: Áp dụng Game Loop chuẩn (Start -> Play -> Score -> Replay).
+Kiến trúc: Áp dụng Game Loop chuẩn và Ép buộc CSS Responsive.
 ============================================================
 """
 
@@ -15,7 +15,6 @@ import streamlit.components.v1 as components
 
 logger = logging.getLogger(__name__)
 
-# BẮT BUỘC KHÔI PHỤC KẾT NỐI OPENROUTER (AIEngine2) TỪ MÃ GỐC CỦA THẦY
 try:
     from utils.ai_engine_2 import AIEngine2
 except ImportError:
@@ -102,11 +101,10 @@ def render_xd_ca_nhan_hoa(ai_engine=None):
 
         col_ai, col_emoji = st.columns([1, 1])
         with col_ai:
-            che_do_ai = st.radio("Bộ não Kiến trúc AI:", ["🎯 Tư duy Sâu (Gemini 2.5 Pro - Khuyên dùng cho game phức tạp)", "⚡ Phản xạ Nhanh (Gemini 2.5 Flash)"])
+            che_do_ai = st.radio("Bộ não Kiến trúc AI:", ["🎯 Tư duy Sâu (Gemini 2.5 Pro / GPT-4o)", "⚡ Phản xạ Nhanh (Gemini 2.5 Flash / GPT-4o-mini)"])
         with col_emoji:
             dung_emoji = st.checkbox("Sử dụng Emojis làm đồ họa minh họa", value=True)
 
-        # BUTTON TRIGGER
         btn_tao_game = st.button("🚀 KHỞI TẠO & LẬP TRÌNH TRÒ CHƠI", type="primary", use_container_width=True)
 
     # ========================================================
@@ -117,75 +115,70 @@ def render_xd_ca_nhan_hoa(ai_engine=None):
             st.warning("⚠️ Chuyên gia cần tài liệu gốc để lên ý tưởng. Thầy vui lòng tải file lên nhé!")
             return
 
-        with st.spinner("⏳ Chuyên gia AI đang phân tích sư phạm và viết mã nguồn (HTML5/CSS3/JS) rập khuôn kiến trúc..."):
+        with st.spinner("⏳ Đang thiết kế kiến trúc và ép kiểu CSS chống vỡ giao diện..."):
             noidung_giaosan = extract_text_from_file(uploaded_file)
             
-            # Xử lý CSS Theme
             mau_css = {"Xanh dương": "#3B82F6", "Xanh ngọc": "#14B8A6", "Tím violet": "#8B5CF6", "Hồng rose": "#F43F5E", "Vàng hổ phách": "#F59E0B"}
             hex_color = mau_css.get(mau_chu_dao.split(" (")[0], "#3B82F6")
             font_family = font_chu.split(" (")[0]
             game_title = ten_game if ten_game.strip() else "Trải nghiệm Học tập Tương tác"
 
-            # TỐI ƯU HÓA CƠ CHẾ SƯ PHẠM ĐỂ TRÁNH LỖI UX/UI
             luat_choi = ""
             if "Trắc nghiệm" in loai_tro_choi:
-                luat_choi = "Cơ chế: Trắc nghiệm 4 đáp án. Khi chọn sai, rung lắc nút bấm. Khi chọn đúng, hiện màu xanh và tự động qua câu."
+                luat_choi = "Cơ chế: Trắc nghiệm 4 đáp án. Chọn sai rung lắc, chọn đúng qua câu."
             elif "Nối cặp" in loai_tro_choi:
-                luat_choi = "Cơ chế: Nối cặp (Matching). TUYỆT ĐỐI KHÔNG DÙNG DRAG & DROP vì hay lỗi trên mobile. Hãy dùng cơ chế CLICK: Người chơi click chọn ô ở cột A, ô đó sáng lên, sau đó click chọn ô tương ứng ở cột B. Nếu đúng thì 2 ô biến mất hoặc chuyển màu xám."
+                luat_choi = "Cơ chế: Nối cặp (Matching). TUYỆT ĐỐI DÙNG CƠ CHẾ CLICK CHỌN 2 Ô, KHÔNG DÙNG DRAG & DROP."
             elif "Điền khuyết" in loai_tro_choi:
-                luat_choi = "Cơ chế: Hiện câu có chỗ trống (___). Cung cấp các nút từ khóa bên dưới để người chơi click điền vào thay vì phải gõ phím."
+                luat_choi = "Cơ chế: Hiện câu có chỗ trống (___). Cung cấp các nút từ khóa bên dưới để click."
             elif "Đúng / Sai" in loai_tro_choi:
-                luat_choi = "Cơ chế: Quẹt thẻ (Tinder-like) hoặc 2 nút Bấm Đúng/Sai khổng lồ. Yêu cầu phản hồi ngay lập tức."
+                luat_choi = "Cơ chế: Quẹt thẻ hoặc 2 nút Bấm Đúng/Sai khổng lồ."
             elif "Thẻ bài" in loai_tro_choi:
-                luat_choi = "Cơ chế: Lật thẻ Memory Match dạng lưới (Grid). Chọn 2 thẻ, giống nhau thì lật ngửa mãi, khác nhau thì úp lại sau 1 giây."
+                luat_choi = "Cơ chế: Lật thẻ Memory Match dạng lưới (Grid)."
             else:
-                luat_choi = "Bạn là Chuyên gia thiết kế, hãy tự chọn cơ chế (Quiz hoặc Nối cặp Click-to-Match) phù hợp nhất với dữ liệu đưa vào."
+                luat_choi = "Bạn tự chọn cơ chế (Quiz hoặc Nối cặp) phù hợp nhất với dữ liệu."
 
-            # SIÊU PROMPT (MASTER PROMPT) CHO KIẾN TRÚC GAME
+            # SIÊU PROMPT BẮT BUỘC CSS RESPONSIVE & CHỐNG TRÀN CHỮ
             prompt = f"""
-BẠN LÀ MỘT CHUYÊN GIA THIẾT KẾ TRÒ CHƠI SƯ PHẠM (GAME DESIGNER) VÀ KỸ SƯ FRONT-END (HTML5/JS/CSS3) BẬC THẦY.
-Nhiệm vụ: Đọc tài liệu giáo án dưới đây và lập trình ra một Mini-Game Web hoàn chỉnh chỉ trong 1 file HTML duy nhất.
+BẠN LÀ MỘT CHUYÊN GIA THIẾT KẾ TRÒ CHƠI SƯ PHẠM VÀ KỸ SƯ FRONT-END BẬC THẦY.
+Nhiệm vụ: Lập trình 1 Mini-Game Web hoàn chỉnh chỉ trong 1 file HTML duy nhất dựa vào giáo án.
 
---- 1. CỐT LÕI SƯ PHẠM & CƠ CHẾ ---
-- Thể loại Game: {loai_tro_choi}
-- Cơ chế bắt buộc (UX rule): {luat_choi}
-- Số lượng nội dung: Tự động trích xuất đúng {so_luong} câu hỏi/cặp từ khóa chất lượng nhất từ tài liệu.
-- Tên trò chơi: {game_title}
+--- 1. CỐT LÕI SƯ PHẠM ---
+- Thể loại: {loai_tro_choi}. Cơ chế: {luat_choi}
+- Số lượng: {so_luong} câu hỏi/cặp. Tên trò chơi: {game_title}
+- Đồ họa Emoji: {'Có' if dung_emoji else 'Không'}
 
---- 2. YÊU CẦU KIẾN TRÚC HỆ THỐNG (GAME LOOP) ---
-Trò chơi BẮT BUỘC phải có 3 Màn hình (States) quản lý bằng Javascript (ẩn/hiện các div):
-- SCREEN 1 (START): Chứa Tên trò chơi to, đẹp, luật chơi ngắn gọn và nút "Bắt đầu chơi" (Start).
-- SCREEN 2 (GAMEPLAY): Chứa thanh tiến trình (Progress bar), số điểm hiện tại, nội dung câu hỏi/trò chơi, nút tắt âm thanh (nếu có). Có thanh cuộn dọc (overflow-y: auto) để không bị lấp giao diện.
-- SCREEN 3 (ENDGAME): Hiển thị khi hoàn thành. Hiện Tổng điểm, Lời chúc mừng động viên (dùng Emoji) và nút "Chơi lại" (Replay) để khởi tạo lại toàn bộ state.
+--- 2. BẮT BUỘC TUÂN THỦ KHUNG CSS (ĐỂ TRÁNH VỠ GIAO DIỆN) ---
+BẠN BẮT BUỘC PHẢI ÁP DỤNG CÁC QUY TẮC CSS SAU VÀO MÃ:
+- Font chữ: '{font_family}', sans-serif. Màu chủ đạo: {hex_color}
+- Bố cục nền (Body): `margin: 0; padding: 20px; min-height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #f3f4f6; font-family: '{font_family}', sans-serif;`
+- Container Chính (Bắt buộc rộng rãi): `.game-container {{ width: 100%; max-width: 900px; background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; }}`
+- Bố cục Lưới/Nút bấm (Grid chống tràn): Dành cho các đáp án hoặc thẻ bài. `.grid-container {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%; margin-top: 30px; }}`
+- Chống trào chữ (Text Wrapping) cho mọi nút bấm/thẻ bài: `.btn, .card {{ width: 100%; padding: 20px; white-space: normal !important; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.5; font-size: 1.1rem; box-sizing: border-box; }}`
+- Hiệu ứng: Cần có hover đổi màu nhẹ, transform translateY(-2px). Có class `.shake` để rung lắc khi sai.
 
---- 3. YÊU CẦU UI/UX & THẨM MỸ ---
-- Bảng màu chủ đạo (Primary color): {hex_color}
-- Font chữ: Sử dụng Google Font '{font_family}'.
-- Đồ họa: {'Sử dụng phong phú các Emoji để minh họa cho đáp án hoặc nút bấm' if dung_emoji else 'Phong cách tối giản, phẳng (Flat design)'}.
-- CSS Animation: Phải có hiệu ứng chuyển cảnh mềm mại (fade in), hiệu ứng hover cho các nút bấm, hiệu ứng rung lắc (shake) nếu trả lời sai, và phóng to nhẹ nếu trả lời đúng.
-- Yêu cầu đặc biệt từ giáo viên: {yeu_cau if yeu_cau.strip() else 'Thiết kế bo góc tròn (border-radius), đổ bóng (box-shadow) để nhìn giống một App di động hiện đại.'}
+--- 3. KIẾN TRÚC GAME LOOP (Bằng Javascript) ---
+Phải có 3 trạng thái ẩn/hiện (`display: none` / `display: flex`):
+1. `start-screen`: Tiêu đề to, luật chơi, nút Bắt đầu chơi.
+2. `play-screen`: Chứa Progress bar, Câu hỏi hiện tại, lưới Đáp án/Thẻ bài.
+3. `end-screen`: Kết quả điểm số, thông điệp, nút Chơi lại.
 
---- 4. TÍCH HỢP TOÁN HỌC (BẮT BUỘC NẾU CÓ CÔNG THỨC) ---
+--- 4. TÍCH HỢP TOÁN HỌC ---
 Nhúng script MathJax qua CDN vào thẻ <head>:
 `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
-Sử dụng cú pháp `\\( ... \\)` cho công thức toán trong HTML/JS. Khi JS kết xuất (render) nội dung mới lên màn hình, BẮT BUỘC phải gọi `MathJax.typesetPromise()` để render lại công thức.
+Sử dụng cú pháp `\\( ... \\)`. JS gọi `MathJax.typesetPromise()` khi thay đổi câu hỏi.
 
 --- NỘI DUNG GIÁO ÁN GỐC ---
 {noidung_giaosan[:10000]}
 
---- QUY TẮC TRẢ VỀ KẾT QUẢ ---
-TUYỆT ĐỐI KHÔNG giải thích, KHÔNG chào hỏi, KHÔNG viết markdown dư thừa ngoài khối code.
-CHỈ TRẢ VỀ DUY NHẤT mã HTML chuẩn xác bọc trong ```html ... ```
+TUYỆT ĐỐI CHỈ TRẢ VỀ DUY NHẤT MÃ HTML BỌC TRONG ```html ... ```, KHÔNG GIẢI THÍCH!
 """
             try:
-                model_to_use = "gemini-2.5-pro" if "Tư duy Sâu" in che_do_ai else "gemini-2.5-flash"
-                
-                # KHÔI PHỤC KẾT NỐI OPENROUTER CHUẨN XÁC TỪ MÃ GỐC
+                # Tự động nhận diện model OpenAI hoặc Gemini tùy theo khóa thầy nhập
                 if AIEngine2 is not None:
-                    engine_v2 = AIEngine2(default_model=model_to_use)
-                    res = engine_v2.generate_text(prompt, temperature=0.7)
+                    engine_v2 = AIEngine2() # Mặc định tự lấy config từ st.secrets hoặc API key sidebar
+                    res = engine_v2.generate_text(prompt, temperature=0.2) # Giảm temperature để code HTML ổn định hơn
                 elif hasattr(ai_engine, "generate_text"):
-                    res = ai_engine.generate_text(prompt, model_name=model_to_use)
+                    res = ai_engine.generate_text(prompt)
                 else:
                     res = str(ai_engine(prompt))
                 
@@ -200,7 +193,7 @@ CHỈ TRẢ VỀ DUY NHẤT mã HTML chuẩn xác bọc trong ```html ... ```
                     else:
                         st.session_state.game_html = res
                     st.session_state.game_name = game_title.replace(" ", "_")
-                    st.success("✅ Tuyệt vời! Chuyên gia AI đã thiết kế xong kịch bản và lập trình thành công!")
+                    st.success("✅ Hoàn hảo! Giao diện đã được thiết kế lại chuẩn Responsive!")
                     st.balloons()
             except Exception as e:
                 st.error(f"❌ Lỗi hệ thống khi sinh mã trò chơi: {e}")
@@ -220,8 +213,8 @@ CHỈ TRẢ VỀ DUY NHẤT mã HTML chuẩn xác bọc trong ```html ... ```
                 file_name=f"Game_HocTap_{st.session_state.game_name}.html",
                 mime="text/html",
                 use_container_width=True,
-                type="primary",
-                help="Tải file này về máy, click đúp là mở chơi được không cần mạng. Gửi cho học sinh chơi rất dễ dàng."
+                type="primary"
             )
         
-        components.html(st.session_state.game_html, height=800, scrolling=True)
+        # Tăng width lên tối đa và đảm bảo hiển thị đẹp trên mọi màn hình
+        components.html(st.session_state.game_html, width=None, height=800, scrolling=True)
