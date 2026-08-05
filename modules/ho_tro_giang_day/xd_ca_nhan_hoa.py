@@ -123,7 +123,7 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
     # ========================================================
     if btn_tao_game:
         if not uploaded_file:
-            st.warning("⚠️ Vuit lòng tải lên giáo án để AI có dữ liệu làm game.")
+            st.warning("⚠️ Vui lòng tải lên giáo án để AI có dữ liệu làm game.")
             return
             
         if AIEngine2 is None:
