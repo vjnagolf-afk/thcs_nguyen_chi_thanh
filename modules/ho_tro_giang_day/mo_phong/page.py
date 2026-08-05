@@ -3,13 +3,12 @@
 ============================================================
 MODULE: modules/ho_tro_giang_day/mo_phong/page.py
 Mô tả: Chuyên gia Sinh Prompt Sư phạm & Tối ưu AI trong Giáo dục.
-(Thay thế cho chức năng Mô phỏng trùng lặp)
 ============================================================
 """
 
 import streamlit as st
 
-def render_xd_mo_phong(ai_engine=None):
+def render_chuyen_gia_prompt(ai_engine=None):
     st.markdown("### 🎯 Chuyên gia Sinh Prompt Sư phạm & Tối ưu AI")
     st.caption("Thư viện câu lệnh (Prompt) chuẩn hóa, giúp thầy cô và học sinh tương tác với các công cụ AI (ChatGPT, Gemini, Claude,...) đạt hiệu quả cao nhất. Thầy cô chỉ cần bấm biểu tượng 'Copy' ở góc phải mỗi ô mã để dán vào AI.")
 
