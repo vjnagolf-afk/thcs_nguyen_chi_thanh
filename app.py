@@ -1,20 +1,31 @@
 # -*- coding: utf-8 -*-
-# --- VÁ LỖI GZIP TRÊN PYTHON 3.14 (BẮT BUỘC Ở DÒNG ĐẦU TIÊN) ---
+# ============================================================
+# CHUYÊN GIA VÁ LỖI GZIP TẦNG THẤP (ROOT-CAUSE PATCH)
+# ============================================================
 try:
-    import streamlit.web.server.starlette.starlette_gzip_middleware as st_gzip
-    if hasattr(st_gzip, '_MediaAwareGZipResponder'):
-        _orig_media_init = st_gzip._MediaAwareGZipResponder.__init__
-        def _patched_media_init(self, *args, **kwargs):
+    import starlette.middleware.gzip as st_gzip_module
+    if hasattr(st_gzip_module, 'GZipResponder'):
+        _orig_gzip_init = st_gzip_module.GZipResponder.__init__
+        def _fixed_gzip_init(self, *args, **kwargs):
             if 'thread_minimum_size' not in kwargs:
                 kwargs['thread_minimum_size'] = 500
-            try:
-                _orig_media_init(self, *args, **kwargs)
-            except TypeError:
-                _orig_media_init(self, *args, **kwargs)
-        st_gzip._MediaAwareGZipResponder.__init__ = _patched_media_init
+            return _orig_gzip_init(self, *args, **kwargs)
+        st_gzip_module.GZipResponder.__init__ = _fixed_gzip_init
 except Exception:
     pass
-# -------------------------------------------------------------
+
+try:
+    import starlette.responses as st_responses
+    if hasattr(st_responses, 'GZipResponder'):
+        _orig_resp_init = st_responses.GZipResponder.__init__
+        def _fixed_resp_init(self, *args, **kwargs):
+            if 'thread_minimum_size' not in kwargs:
+                kwargs['thread_minimum_size'] = 500
+            return _orig_resp_init(self, *args, **kwargs)
+        st_responses.GZipResponder.__init__ = _fixed_resp_init
+except Exception:
+    pass
+# ============================================================
 
 """
 ============================================================
@@ -50,12 +61,12 @@ try:
     from modules.quan_ly_to.phan_cong import render_phan_cong
     from modules.quan_ly_to.bien_ban import render_bien_ban
     from modules.quan_ly_to.xd_ke_hoach import render_ke_hoach
-    from modules.quan_ly_to.xd_kiem_tra_khbd import render_kiem_tra_khbd
-    from modules.quan_ly_to.xd_cham_sang_kien import render_cham_sang_kien
-    from modules.quan_ly_to.xd_viet_sang_kien import render_viet_sang_kien
+    from modules.quan_ly_to.xd_kiem_tra_khbd import render_xd_kiem_tra_khbd
+    from modules.quan_ly_to.xd_cham_sang_kien import render_xd_cham_sang_kien
+    from modules.quan_ly_to.xd_viet_sang_kien import render_xd_viet_sang_kien
     from modules.quan_ly_to.xd_sach_kn_so import render_sach_kn_so
     from modules.quan_ly_to.xd_thi_dua import render_thi_dua
-    from modules.quan_ly_to.xd_tkb import render_tkb
+    from modules.quan_ly_to.xd_tkb import render_xd_tkb
     from modules.quan_ly_to.xd_tom_tat_gmail import render_tom_tat_gmail
     from utils.db_connector import db
 except ImportError as e:
@@ -356,7 +367,7 @@ elif menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
         except NameError: st.warning("Module Viết sáng kiến chưa sẵn sàng.")
     with sub_tab[8]:
         try: render_tom_tat_gmail(ai_instance)
-        except NameError: st.warning("Module Tóm tắt Gmail chưa sẵn sàng.")
+        except NameError: st.warning("Module Tóm tắt Email chưa sẵn sàng.")
     with sub_tab[9]:
         try: render_sach_kn_so()
         except NameError: st.warning("Module Tủ sách số chưa sẵn sàng.")
