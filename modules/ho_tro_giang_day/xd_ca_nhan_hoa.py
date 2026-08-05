@@ -16,13 +16,7 @@ import streamlit.components.v1 as components
 
 logger = logging.getLogger(__name__)
 
-# Bắt buộc import AIEngine2 để dùng Smart Router
-try:
-    from utils.ai_engine_2 import AIEngine2
-except ImportError:
-    AIEngine2 = None
-
-# Hàm đọc nội dung file
+# Hàm đọc nội dung file giáo án
 def extract_text_from_file(uploaded_file):
     if not uploaded_file:
         return ""
@@ -44,7 +38,7 @@ def extract_text_from_file(uploaded_file):
         logger.error(f"Lỗi đọc file: {e}")
     return extracted_text
 
-def render_xd_ca_nhan_hoa(ai_engine_cu=None):
+def render_xd_ca_nhan_hoa(ai_engine=None):
     if "game_html" not in st.session_state:
         st.session_state.game_html = None
     if "game_name" not in st.session_state:
@@ -104,8 +98,8 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
         st.markdown("#### 7️⃣ Chế độ ưu tiên AI")
         che_do_ai = st.radio(
             "Chọn Model:",
-            ["🎯 Chất lượng cao (Dùng Gemini Pro: Thông minh, lập trình logic game phức tạp. Chờ 30s-60s)", 
-             "⚡ Tốc độ nhanh (Dùng Gemini Flash: Phù hợp game đơn giản. Chờ 5s-15s)"],
+            ["🎯 Chất lượng cao (Thông minh, lập trình logic phức tạp. Chờ 30s-60s)", 
+             "⚡ Tốc độ nhanh (Phù hợp game đơn giản. Chờ 5s-15s)"],
             label_visibility="collapsed"
         )
 
@@ -126,14 +120,13 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
             st.warning("⚠️ Vui lòng tải lên giáo án để AI có dữ liệu làm game.")
             return
             
-        if AIEngine2 is None:
-            st.error("❌ Chưa kết nối được AI Engine.")
+        if ai_engine is None:
+            st.error("❌ Chưa kết nối được AI Engine. Vui lòng kiểm tra lại API Key ở thanh menu bên trái.")
             return
 
         with st.spinner("⏳ AI đang đọc giáo án và lập trình giao diện (HTML/CSS/JS)..."):
             noidung_giaosan = extract_text_from_file(uploaded_file)
             
-            model_to_use = "gemini-2.5-pro" if "Chất lượng cao" in che_do_ai else "gemini-2.5-flash"
             mau_css = {"Xanh dương": "#3B82F6", "Xanh ngọc": "#14B8A6", "Tím violet": "#8B5CF6", "Hồng rose": "#F43F5E", "Vàng hổ phách": "#F59E0B"}
             font_css = mau_chu_dao.split(" (")[0]
             hex_color = mau_css.get(font_css, "#3B82F6")
@@ -176,8 +169,13 @@ Nhiệm vụ: Đọc giáo án dưới đây và LẬP TRÌNH ra một Mini-Game
 4. TUYỆT ĐỐI CHỈ TRẢ VỀ MÃ HTML ĐƯỢC BỌC TRONG KHUNG ```html ... ```. Không giải thích gì thêm.
 """
             try:
-                engine_v2 = AIEngine2(default_model=model_to_use)
-                res = engine_v2.generate_text(prompt, temperature=0.7)
+                model_name = "gemini-2.5-pro" if "Chất lượng cao" in che_do_ai else "gemini-2.5-flash"
+                
+                # Gọi qua AI Engine thống nhất của hệ thống để tận dụng cơ chế xử lý API an toàn
+                if hasattr(ai_engine, "generate_text"):
+                    res = ai_engine.generate_text(prompt, model_name=model_name)
+                else:
+                    res = str(ai_engine(prompt))
                 
                 if res.startswith("❌"):
                     st.error(res)
