@@ -177,4 +177,49 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
 3. Giao diện (UI) phải sử dụng CSS Flexbox/Grid, đẹp mắt, có hiệu ứng hover, transition mượt mà, sử dụng màu {hex_color} làm nút bấm.
 4. Tích hợp font chữ `{font_family}` qua Google Fonts.
 5. Code Game phải tự hoạt động 100% (Tính điểm, qua câu, thông báo kết quả) mà không cần backend.
-6. TU
+6. 🧮 XỬ LÝ CÔNG THỨC TOÁN/LÝ/HÓA (QUAN TRỌNG): 
+   - BẮT BUỘC nhúng CDN thư viện MathJax v3 vào thẻ <head>: `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`.
+   - Mọi công thức Toán/Lý/Hóa phải dùng định dạng chuẩn LaTeX, bọc trong `\\( ... \\)` (để hiển thị cùng dòng) hoặc `\\[ ... \\]` (để hiển thị thành khối). KHÔNG dùng ký tự text thường (như √, x^2).
+   - BẮT BUỘC: Vì game dùng Javascript thay đổi nội dung câu hỏi/đáp án liên tục (Dynamic DOM), bạn PHẢI thêm dòng lệnh `MathJax.typesetPromise()` vào Javascript ngay sau mỗi lần cập nhật HTML để công thức luôn được render lại chuẩn xác.
+7. TUYỆT ĐỐI CHỈ TRẢ VỀ MÃ HTML ĐƯỢC BỌC TRONG KHUNG ```html ... ```. Không giải thích gì thêm ngoài code.
+"""
+            try:
+                engine_v2 = AIEngine2(default_model=model_to_use)
+                res = engine_v2.generate_text(prompt, temperature=0.7)
+                
+                if res.startswith("❌"):
+                    st.error(res)
+                else:
+                    # Bổ sung cờ re.IGNORECASE để bắt cả ```HTML nếu AI viết hoa
+                    match = re.search(r'```html(.*?)```', res, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        st.session_state.game_html = match.group(1).strip()
+                    else:
+                        st.session_state.game_html = res # Fallback nếu AI không dùng markdown đúng chuẩn
+                    st.session_state.game_name = game_title.replace(" ", "_")
+                    st.success("✅ AI đã lập trình game thành công!")
+            except Exception as e:
+                st.error(f"❌ Lỗi khi sinh code: {e}")
+
+    # ========================================================
+    # HIỂN THỊ GAME ĐÃ LẬP TRÌNH VÀ NÚT TẢI XUỐNG
+    # ========================================================
+    if st.session_state.game_html:
+        st.markdown("---")
+        st.markdown("### 🕹️ TRẢI NGHIỆM TRÒ CHƠI")
+        
+        # NHÚNG GAME TRỰC TIẾP VÀO STREAMLIT (PLAYABLE)
+        with st.container(border=True):
+            components.html(st.session_state.game_html, height=600, scrolling=True)
+
+        st.markdown("### 📥 Lưu trữ Trò chơi")
+        st.info("Thầy/Cô có thể tải file HTML này về, gửi trực tiếp qua Zalo cho học sinh chơi (mở bằng trình duyệt), hoặc nhúng lên các trang web của trường.")
+        
+        st.download_button(
+            label="💾 TẢI XUỐNG GAME (.HTML)",
+            data=st.session_state.game_html,
+            file_name=f"Game_{st.session_state.game_name}.html",
+            mime="text/html",
+            use_container_width=True,
+            type="primary"
+        )
