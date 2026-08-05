@@ -92,7 +92,8 @@ except ImportError as e:
 # ============================================================
 try:
     from modules.ho_tro_giang_day.rag_ask import render_rag_ask
-    from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
+    # VÔ HIỆU HÓA TẠM THỜI MODULE NÀY BẰNG DẤU #
+    # from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
     from modules.ho_tro_giang_day.xd_camera import render_xd_camera
     from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
     from modules.ho_tro_giang_day.xd_hoc_lieu import render_xd_hoc_lieu
@@ -271,8 +272,10 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
         try: render_rag_ask(ai_instance)
         except NameError: st.warning("Module RAG Ask chưa sẵn sàng.")
     with tabs_gd[1]:
-        try: render_xd_ca_nhan_hoa(ai_instance)
-        except NameError: st.warning("Module Cá nhân hóa chưa sẵn sàng.")
+        # VÔ HIỆU HÓA GIAO DIỆN TAB GAME AI TẠM THỜI
+        st.info("🚧 Tính năng Trợ lý Thiết kế Game AI đang được bảo trì tạm thời.")
+        # try: render_xd_ca_nhan_hoa(ai_instance)
+        # except NameError: st.warning("Module Cá nhân hóa chưa sẵn sàng.")
     with tabs_gd[2]:
         try: render_xd_camera(ai_instance)
         except NameError: st.warning("Module Camera chưa sẵn sàng.")
