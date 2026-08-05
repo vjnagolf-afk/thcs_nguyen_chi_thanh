@@ -15,6 +15,12 @@ import streamlit.components.v1 as components
 
 logger = logging.getLogger(__name__)
 
+# BẮT BUỘC KHÔI PHỤC KẾT NỐI OPENROUTER (AIEngine2) TỪ MÃ GỐC CỦA THẦY
+try:
+    from utils.ai_engine_2 import AIEngine2
+except ImportError:
+    AIEngine2 = None
+
 # ============================================================
 # UTILS: ĐỌC DỮ LIỆU TỪ GIÁO ÁN
 # ============================================================
@@ -110,10 +116,6 @@ def render_xd_ca_nhan_hoa(ai_engine=None):
         if not uploaded_file:
             st.warning("⚠️ Chuyên gia cần tài liệu gốc để lên ý tưởng. Thầy vui lòng tải file lên nhé!")
             return
-            
-        if ai_engine is None:
-            st.error("❌ Mất kết nối hệ thống AI. Vui lòng kiểm tra API Key ở menu trái.")
-            return
 
         with st.spinner("⏳ Chuyên gia AI đang phân tích sư phạm và viết mã nguồn (HTML5/CSS3/JS) rập khuôn kiến trúc..."):
             noidung_giaosan = extract_text_from_file(uploaded_file)
@@ -176,11 +178,14 @@ TUYỆT ĐỐI KHÔNG giải thích, KHÔNG chào hỏi, KHÔNG viết markdown 
 CHỈ TRẢ VỀ DUY NHẤT mã HTML chuẩn xác bọc trong ```html ... ```
 """
             try:
-                model_name = "gemini-2.5-pro" if "Tư duy Sâu" in che_do_ai else "gemini-2.5-flash"
+                model_to_use = "gemini-2.5-pro" if "Tư duy Sâu" in che_do_ai else "gemini-2.5-flash"
                 
-                # Gọi qua AI Engine thống nhất
-                if hasattr(ai_engine, "generate_text"):
-                    res = ai_engine.generate_text(prompt, model_name=model_name)
+                # KHÔI PHỤC KẾT NỐI OPENROUTER CHUẨN XÁC TỪ MÃ GỐC
+                if AIEngine2 is not None:
+                    engine_v2 = AIEngine2(default_model=model_to_use)
+                    res = engine_v2.generate_text(prompt, temperature=0.7)
+                elif hasattr(ai_engine, "generate_text"):
+                    res = ai_engine.generate_text(prompt, model_name=model_to_use)
                 else:
                     res = str(ai_engine(prompt))
                 
@@ -196,7 +201,7 @@ CHỈ TRẢ VỀ DUY NHẤT mã HTML chuẩn xác bọc trong ```html ... ```
                         st.session_state.game_html = res
                     st.session_state.game_name = game_title.replace(" ", "_")
                     st.success("✅ Tuyệt vời! Chuyên gia AI đã thiết kế xong kịch bản và lập trình thành công!")
-                    st.balloons() # Hiệu ứng chúc mừng của Streamlit
+                    st.balloons()
             except Exception as e:
                 st.error(f"❌ Lỗi hệ thống khi sinh mã trò chơi: {e}")
 
@@ -219,5 +224,4 @@ CHỈ TRẢ VỀ DUY NHẤT mã HTML chuẩn xác bọc trong ```html ... ```
                 help="Tải file này về máy, click đúp là mở chơi được không cần mạng. Gửi cho học sinh chơi rất dễ dàng."
             )
         
-        # Mở rộng chiều cao để chứa giao diện game mượt hơn
         components.html(st.session_state.game_html, height=800, scrolling=True)
