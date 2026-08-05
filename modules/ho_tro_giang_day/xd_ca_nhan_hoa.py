@@ -12,7 +12,6 @@ import io
 import re
 import logging
 import streamlit as st
-import streamlit.components.v1 as components
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +184,6 @@ Nhiệm vụ: Đọc giáo án dưới đây và LẬP TRÌNH ra một Mini-Game
                     match = re.search(r'```html(.*?)```', res, re.DOTALL | re.IGNORECASE)
                     if match:
                         code_html = match.group(1).strip()
-                        # Làm sạch các dấu backtick hoặc định dạng thừa gây lỗi cú pháp chuỗi Python trong Streamlit
                         code_html = code_html.replace("\\`", "`")
                         st.session_state.game_html = code_html
                     else:
@@ -196,23 +194,23 @@ Nhiệm vụ: Đọc giáo án dưới đây và LẬP TRÌNH ra một Mini-Game
                 st.error(f"❌ Lỗi khi sinh code: {e}")
 
     # ========================================================
-    # HIỂN THỊ GAME ĐÃ LẬP TRÌNH VÀ NÚT TẢI XUỐNG
+    # HIỂN THỊ TRÒ CHƠI HOÀN TOÀN AN TOÀN (DÙNG NÚT TẢI VÀ XEM TRƯỚC)
     # ========================================================
     if st.session_state.game_html:
         st.markdown("---")
-        st.markdown("### 🕹️ TRẢI NGHIỆM TRÒ CHƠI")
+        st.markdown("### 🕹️ TRÒ CHƠI ĐÃ ĐƯỢC TẠO THÀNH CÔNG")
         
-        with st.container(border=True):
-            components.html(st.session_state.game_html, height=750, scrolling=True)
-
-        st.markdown("### 📥 Lưu trữ Trò chơi")
-        st.info("Thầy/Cô có thể tải file HTML này về để gửi cho học sinh hoặc nhúng vào bài giảng điện tử.")
+        st.success("🎉 AI đã lập trình xong mã nguồn trò chơi! Thầy cô có thể tải file HTML về máy để mở trực tiếp bằng bất kỳ trình duyệt nào (Chrome, Edge, Safari...) rất mượt mà.")
         
+        # Nút tải xuống file HTML
         st.download_button(
-            label="💾 TẢI XUỐNG GAME (.HTML)",
+            label="💾 TẢI XUỐNG FILE TRÒ CHƠI (.HTML)",
             data=st.session_state.game_html,
             file_name=f"Game_{st.session_state.game_name}.html",
             mime="text/html",
             use_container_width=True,
             type="primary"
         )
+        
+        with st.expander("🔍 Xem trước mã nguồn HTML do AI sinh ra"):
+            st.code(st.session_state.game_html, language="html")
