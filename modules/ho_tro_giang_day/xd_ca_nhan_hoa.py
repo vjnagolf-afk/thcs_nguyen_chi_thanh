@@ -3,7 +3,7 @@ r"""
 ============================================================
 MODULE: modules/ho_tro_giang_day/xd_ca_nhan_hoa.py
 Nhiệm vụ: Trợ lý Chuyên gia Thiết kế Trò chơi Học tập (AI Edu-Game Architect).
-Kiến trúc: Áp dụng Game Loop chuẩn và Ép buộc CSS Responsive.
+Kiến trúc: Áp dụng Game Loop chuẩn, CSS Responsive, Ép buộc Nội dung Text.
 ============================================================
 """
 
@@ -75,8 +75,7 @@ def render_xd_ca_nhan_hoa(ai_engine=None):
                     "📝 Điền khuyết (Fill in the blanks)",
                     "⚖️ Biện luận Đúng/Sai",
                     "🧠 Thẻ bài Ghi nhớ (Memory Match)"
-                ],
-                help="Chọn cơ chế tương tác phù hợp nhất với mục tiêu sư phạm của bài học."
+                ]
             )
             
             so_luong = st.number_input("Số lượng thử thách (câu hỏi/cặp):", min_value=3, max_value=30, value=5)
@@ -115,7 +114,7 @@ def render_xd_ca_nhan_hoa(ai_engine=None):
             st.warning("⚠️ Chuyên gia cần tài liệu gốc để lên ý tưởng. Thầy vui lòng tải file lên nhé!")
             return
 
-        with st.spinner("⏳ Đang thiết kế kiến trúc và ép kiểu CSS chống vỡ giao diện..."):
+        with st.spinner("⏳ Đang phân tích logic sư phạm và ép kiểu kiến trúc giao diện..."):
             noidung_giaosan = extract_text_from_file(uploaded_file)
             
             mau_css = {"Xanh dương": "#3B82F6", "Xanh ngọc": "#14B8A6", "Tím violet": "#8B5CF6", "Hồng rose": "#F43F5E", "Vàng hổ phách": "#F59E0B"}
@@ -125,60 +124,68 @@ def render_xd_ca_nhan_hoa(ai_engine=None):
 
             luat_choi = ""
             if "Trắc nghiệm" in loai_tro_choi:
-                luat_choi = "Cơ chế: Trắc nghiệm 4 đáp án. Chọn sai rung lắc, chọn đúng qua câu."
+                luat_choi = "Cơ chế: Trắc nghiệm 4 đáp án. BẤM CHỌN MỘT ĐÁP ÁN, nếu đúng chuyển câu, nếu sai rung lắc nút."
             elif "Nối cặp" in loai_tro_choi:
-                luat_choi = "Cơ chế: Nối cặp (Matching). TUYỆT ĐỐI DÙNG CƠ CHẾ CLICK CHỌN 2 Ô, KHÔNG DÙNG DRAG & DROP."
+                luat_choi = "Cơ chế: Nối cặp (Matching). TUYỆT ĐỐI DÙNG CLICK-TO-MATCH (Click ô A, click ô B). KHÔNG DÙNG Drag-and-Drop."
             elif "Điền khuyết" in loai_tro_choi:
                 luat_choi = "Cơ chế: Hiện câu có chỗ trống (___). Cung cấp các nút từ khóa bên dưới để click."
             elif "Đúng / Sai" in loai_tro_choi:
-                luat_choi = "Cơ chế: Quẹt thẻ hoặc 2 nút Bấm Đúng/Sai khổng lồ."
+                luat_choi = "Cơ chế: Hiển thị 1 nhận định và 2 nút bấm chữ to 'ĐÚNG' hoặc 'SAI'."
             elif "Thẻ bài" in loai_tro_choi:
-                luat_choi = "Cơ chế: Lật thẻ Memory Match dạng lưới (Grid)."
+                luat_choi = "Cơ chế: Memory Match (Lật thẻ bài). Sinh ra lưới thẻ bài. Bấm vào thẻ sẽ lật thẻ hiện chữ. Giống nhau giữ nguyên, khác nhau úp lại."
             else:
-                luat_choi = "Bạn tự chọn cơ chế (Quiz hoặc Nối cặp) phù hợp nhất với dữ liệu."
+                luat_choi = "Bạn tự chọn cơ chế (Quiz trắc nghiệm hoặc Thẻ bài) phù hợp nhất với dữ liệu."
 
-            # SIÊU PROMPT BẮT BUỘC CSS RESPONSIVE & CHỐNG TRÀN CHỮ
+            # SIÊU PROMPT - ÉP BUỘC NỘI DUNG VÀ KHUNG CSS
             prompt = f"""
 BẠN LÀ MỘT CHUYÊN GIA THIẾT KẾ TRÒ CHƠI SƯ PHẠM VÀ KỸ SƯ FRONT-END BẬC THẦY.
 Nhiệm vụ: Lập trình 1 Mini-Game Web hoàn chỉnh chỉ trong 1 file HTML duy nhất dựa vào giáo án.
 
---- 1. CỐT LÕI SƯ PHẠM ---
-- Thể loại: {loai_tro_choi}. Cơ chế: {luat_choi}
+--- 1. YÊU CẦU NỘI DUNG & VĂN BẢN (BẮT BUỘC TUÂN THỦ) ---
+- Cảnh báo lỗi: BẠN TUYỆT ĐỐI KHÔNG ĐƯỢC XÓA CHỮ (TEXT). Mọi nút bấm, thẻ bài BẮT BUỘC phải hiển thị đầy đủ văn bản nội dung.
+- Sử dụng Emoji: { "CHỈ DÙNG EMOJI NHƯ MỘT ICON ĐỨNG TRƯỚC CHỮ (Ví dụ: '✅ Đúng', '🌟 Năng lượng'). TUYỆT ĐỐI KHÔNG DÙNG EMOJI THAY THẾ CHỮ." if dung_emoji else "Không dùng Emoji, chỉ dùng văn bản thuần túy." }
 - Số lượng: {so_luong} câu hỏi/cặp. Tên trò chơi: {game_title}
-- Đồ họa Emoji: {'Có' if dung_emoji else 'Không'}
+- Thể loại & Cơ chế: {loai_tro_choi}. {luat_choi}
 
---- 2. BẮT BUỘC TUÂN THỦ KHUNG CSS (ĐỂ TRÁNH VỠ GIAO DIỆN) ---
-BẠN BẮT BUỘC PHẢI ÁP DỤNG CÁC QUY TẮC CSS SAU VÀO MÃ:
+--- 2. BẮT BUỘC TUÂN THỦ KHUNG CSS CẤU TRÚC (CHỐNG VỠ GIAO DIỆN) ---
+BẠN BẮT BUỘC PHẢI THÊM CÁC QUY TẮC CSS SAU VÀO MÃ:
 - Font chữ: '{font_family}', sans-serif. Màu chủ đạo: {hex_color}
-- Bố cục nền (Body): `margin: 0; padding: 20px; min-height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #f3f4f6; font-family: '{font_family}', sans-serif;`
-- Container Chính (Bắt buộc rộng rãi): `.game-container {{ width: 100%; max-width: 900px; background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; }}`
-- Bố cục Lưới/Nút bấm (Grid chống tràn): Dành cho các đáp án hoặc thẻ bài. `.grid-container {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%; margin-top: 30px; }}`
-- Chống trào chữ (Text Wrapping) cho mọi nút bấm/thẻ bài: `.btn, .card {{ width: 100%; padding: 20px; white-space: normal !important; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.5; font-size: 1.1rem; box-sizing: border-box; }}`
-- Hiệu ứng: Cần có hover đổi màu nhẹ, transform translateY(-2px). Có class `.shake` để rung lắc khi sai.
+- Nền trang (Body): `margin: 0; padding: 20px; min-height: 100vh; display: flex; justify-content: center; align-items: center; background-color: #f3f4f6;`
+- Container Chính: `.game-container {{ width: 100%; max-width: 900px; background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); min-height: 500px; }}`
+- Lưới Grid: `.grid-container {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; padding-top: 20px; }}`
+- Định dạng Thẻ bài/Nút bấm để KHÔNG BỊ TRÀN CHỮ: `.btn, .card {{ width: 100%; min-height: 80px; padding: 15px; font-size: 1.2rem; white-space: normal !important; word-wrap: break-word; line-height: 1.4; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }}`
 
---- 3. KIẾN TRÚC GAME LOOP (Bằng Javascript) ---
-Phải có 3 trạng thái ẩn/hiện (`display: none` / `display: flex`):
-1. `start-screen`: Tiêu đề to, luật chơi, nút Bắt đầu chơi.
-2. `play-screen`: Chứa Progress bar, Câu hỏi hiện tại, lưới Đáp án/Thẻ bài.
-3. `end-screen`: Kết quả điểm số, thông điệp, nút Chơi lại.
+--- 3. CSS & JS RIÊNG CHO GAME LẬT THẺ (Nếu thể loại là Memory Match) ---
+Nếu là game Memory Match, BẮT BUỘC phải dùng cấu trúc lật 3D:
+- HTML cấu trúc thẻ: `<div class="card" onclick="flip(this)"><div class="front">❓</div><div class="back">Nội Dung Chữ</div></div>`
+- CSS lật thẻ: 
+`.card {{ perspective: 1000px; position: relative; transform-style: preserve-3d; transition: transform 0.6s; }}`
+`.card.flipped {{ transform: rotateY(180deg); }}`
+`.front, .back {{ width: 100%; height: 100%; position: absolute; backface-visibility: hidden; display: flex; justify-content: center; align-items: center; padding: 10px; box-sizing: border-box; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}`
+`.front {{ background: {hex_color}; color: white; font-size: 2rem; }}`
+`.back {{ background: white; color: black; transform: rotateY(180deg); font-size: 1.1rem; border: 2px solid {hex_color}; }}`
 
---- 4. TÍCH HỢP TOÁN HỌC ---
-Nhúng script MathJax qua CDN vào thẻ <head>:
-`<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`
-Sử dụng cú pháp `\\( ... \\)`. JS gọi `MathJax.typesetPromise()` khi thay đổi câu hỏi.
+--- 4. KIẾN TRÚC GAME LOOP (Bằng Javascript) ---
+Phải có 3 màn hình ẩn/hiện (`display: none` / `display: block`):
+1. `start-screen`: Tiêu đề, hướng dẫn chơi, nút Bắt đầu.
+2. `play-screen`: Chứa Progress bar, nội dung, lưới tương tác.
+3. `end-screen`: Kết quả điểm số, thông điệp khen ngợi, nút Chơi lại (Reset toàn bộ trạng thái).
 
---- NỘI DUNG GIÁO ÁN GỐC ---
+--- NỘI DUNG GIÁO ÁN GỐC (ĐỂ LẤY DỮ LIỆU) ---
 {noidung_giaosan[:10000]}
 
 TUYỆT ĐỐI CHỈ TRẢ VỀ DUY NHẤT MÃ HTML BỌC TRONG ```html ... ```, KHÔNG GIẢI THÍCH!
 """
             try:
-                # Tự động nhận diện model OpenAI hoặc Gemini tùy theo khóa thầy nhập
+                model_to_use = "gemini-2.5-pro" if "Tư duy Sâu" in che_do_ai else "gemini-2.5-flash"
+                
+                # Gọi API thông qua AIEngine2 (OpenRouter) hoặc AIEngine (Gemini gốc)
                 if AIEngine2 is not None:
-                    engine_v2 = AIEngine2() # Mặc định tự lấy config từ st.secrets hoặc API key sidebar
-                    res = engine_v2.generate_text(prompt, temperature=0.2) # Giảm temperature để code HTML ổn định hơn
+                    engine_v2 = AIEngine2()
+                    # Sử dụng temperature=0.1 để AI giữ sự chính xác tuyệt đối trong code và text
+                    res = engine_v2.generate_text(prompt, temperature=0.1) 
                 elif hasattr(ai_engine, "generate_text"):
-                    res = ai_engine.generate_text(prompt)
+                    res = ai_engine.generate_text(prompt, model_name=model_to_use)
                 else:
                     res = str(ai_engine(prompt))
                 
@@ -193,7 +200,7 @@ TUYỆT ĐỐI CHỈ TRẢ VỀ DUY NHẤT MÃ HTML BỌC TRONG ```html ... ```,
                     else:
                         st.session_state.game_html = res
                     st.session_state.game_name = game_title.replace(" ", "_")
-                    st.success("✅ Hoàn hảo! Giao diện đã được thiết kế lại chuẩn Responsive!")
+                    st.success("✅ Tuyệt vời! Nội dung văn bản và CSS lật thẻ đã được ép khuôn thành công!")
                     st.balloons()
             except Exception as e:
                 st.error(f"❌ Lỗi hệ thống khi sinh mã trò chơi: {e}")
@@ -216,5 +223,5 @@ TUYỆT ĐỐI CHỈ TRẢ VỀ DUY NHẤT MÃ HTML BỌC TRONG ```html ... ```,
                 type="primary"
             )
         
-        # Tăng width lên tối đa và đảm bảo hiển thị đẹp trên mọi màn hình
+        # iframe hiển thị giao diện mượt mà
         components.html(st.session_state.game_html, width=None, height=800, scrolling=True)
