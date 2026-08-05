@@ -173,35 +173,41 @@ KHUNG_NLS_GV = {
 }
 
 KHUNG_NLS_HS = {
-    "1. Sử dụng thông tin và dữ liệu số": {
-        "1.1. Tìm kiếm và chọn lọc": {
-            "Mức 1": "Biết sử dụng công cụ tìm kiếm cơ bản để thu thập thông tin học tập.",
-            "Mức 2": "Biết đánh giá độ tin cậy và nguồn gốc thông tin trên Internet."
-        }
+    "I. Khai thác dữ liệu và thông tin": {
+        "1.1. Duyệt, tìm kiếm và lọc dữ liệu, thông tin và nội dung số": "Xác định được nhu cầu thông tin, tìm kiếm được dữ liệu, thông tin và nội dung trong môi trường số, truy cập chúng và khai thác được kết quả tìm kiếm. Tạo và cập nhật được chiến lược tìm kiếm.",
+        "1.2. Đánh giá dữ liệu, thông tin và nội dung số": "Phân tích, so sánh và đánh giá được độ tin cậy và tính xác thực của nguồn dữ liệu, thông tin và nội dung số. Phân tích, giải thích và đánh giá được dữ liệu, thông tin và nội dung số.",
+        "1.3. Quản lý dữ liệu, thông tin và nội dung số": "Tổ chức, lưu trữ và truy xuất được dữ liệu, thông tin và nội dung trong môi trường số. Tổ chức và sắp xếp được chúng trong một môi trường có cấu trúc."
     },
-    "2. Giao tiếp và hợp tác trực tuyến": {
-        "2.1. Tương tác qua môi trường số": {
-            "Mức 1": "Biết sử dụng email, chat để trao đổi học tập.",
-            "Mức 2": "Biết sử dụng hiệu quả các nền tảng học tập nhóm."
-        }
+    "II. Giao tiếp và hợp tác trong môi trường số": {
+        "2.1. Tương tác thông qua công nghệ số": "Tương tác thông qua các công nghệ số khác nhau và nhận biết được phương tiện giao tiếp số nào phù hợp cho một bối cảnh cụ thể.",
+        "2.2. Chia sẻ thông tin và nội dung thông qua công nghệ số": "Chia sẻ dữ liệu, thông tin và nội dung số với người khác thông qua các công nghệ số phù hợp. Đóng vai trò là người trung gian, hiểu biết về thực hành trích dẫn và ghi chú nguồn.",
+        "2.3. Sử dụng công nghệ số để thực hiện trách nhiệm công dân": "Tham gia đóng góp cho xã hội thông qua việc sử dụng các dịch vụ số công và tư. Tìm kiếm được cơ hội, để trao quyền và thu hút công dân thông qua các công nghệ số phù hợp.",
+        "2.4. Hợp tác thông qua công nghệ số": "Sử dụng được các công cụ và công nghệ số cho các quá trình hợp tác cũng như để cùng xây dựng và đồng sáng tạo dữ liệu, tài nguyên và kiến thức.",
+        "2.5. Thực hiện quy tắc ứng xử trên mạng": "Nhận thức được các chuẩn mực hành vi và kiến thức khi sử dụng công nghệ số và tương tác trong môi trường số. Điều chỉnh được các chiến lược giao tiếp phù hợp với đối tượng cụ thể và nhận thức được sự đa dạng về văn hóa và thế hệ trong môi trường số.",
+        "2.6. Quản lý danh tính số": "Tạo và quản lý được một hoặc nhiều danh tính số để bảo vệ danh tiếng của bản thân, làm việc với dữ liệu mà một người tạo ra bằng nhiều công cụ, môi trường và dịch vụ số."
     },
-    "3. Sáng tạo nội dung số": {
-        "3.1. Phát triển nội dung số": {
-            "Mức 1": "Biết soạn thảo văn bản và trình chiếu cơ bản.",
-            "Mức 2": "Biết thiết kế học liệu số đơn giản phục vụ học tập."
-        }
+    "III. Sáng tạo nội dung số": {
+        "3.1. Phát triển nội dung số": "Tạo và chỉnh sửa được nội dung số ở các định dạng khác nhau, nhằm thể hiện bản thân thông qua các phương tiện số.",
+        "3.2. Tích hợp và tạo lập lại nội dung số": "Sửa đổi, tinh chỉnh và tích hợp được thông tin và nội dung mới vào khối kiến thức và tài nguyên hiện có để tạo ra nội dung và kiến thức mới, độc đáo và phù hợp.",
+        "3.3. Thực thi bản quyền và giấy phép": "Hiểu được cách áp dụng bản quyền và giấy phép cho thông tin và nội dung số.",
+        "3.4. Lập trình": "Lập kế hoạch và phát triển được một chuỗi các câu lệnh dễ hiểu cho một hệ thống máy tính để giải quyết một vấn đề nhất định hoặc thực hiện một nhiệm vụ cụ thể."
     },
-    "4. An toàn trong môi trường số": {
-        "4.1. Bảo vệ thiết bị và dữ liệu cá nhân": {
-            "Mức 1": "Biết đặt mật khẩu mạnh và bảo vệ tài khoản.",
-            "Mức 2": "Biết nhận diện nguy cơ mất an toàn thông tin và lừa đảo trực tuyến."
-        }
+    "IV. An toàn": {
+        "4.1. Bảo vệ thiết bị": "Bảo vệ được các thiết bị và nội dung số cũng như hiểu rõ các rủi ro và mối đe dọa trong môi trường kỹ thuật số. Biết được các biện pháp an toàn và bảo mật cũng như có sự quan tâm đúng mức đến độ tin cậy và quyền riêng tư.",
+        "4.2. Bảo vệ dữ liệu cá nhân và quyền riêng tư": "Bảo vệ được dữ liệu cá nhân và quyền riêng tư trong môi trường số. Hiểu được cách sử dụng và chia sẻ thông tin định danh cá nhân một cách an toàn, có khả năng bảo vệ bản thân và người khác. Hiểu được cách các dịch vụ số sử dụng “Chính sách Quyền riêng tư” để thông báo phương thức sử dụng dữ liệu cá nhân.",
+        "4.3. Bảo vệ sức khỏe và an sinh số": "Tránh được rủi ro và đe dọa đến sức khỏe thể chất và tinh thần khi sử dụng công nghệ số. Bảo vệ được bản thân và người khác khỏi nguy cơ trong môi trường số (ví dụ: bắt nạt trên mạng). Nhận biết được những công nghệ số giúp tăng cường thịnh vượng xã hội và sự hòa hợp trong xã hội.",
+        "4.4. Bảo vệ môi trường": "Nhận thức được tác động của công nghệ số và việc sử dụng công nghệ số đối với môi trường."
     },
-    "5. Giải quyết vấn đề bằng công nghệ số": {
-        "5.1. Sáng tạo giải pháp học tập": {
-            "Mức 1": "Biết sử dụng công cụ số giải quyết nhiệm vụ.",
-            "Mức 2": "Ứng dụng công nghệ giải quyết vấn đề thực tiễn."
-        }
+    "V. Giải quyết vấn đề": {
+        "5.1. Giải quyết các vấn đề kỹ thuật": "Xác định được các vấn đề kỹ thuật khi vận hành thiết bị, sử dụng môi trường số và giải quyết chúng (từ xử lý sự cố đến giải quyết các vấn đề phức tạp hơn).",
+        "5.2. Xác định nhu cầu và giải pháp công nghệ": "Đánh giá được nhu cầu và xác định, đánh giá, lựa chọn, sử dụng các công cụ số cùng với các giải pháp công nghệ khả thi để giải quyết chúng. Điều chỉnh và tùy chỉnh được môi trường số theo nhu cầu cá nhân.",
+        "5.3. Sử dụng sáng tạo công nghệ số": "Sử dụng được các công cụ và công nghệ số để tạo ra kiến thức, đổi mới quy trình và sản phẩm. Gắn kết cá nhân và tập thể vào quá trình xử lý nhận thức để hiểu và giải quyết các vấn đề mang tính khái niệm và các tình huống có vấn đề trong môi trường số.",
+        "5.4. Xác định các vấn đề cần cải thiện về năng lực số": "Hiểu được năng lực số của chính mình cần được cải thiện hoặc cập nhật ở đâu. Có thể hỗ trợ người khác phát triển năng lực số của họ. Tìm kiếm được cơ hội phát triển bản thân và cập nhật sự phát triển công nghệ số."
+    },
+    "VI. Ứng dụng trí tuệ nhân tạo": {
+        "6.1. Hiểu biết về AI (trong đó có Gen AI)": "Hiểu được cách AI ảnh hưởng đến cuộc sống hằng ngày và vai trò của AI trong các lĩnh vực khác nhau. Nắm vững được nguyên tắc hoạt động của AI, khả năng và hạn chế của AI.",
+        "6.2. Sử dụng AI có đạo đức và trách nhiệm": "Sử dụng hiệu quả các hệ thống AI và hiểu rõ ứng dụng thực tế của chúng. Sử dụng được AI để tạo nội dung, khám phá kiến thức và giải quyết các vấn đề trong công việc, học tập và cuộc sống hàng ngày.",
+        "6.3. Đánh giá các công cụ AI": "Đánh giá và lọc được thông tin từ các nguồn được tạo ra hoặc xử lý bằng AI, để hiểu rõ hơn về tính đáng tin cậy và cách sử dụng thông tin đó. Đánh giá được AI trên các khía cạnh minh bạch, an toàn, đạo đức và tác động."
     }
 }
 
