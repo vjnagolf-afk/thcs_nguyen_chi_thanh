@@ -10,9 +10,9 @@ dựa trên thiết lập Giao diện, Màu sắc, Font chữ của giáo viên.
 
 import io
 import re
-import base64
 import logging
 import streamlit as st
+import streamlit.components.v1 as components
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
         st.session_state.game_name = "AI_Edu_Game"
 
     st.markdown("### 🎮 Trợ lý Thiết kế Game Học tập bằng AI")
-    st.caption("AI tự động phân tích giáo án và lập trình ra một mini-game tương tác hoàn chỉnh (chơi trực tiếp trên tab mới hoặc tải về HTML).")
+    st.caption("AI tự động phân tích giáo án và lập trình ra một mini-game tương tác hoàn chỉnh.")
 
     with st.container(border=True):
         # 1. Tải lên giáo án
@@ -195,33 +195,19 @@ Nhiệm vụ: Đọc giáo án dưới đây và LẬP TRÌNH ra một Mini-Game
                 st.error(f"❌ Lỗi khi sinh code: {e}")
 
     # ========================================================
-    # HIỂN THỊ KẾT QUẢ VÀ NÚT TRẢI NGHIỆM AN TOÀN
+    # HIỂN THỊ KẾT QUẢ GỐC BẰNG COMPONENTS.HTML
     # ========================================================
     if st.session_state.game_html:
         st.markdown("---")
-        st.markdown("### 🕹️ TRÒ CHƠI ĐÃ SẴN SÀNG")
+        st.markdown("### 🕹️ TRẢI NGHIỆM TRÒ CHƠI TRỰC TIẾP")
         
-        st.info("🎉 Hệ thống đã tạo xong Game! Thầy/Cô có thể bấm vào nút màu xanh bên dưới để chơi trực tiếp trên Tab mới hoặc tải file về máy.")
-        
-        try:
-            b64_html = base64.b64encode(st.session_state.game_html.encode('utf-8')).decode('utf-8')
-            btn_play_html = f"""
-            <a href="data:text/html;base64,{b64_html}" target="_blank" style="display: block; text-align: center; background-color: #10B981; color: white; padding: 14px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                🎮 BẤM VÀO ĐÂY ĐỂ CHƠI NGAY TRÊN TAB MỚI
-            </a>
-            """
-            st.markdown(btn_play_html, unsafe_allow_html=True)
-        except Exception:
-            pass
+        components.html(st.session_state.game_html, height=750, scrolling=True)
 
         st.download_button(
-            label="💾 TẢI XUỐNG FILE GAME (.HTML)",
+            label="💾 TẢI XUỐNG FILE TRÒ CHƠI (.HTML)",
             data=st.session_state.game_html,
             file_name=f"Game_{st.session_state.game_name}.html",
             mime="text/html",
             use_container_width=True,
             type="primary"
         )
-        
-        with st.expander("🔍 Xem trước mã nguồn HTML"):
-            st.code(st.session_state.game_html, language="html")
