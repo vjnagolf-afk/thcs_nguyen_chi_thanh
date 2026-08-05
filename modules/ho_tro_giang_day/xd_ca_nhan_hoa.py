@@ -133,7 +133,7 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
         with st.spinner("⏳ AI đang đọc giáo án và lập trình giao diện (HTML/CSS/JS). Quá trình này có thể mất ít phút..."):
             noidung_giaosan = extract_text_from_file(uploaded_file)
             
-            # Xử lý tham số
+            # Xử lý tham số màu sắc và giao diện
             model_to_use = "gemini-2.5-pro" if "Chất lượng cao" in che_do_ai else "gemini-2.5-flash"
             mau_css = {"Xanh dương": "#3B82F6", "Xanh ngọc": "#14B8A6", "Tím violet": "#8B5CF6", "Hồng rose": "#F43F5E", "Vàng hổ phách": "#F59E0B"}
             font_css = mau_chu_dao.split(" (")[0]
@@ -141,12 +141,28 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
             font_family = font_chu.split(" (")[0]
             game_title = ten_game if ten_game.strip() else "Trò chơi Học tập"
 
+            # TẠO LUẬT CHƠI ĐỂ ÉP KHUNG CHO AI
+            luat_choi = ""
+            if "Trắc nghiệm" in loai_tro_choi:
+                luat_choi = "Giao diện phải hiển thị câu hỏi và 4 đáp án lựa chọn (A,B,C,D). Người chơi click để chọn và tính điểm."
+            elif "Nối cặp" in loai_tro_choi:
+                luat_choi = "TẠO GAME NỐI CỘT TRÁI VÀ CỘT PHẢI. Phải chia 2 cột danh sách hiển thị cùng lúc trên màn hình. Người chơi click chọn 1 mục bên trái và 1 mục tương ứng bên phải để nối chúng lại với nhau. TUYỆT ĐỐI KHÔNG LÀM DẠNG LẬT THẺ BÀI ÚP."
+            elif "Điền từ" in loai_tro_choi:
+                luat_choi = "Hiển thị câu hỏi bị khuyết từ (có ô trống). Cung cấp các từ khóa gợi ý để người chơi kéo thả (drag-drop) hoặc click điền vào ô trống."
+            elif "Đúng / Sai" in loai_tro_choi:
+                luat_choi = "Lần lượt hiển thị các câu nhận định. Có 2 nút ĐÚNG (True) hoặc SAI (False) để người chơi chọn lựa."
+            elif "Lật hình" in loai_tro_choi:
+                luat_choi = "TẠO GAME LẬT THẺ BÀI ÚP (Memory Match). Giao diện là một lưới các thẻ bài úp xuống. Người chơi lật từng cặp 2 thẻ để tìm 2 thẻ có nội dung liên quan (Khái niệm - Định nghĩa)."
+            else:
+                luat_choi = "Tự động phân tích nội dung để chọn hình thức game (Trắc nghiệm, nối cột trái/phải, hoặc lật thẻ úp) sao cho phù hợp nhất với dữ liệu."
+
             prompt = f"""
 BẠN LÀ MỘT LẬP TRÌNH VIÊN FRONT-END VÀ CHUYÊN GIA GIÁO DỤC (EDTECH EXPERT).
 Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra một Mini-Game Web hoàn chỉnh bằng duy nhất 1 file HTML (chứa sẵn CSS và Javascript bên trong).
 
 --- DỮ LIỆU ĐẦU VÀO ---
-- Thể loại game: {loai_tro_choi}
+- Thể loại game yêu cầu: {loai_tro_choi}
+- CƠ CHẾ HOẠT ĐỘNG BẮT BUỘC: {luat_choi}
 - Số lượng câu hỏi/mục: {so_luong}
 - Tên game: {game_title}
 - Màu chủ đạo (Primary Color): {hex_color}
@@ -156,50 +172,9 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
 - Nội dung giáo án: {noidung_giaosan[:10000]}
 
 --- YÊU CẦU LẬP TRÌNH (BẮT BUỘC) ---
-1. Phân tích giáo án để tự động trích xuất các câu hỏi, cặp từ, hoặc khái niệm phù hợp nhất với thể loại game được yêu cầu.
+1. Phân tích giáo án để tự động trích xuất các câu hỏi, cặp từ, hoặc khái niệm phù hợp nhất.
 2. Viết mã HTML5, CSS3, ES6 Javascript gộp chung vào 1 khối duy nhất.
 3. Giao diện (UI) phải sử dụng CSS Flexbox/Grid, đẹp mắt, có hiệu ứng hover, transition mượt mà, sử dụng màu {hex_color} làm nút bấm.
 4. Tích hợp font chữ `{font_family}` qua Google Fonts.
 5. Code Game phải tự hoạt động 100% (Tính điểm, qua câu, thông báo kết quả) mà không cần backend.
-6. TUYỆT ĐỐI CHỈ TRẢ VỀ MÃ HTML ĐƯỢC BỌC TRONG KHUNG ```html ... ```. Không giải thích gì thêm ngoài code.
-"""
-            try:
-                engine_v2 = AIEngine2(default_model=model_to_use)
-                res = engine_v2.generate_text(prompt, temperature=0.7)
-                
-                if res.startswith("❌"):
-                    st.error(res)
-                else:
-                    # Dùng Regex để trích xuất đúng phần code HTML
-                    match = re.search(r'```html(.*?)```', res, re.DOTALL)
-                    if match:
-                        st.session_state.game_html = match.group(1).strip()
-                    else:
-                        st.session_state.game_html = res # Fallback nếu AI không dùng markdown đúng chuẩn
-                    st.session_state.game_name = game_title.replace(" ", "_")
-                    st.success("✅ AI đã lập trình game thành công!")
-            except Exception as e:
-                st.error(f"❌ Lỗi khi sinh code: {e}")
-
-    # ========================================================
-    # HIỂN THỊ GAME ĐÃ LẬP TRÌNH VÀ NÚT TẢI XUỐNG
-    # ========================================================
-    if st.session_state.game_html:
-        st.markdown("---")
-        st.markdown("### 🕹️ TRẢI NGHIỆM TRÒ CHƠI")
-        
-        # NHÚNG GAME TRỰC TIẾP VÀO STREAMLIT (PLAYABLE)
-        with st.container(border=True):
-            components.html(st.session_state.game_html, height=600, scrolling=True)
-
-        st.markdown("### 📥 Lưu trữ Trò chơi")
-        st.info("Thầy/Cô có thể tải file HTML này về, gửi trực tiếp qua Zalo cho học sinh chơi (mở bằng trình duyệt), hoặc nhúng lên các trang web của trường.")
-        
-        st.download_button(
-            label="💾 TẢI XUỐNG GAME (.HTML)",
-            data=st.session_state.game_html,
-            file_name=f"Game_{st.session_state.game_name}.html",
-            mime="text/html",
-            use_container_width=True,
-            type="primary"
-        )
+6. TU
