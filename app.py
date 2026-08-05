@@ -201,10 +201,10 @@ if menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     st.markdown("## 👨‍🏫 Phân hệ: Hỗ trợ Giáo viên")
     
     tab_titles_gv = [
-        "1. KHBD", "2. Đề kiểm tra", "3. Ma trận từ đề", 
-        "4. Chấm bài", "5. Chủ nhiệm", "6. Chuyển đổi học liệu", 
-        "7. Live", "8. Mô phỏng", "9. Quizizz", 
-        "10. Rubric", "11. STEM", "12. Tạo Prompt"
+        "XD KHBD", "Đề kiểm tra", "Tạo Ma trận từ đề", 
+        "Chấm bài", "Chủ nhiệm", "Chuyển đổi học liệu", 
+        "Live", "Mô phỏng", "Quizizz", 
+        "Rubric", "STEM", "Prompt đa năng"
     ]
     tabs_gv = st.tabs(tab_titles_gv)
     
