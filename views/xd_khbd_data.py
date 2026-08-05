@@ -194,7 +194,7 @@ KHUNG_NLS_HS = {
     },
     "IV. An toàn": {
         "4.1. Bảo vệ thiết bị": "Bảo vệ được các thiết bị và nội dung số cũng như hiểu rõ các rủi ro và mối đe dọa trong môi trường kỹ thuật số. Biết được các biện pháp an toàn và bảo mật cũng như có sự quan tâm đúng mức đến độ tin cậy và quyền riêng tư.",
-        "4.2. Bảo vệ dữ liệu cá nhân và quyền riêng tư": "Bảo vệ được dữ liệu cá nhân và quyền riêng tư trong môi trường số. Hiểu được cách sử dụng và chia sẻ thông tin định danh cá nhân một cách an toàn, có khả năng bảo vệ bản thân và người khác. Hiểu được cách các dịch vụ số sử dụng “Chính sách Quyền riêng tư” để thông báo phương thức sử dụng dữ liệu cá nhân.",
+        "4.2. Bảo vệ dữ liệu cá nhân và quyền riêng tư": "Bảo vệ được dữ liệu cá nhân và quyền riêng tư trong môi trường số. Hiểu được cách sử dụng và chia sẻ thông tin định danh cá nhân một cách an toàn, có khả năng bảo vệ bản thân và người khác. Hiểu được cách các dịch vụ số sử dụng “Chính sách Quyền riêng tư để thông báo phương thức sử dụng dữ liệu cá nhân.",
         "4.3. Bảo vệ sức khỏe và an sinh số": "Tránh được rủi ro và đe dọa đến sức khỏe thể chất và tinh thần khi sử dụng công nghệ số. Bảo vệ được bản thân và người khác khỏi nguy cơ trong môi trường số (ví dụ: bắt nạt trên mạng). Nhận biết được những công nghệ số giúp tăng cường thịnh vượng xã hội và sự hòa hợp trong xã hội.",
         "4.4. Bảo vệ môi trường": "Nhận thức được tác động của công nghệ số và việc sử dụng công nghệ số đối với môi trường."
     },
@@ -202,7 +202,7 @@ KHUNG_NLS_HS = {
         "5.1. Giải quyết các vấn đề kỹ thuật": "Xác định được các vấn đề kỹ thuật khi vận hành thiết bị, sử dụng môi trường số và giải quyết chúng (từ xử lý sự cố đến giải quyết các vấn đề phức tạp hơn).",
         "5.2. Xác định nhu cầu và giải pháp công nghệ": "Đánh giá được nhu cầu và xác định, đánh giá, lựa chọn, sử dụng các công cụ số cùng với các giải pháp công nghệ khả thi để giải quyết chúng. Điều chỉnh và tùy chỉnh được môi trường số theo nhu cầu cá nhân.",
         "5.3. Sử dụng sáng tạo công nghệ số": "Sử dụng được các công cụ và công nghệ số để tạo ra kiến thức, đổi mới quy trình và sản phẩm. Gắn kết cá nhân và tập thể vào quá trình xử lý nhận thức để hiểu và giải quyết các vấn đề mang tính khái niệm và các tình huống có vấn đề trong môi trường số.",
-        "5.4. Xác định các vấn đề cần cải thiện về năng lực số": "Hiểu được năng lực số của chính mình cần được cải thiện hoặc cập nhật ở đâu. Có thể hỗ trợ người khác phát triển năng lực số của họ. Tìm kiếm được cơ hội phát triển bản thân và cập nhật sự phát triển công nghệ số."
+        "5.4. Xác định các vấn đề cần cải thiện về năng lực số": "Hiểu được năng lực số của chính mình cần được cải thiện hoặc cập nhật ở đâu. Có thể hỗ trợ người khác phát triển năng lực số của họ. Tìm kiếm được cơ hội phát triển bản thân và cập nhật sự phát triển số."
     },
     "VI. Ứng dụng trí tuệ nhân tạo": {
         "6.1. Hiểu biết về AI (trong đó có Gen AI)": "Hiểu được cách AI ảnh hưởng đến cuộc sống hằng ngày và vai trò của AI trong các lĩnh vực khác nhau. Nắm vững được nguyên tắc hoạt động của AI, khả năng và hạn chế của AI.",
@@ -210,6 +210,7 @@ KHUNG_NLS_HS = {
         "6.3. Đánh giá các công cụ AI": "Đánh giá và lọc được thông tin từ các nguồn được tạo ra hoặc xử lý bằng AI, để hiểu rõ hơn về tính đáng tin cậy và cách sử dụng thông tin đó. Đánh giá được AI trên các khía cạnh minh bạch, an toàn, đạo đức và tác động."
     }
 }
+
 def get_nls_framework(loai_khung): 
     return KHUNG_NLS_GV if loai_khung == "Giáo viên (Thông tư 18)" else KHUNG_NLS_HS
 
@@ -219,11 +220,27 @@ def get_nls_domains(loai_khung):
 def get_nls_components(loai_khung, linh_vuc): 
     return list(get_nls_framework(loai_khung).get(linh_vuc, {}).keys())
 
-def get_nls_levels(loai_khung, linh_vuc, thanh_phan): 
-    return list(get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).keys())
+def get_nls_levels(loai_khung, linh_vuc, thanh_phan):
+    try:
+        data_thanh_phan = get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {})
+        if isinstance(data_thanh_phan, str):
+            return ["Chuẩn TT 02/2025"]
+        if isinstance(data_thanh_phan, dict):
+            return list(data_thanh_phan.keys())
+        return []
+    except Exception:
+        return []
 
-def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do): 
-    return get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {}).get(muc_do, "")
+def get_nls_content(loai_khung, linh_vuc, thanh_phan, muc_do):
+    try:
+        data_thanh_phan = get_nls_framework(loai_khung).get(linh_vuc, {}).get(thanh_phan, {})
+        if isinstance(data_thanh_phan, str):
+            return data_thanh_phan
+        if isinstance(data_thanh_phan, dict):
+            return data_thanh_phan.get(muc_do, "")
+        return ""
+    except Exception:
+        return ""
 
 def add_nls():
     linh_vuc = safe_text(st.session_state.get("khbd_nls_linh_vuc", ""))
