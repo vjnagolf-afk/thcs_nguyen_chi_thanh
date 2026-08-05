@@ -130,10 +130,9 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
             st.error("❌ Chưa kết nối được AI Engine.")
             return
 
-        with st.spinner("⏳ AI đang đọc giáo án và lập trình giao diện (HTML/CSS/JS). Quá trình này có thể mất ít phút..."):
+        with st.spinner("⏳ AI đang đọc giáo án và lập trình giao diện (HTML/CSS/JS)..."):
             noidung_giaosan = extract_text_from_file(uploaded_file)
             
-            # Xử lý tham số màu sắc và giao diện
             model_to_use = "gemini-2.5-pro" if "Chất lượng cao" in che_do_ai else "gemini-2.5-flash"
             mau_css = {"Xanh dương": "#3B82F6", "Xanh ngọc": "#14B8A6", "Tím violet": "#8B5CF6", "Hồng rose": "#F43F5E", "Vàng hổ phách": "#F59E0B"}
             font_css = mau_chu_dao.split(" (")[0]
@@ -141,48 +140,40 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
             font_family = font_chu.split(" (")[0]
             game_title = ten_game if ten_game.strip() else "Trò chơi Học tập"
 
-            # TẠO LUẬT CHƠI ĐỂ ÉP KHUNG CHO AI
             luat_choi = ""
             if "Trắc nghiệm" in loai_tro_choi:
-                luat_choi = "Giao diện phải hiển thị câu hỏi và 4 đáp án lựa chọn (A,B,C,D). Người chơi click để chọn và tính điểm."
+                luat_choi = "Giao diện phải hiển thị câu hỏi và 4 đáp án lựa chọn (A,B,C,D)."
             elif "Nối cặp" in loai_tro_choi:
-                luat_choi = "TẠO GAME NỐI CỘT TRÁI VÀ CỘT PHẢI. Phải chia 2 cột danh sách hiển thị cùng lúc trên màn hình. Người chơi click chọn 1 mục bên trái và 1 mục tương ứng bên phải để nối chúng lại với nhau. TUYỆT ĐỐI KHÔNG LÀM DẠNG LẬT THẺ BÀI ÚP."
+                luat_choi = "TẠO GAME NỐI CỘT TRÁI VÀ CỘT PHẢI. Phải chia 2 cột danh sách hiển thị cùng lúc trên màn hình, click chọn nối với nhau. TUYỆT ĐỐI KHÔNG LẬP TRÌNH DẠNG LẬT THẺ BÀI ÚP."
             elif "Điền từ" in loai_tro_choi:
-                luat_choi = "Hiển thị câu hỏi bị khuyết từ (có ô trống). Cung cấp các từ khóa gợi ý để người chơi kéo thả (drag-drop) hoặc click điền vào ô trống."
+                luat_choi = "Hiển thị câu hỏi bị khuyết từ (có ô trống) và từ khóa gợi ý để điền vào."
             elif "Đúng / Sai" in loai_tro_choi:
-                luat_choi = "Lần lượt hiển thị các câu nhận định. Có 2 nút ĐÚNG (True) hoặc SAI (False) để người chơi chọn lựa."
+                luat_choi = "Lần lượt hiển thị các câu nhận định kèm 2 nút ĐÚNG hoặc SAI."
             elif "Lật hình" in loai_tro_choi:
-                luat_choi = "TẠO GAME LẬT THẺ BÀI ÚP (Memory Match). Giao diện là một lưới các thẻ bài úp xuống. Người chơi lật từng cặp 2 thẻ để tìm 2 thẻ có nội dung liên quan (Khái niệm - Định nghĩa)."
+                luat_choi = "TẠO GAME LẬT THẺ BÀI ÚP (Memory Match) dạng lưới thẻ bài úp."
             else:
-                luat_choi = "Tự động phân tích nội dung để chọn hình thức game (Trắc nghiệm, nối cột trái/phải, hoặc lật thẻ úp) sao cho phù hợp nhất với dữ liệu."
+                luat_choi = "Tự động chọn hình thức game phù hợp nhất với dữ liệu."
 
             prompt = f"""
-BẠN LÀ MỘT LẬP TRÌNH VIÊN FRONT-END VÀ CHUYÊN GIA GIÁO DỤC (EDTECH EXPERT).
-Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra một Mini-Game Web hoàn chỉnh bằng duy nhất 1 file HTML (chứa sẵn CSS và Javascript bên trong).
+BẠN LÀ MỘT LẬP TRÌNH VIÊN FRONT-END VÀ CHUYÊN GIA GIÁO DỤC.
+Nhiệm vụ: Đọc giáo án dưới đây và LẬP TRÌNH ra một Mini-Game Web hoàn chỉnh bằng duy nhất 1 file HTML (chứa sẵn CSS và Javascript).
 
---- DỮ LIỆU ĐẦU VÀO ---
-- Thể loại game yêu cầu: {loai_tro_choi}
-- CƠ CHẾ HOẠT ĐỘNG BẮT BUỘC: {luat_choi}
-- Số lượng câu hỏi/mục: {so_luong}
+--- THÔNG TIN ---
+- Thể loại: {loai_tro_choi}
+- Cơ chế: {luat_choi}
+- Số lượng: {so_luong}
 - Tên game: {game_title}
-- Màu chủ đạo (Primary Color): {hex_color}
+- Màu chủ đạo: {hex_color}
 - Font chữ: {font_family}
-- Sử dụng Emoji thay cho hình ảnh: {'Có' if dung_emoji else 'Không'}
-- Yêu cầu đặc biệt: {yeu_cau if yeu_cau.strip() else 'Thiết kế giao diện hiện đại, nút bấm bo tròn, có hiệu ứng khi trả lời đúng/sai và màn hình kết thúc.'}
-- Nội dung giáo án: {noidung_giaosan[:10000]}
+- Emoji: {'Có' if dung_emoji else 'Không'}
+- Yêu cầu thêm: {yeu_cau if yeu_cau.strip() else 'Giao diện hiện đại, bo tròn, có hiệu ứng.'}
+- Nội dung: {noidung_giaosan[:8000]}
 
---- YÊU CẦU LẬP TRÌNH (BẮT BUỘC) ---
-1. Phân tích giáo án để tự động trích xuất các câu hỏi, cặp từ, hoặc khái niệm phù hợp nhất.
-2. Viết mã HTML5, CSS3, ES6 Javascript gộp chung vào 1 khối duy nhất.
-3. Giao diện (UI): Sử dụng CSS Flexbox/Grid đẹp mắt. 
-   👉 ĐẶC BIỆT LƯU Ý CSS BẮT BUỘC: Phải cấu hình CSS `overflow-y: auto;` hoặc `overflow: auto;` cho thẻ <body> và Container chính chứa trò chơi. TUYỆT ĐỐI KHÔNG dùng `overflow: hidden;`. Đảm bảo thanh cuộn (scrollbar) luôn xuất hiện khi số lượng câu hỏi nhiều để người chơi có thể cuộn xuống xem hết nội dung mà không bị cắt xén.
-4. Tích hợp font chữ `{font_family}` qua Google Fonts.
-5. Code Game phải tự hoạt động 100% (Tính điểm, qua câu, thông báo kết quả) mà không cần backend.
-6. 🧮 XỬ LÝ CÔNG THỨC TOÁN/LÝ/HÓA (QUAN TRỌNG): 
-   - BẮT BUỘC nhúng CDN thư viện MathJax v3 vào thẻ <head>: `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>`.
-   - Mọi công thức Toán/Lý/Hóa phải dùng định dạng chuẩn LaTeX, bọc trong `\\( ... \\)` (để hiển thị cùng dòng) hoặc `\\[ ... \\]` (để hiển thị thành khối). KHÔNG dùng ký tự text thường (như √, x^2).
-   - BẮT BUỘC: Vì game dùng Javascript thay đổi nội dung câu hỏi/đáp án liên tục (Dynamic DOM), bạn PHẢI thêm dòng lệnh `MathJax.typesetPromise()` vào Javascript ngay sau mỗi lần cập nhật HTML để công thức luôn được render lại chuẩn xác.
-7. TUYỆT ĐỐI CHỈ TRẢ VỀ MÃ HTML ĐƯỢC BỌC TRONG KHUNG ```html ... ```. Không giải thích gì thêm ngoài code.
+--- YÊU CẦU LẬP TRÌNH ---
+1. Viết mã HTML5, CSS3, JS gộp chung vào 1 khối duy nhất.
+2. Giao diện đẹp, dùng màu {hex_color}, có thanh cuộn dọc (`overflow-y: auto`) để không bị che khuất nội dung khi có nhiều câu hỏi.
+3. Nhúng thư viện MathJax qua CDN: `<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>` để hiển thị công thức toán học. Dùng định dạng `\\( ... \\)` cho công thức. Gọi `MathJax.typesetPromise()` sau khi thay đổi nội dung câu hỏi.
+4. TUYỆT ĐỐI CHỈ TRẢ VỀ MÃ HTML ĐƯỢC BỌC TRONG KHUNG ```html ... ```. Không giải thích gì thêm.
 """
             try:
                 engine_v2 = AIEngine2(default_model=model_to_use)
@@ -191,12 +182,14 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
                 if res.startswith("❌"):
                     st.error(res)
                 else:
-                    # Bổ sung cờ re.IGNORECASE để bắt cả ```HTML nếu AI viết hoa
                     match = re.search(r'```html(.*?)```', res, re.DOTALL | re.IGNORECASE)
                     if match:
-                        st.session_state.game_html = match.group(1).strip()
+                        code_html = match.group(1).strip()
+                        # Làm sạch các dấu backtick hoặc định dạng thừa gây lỗi cú pháp chuỗi Python trong Streamlit
+                        code_html = code_html.replace("\\`", "`")
+                        st.session_state.game_html = code_html
                     else:
-                        st.session_state.game_html = res # Fallback nếu AI không dùng markdown đúng chuẩn
+                        st.session_state.game_html = res
                     st.session_state.game_name = game_title.replace(" ", "_")
                     st.success("✅ AI đã lập trình game thành công!")
             except Exception as e:
@@ -209,12 +202,11 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
         st.markdown("---")
         st.markdown("### 🕹️ TRẢI NGHIỆM TRÒ CHƠI")
         
-        # NHÚNG GAME TRỰC TIẾP VÀO STREAMLIT (PLAYABLE)
         with st.container(border=True):
             components.html(st.session_state.game_html, height=750, scrolling=True)
 
         st.markdown("### 📥 Lưu trữ Trò chơi")
-        st.info("Thầy/Cô có thể tải file HTML này về, gửi trực tiếp qua Zalo cho học sinh chơi (mở bằng trình duyệt), hoặc nhúng lên các trang web của trường.")
+        st.info("Thầy/Cô có thể tải file HTML này về để gửi cho học sinh hoặc nhúng vào bài giảng điện tử.")
         
         st.download_button(
             label="💾 TẢI XUỐNG GAME (.HTML)",
