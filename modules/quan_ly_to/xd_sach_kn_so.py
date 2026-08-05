@@ -98,7 +98,7 @@ def render_sach_kn_so():
         with st.expander("➕ Dành cho Quản trị viên: Thêm bài giảng Video mới", expanded=False):
             with st.form(f"form_nhung_video_{cm}", clear_on_submit=True):
                 st.caption("Dán đường link YouTube của bài giảng vào đây để đưa lên hệ thống.")
-                link_moi = st.text_input("🔗 Nhập link YouTube (Ví dụ: https://www.youtube.com/watch?v=...):")
+                link_moi = st.text_input("https://youtu.be/eKprZGSi3ro")
                 
                 submitted = st.form_submit_button("Lưu Video", type="primary")
                 if submitted:
