@@ -90,7 +90,7 @@ def render_xd_ca_nhan_hoa(ai_engine_cu=None):
         col_sl, col_ten = st.columns([1, 2])
         with col_sl:
             st.markdown("#### 4️⃣ Số lượng câu hỏi")
-            so_luong = st.number_input("Số lượng", min_value=3, max_value=20, value=5, label_visibility="collapsed")
+            so_luong = st.number_input("Số lượng", min_value=3, max_value=40, value=5, label_visibility="collapsed")
         with col_ten:
             st.markdown("#### 5️⃣ Tên trò chơi (Tùy chọn)")
             ten_game = st.text_input("Nhập tên", placeholder="VD: Thử tài Lịch Sử...", label_visibility="collapsed")
@@ -174,7 +174,8 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
 --- YÊU CẦU LẬP TRÌNH (BẮT BUỘC) ---
 1. Phân tích giáo án để tự động trích xuất các câu hỏi, cặp từ, hoặc khái niệm phù hợp nhất.
 2. Viết mã HTML5, CSS3, ES6 Javascript gộp chung vào 1 khối duy nhất.
-3. Giao diện (UI) phải sử dụng CSS Flexbox/Grid, đẹp mắt, có hiệu ứng hover, transition mượt mà, sử dụng màu {hex_color} làm nút bấm.
+3. Giao diện (UI): Sử dụng CSS Flexbox/Grid đẹp mắt. 
+   👉 ĐẶC BIỆT LƯU Ý CSS BẮT BUỘC: Phải cấu hình CSS `overflow-y: auto;` hoặc `overflow: auto;` cho thẻ <body> và Container chính chứa trò chơi. TUYỆT ĐỐI KHÔNG dùng `overflow: hidden;`. Đảm bảo thanh cuộn (scrollbar) luôn xuất hiện khi số lượng câu hỏi nhiều để người chơi có thể cuộn xuống xem hết nội dung mà không bị cắt xén.
 4. Tích hợp font chữ `{font_family}` qua Google Fonts.
 5. Code Game phải tự hoạt động 100% (Tính điểm, qua câu, thông báo kết quả) mà không cần backend.
 6. 🧮 XỬ LÝ CÔNG THỨC TOÁN/LÝ/HÓA (QUAN TRỌNG): 
@@ -210,7 +211,7 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
         
         # NHÚNG GAME TRỰC TIẾP VÀO STREAMLIT (PLAYABLE)
         with st.container(border=True):
-            components.html(st.session_state.game_html, height=600, scrolling=True)
+            components.html(st.session_state.game_html, height=750, scrolling=True)
 
         st.markdown("### 📥 Lưu trữ Trò chơi")
         st.info("Thầy/Cô có thể tải file HTML này về, gửi trực tiếp qua Zalo cho học sinh chơi (mở bằng trình duyệt), hoặc nhúng lên các trang web của trường.")
