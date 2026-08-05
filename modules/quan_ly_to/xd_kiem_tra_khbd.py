@@ -4,7 +4,8 @@ r"""
 MODULE: modules/quan_ly_to/kiem_tra_khbd.py
 Nhiệm vụ: Kiểm tra, phê duyệt Kế hoạch bài dạy (Giáo án).
 Chức năng: Đọc file PDF/Word, quét lỗi đa chiều theo CV 5512, 
-hỗ trợ chat thông minh tương tác và báo cáo thẩm định toàn diện.
+kiểm tra Năng lực số theo Thông tư 02/2025/BGDĐT, phát hiện mâu thuẫn
+và hỗ trợ chat thẩm định toàn diện.
 ============================================================
 """
 
@@ -15,7 +16,7 @@ import docx
 
 def render_kiem_tra_khbd(ai_engine=None):
     st.markdown("### 🔎 Kiểm tra, phê duyệt Kế hoạch bài dạy (Giáo án)")
-    st.caption("AI đọc trực tiếp file KHBD tải lên (hỗ trợ PDF và Word), rà soát lỗi đa chiều và trích dẫn minh chứng thực tế từ văn bản.")
+    st.caption("AI đọc trực tiếp file KHBD tải lên, rà soát lỗi đa chiều, kiểm tra Năng lực số (TT 02/2025/BGDĐT) và phát hiện mâu thuẫn logic.")
 
     # --- KHỞI TẠO BỘ NHỚ TẠM ---
     if "chat_history_khbd" not in st.session_state:
@@ -79,13 +80,13 @@ def render_kiem_tra_khbd(ai_engine=None):
             st.markdown("**Tải file giáo án lên đây:**")
             file_khbd = st.file_uploader("Hỗ trợ định dạng PDF và Word (.docx)", type=["pdf", "docx"], label_visibility="collapsed")
             
-            if st.button("🚀 Quét & Phân tích (Thực tế)", type="primary", use_container_width=True):
+            if st.button("🚀 Quét & Phân tích Chuyên Sâu", type="primary", use_container_width=True):
                 if file_khbd:
                     valid_mime = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
                     if file_khbd.type not in valid_mime and not file_khbd.name.endswith(('.pdf', '.docx')):
                         st.error("⚠️ Định dạng file không hợp lệ! Hệ thống chỉ chấp nhận file PDF hoặc DOCX chuẩn.")
                     else:
-                        with st.spinner("AI đang đọc file, trích xuất dữ liệu và lập bảng phân tích..."):
+                        with st.spinner("AI đang đọc file, quét thuật ngữ, rà soát Năng lực số và mâu thuẫn logic..."):
                             try:
                                 st.session_state.chat_history_khbd = []
                                 st.session_state.ai_analysis_report = ""
@@ -117,18 +118,26 @@ def render_kiem_tra_khbd(ai_engine=None):
                                 noidung = re.sub(r'\s+', ' ', noidung).strip()
                                 st.session_state.noidung_khbd = noidung
                                 
+                                # PROMPT ĐƯỢC NÂNG CẤP CHUYÊN SÂU ĐỂ KIỂM TRA NĂNG LỰC SỐ & MÂU THUẪN
                                 prompt_scan = f"""
-                                Bạn là chuyên gia thẩm định Kế hoạch bài dạy (KHBD) theo Công văn 5512. Hãy phân tích KHBD dưới đây và lập Báo cáo chi tiết theo 2 phần:
+                                Bạn là Tổ trưởng chuyên môn dày dặn kinh nghiệm, nắm rất vững Công văn 5512 và Thông tư 02/2025/BGDĐT về chuẩn Năng lực số cho học sinh phổ thông. Hãy phân tích KHBD dưới đây một cách cực kỳ khắt khe và lập Báo cáo chi tiết theo 3 phần rõ ràng:
 
-                                PHẦN 1: CẢNH BÁO LỖI & MÂU THUẪN (Kèm trích dẫn)
-                                Chỉ ra các lỗi có thật trong văn bản theo 3 nhóm. BẮT BUỘC phải trích dẫn nguyên văn đoạn sai và chỉ rõ vị trí. Nếu không có lỗi, ghi "Không phát hiện lỗi".
-                                - 🔤 Lỗi chính tả & Câu từ: Bỏ qua các lỗi do dính chữ khoảng trắng ngẫu nhiên, chỉ báo lỗi khi sai âm vần thực sự (VD: 'xắp xếp', 'năng lự').
-                                - 🧠 Lỗi kiến thức khoa học.
-                                - 🔗 Mâu thuẫn Logic & Hình thức (VD: Mục tiêu yêu cầu nhóm nhưng tổ chức cá nhân, mục tiêu yêu cầu vẽ sơ đồ nhưng sản phẩm không có...).
+                                PHẦN 1: ĐÁNH GIÁ TÍCH HỢP NĂNG LỰC SỐ (THÔNG TƯ 02/2025/BGDĐT)
+                                - Giáo án có tích hợp thành phần Năng lực số cho học sinh hay không? (Nêu rõ có hoặc không).
+                                - Liệt kê chi tiết các công cụ số, phần mềm, học liệu số hoặc phương pháp khai thác thông tin số được (hoặc chưa được) đưa vào giáo án. Nếu thiếu mục này, BẮT BUỘC phải ghi nhận là điểm trừ lớn trong báo cáo.
 
-                                PHẦN 2: BẢNG ĐÁNH GIÁ 4 HOẠT ĐỘNG
-                                Kẻ một bảng Markdown (gồm các cột: Hoạt động | Mục tiêu | Nội dung | Sản phẩm | Tổ chức thực hiện).
-                                Đánh giá trạng thái thực tế của từng cột trong 4 hoạt động bằng các từ: Đạt / Cần sửa / Thiếu / Trống.
+                                PHẦN 2: PHÁT HIỆN MÂU THUẪN LOGIC TRONG KẾ HOẠCH
+                                Kiểm tra kỹ lưỡng sự thống nhất xuyên suốt các phần:
+                                - Mâu thuẫn Mục tiêu vs Thiết bị/Học liệu: Phần I (Mục tiêu) có yêu cầu học sinh hình thành/phát triển năng lực số hoặc sử dụng công cụ số, nhưng phần Thiết bị/Học liệu lại hoàn toàn bỏ trống máy tính, máy chiếu, phần mềm, thí nghiệm ảo... => Coi là Mâu thuẫn.
+                                - Mâu thuẫn Mục tiêu vs Tổ chức hoạt động: Mục tiêu yêu cầu làm việc nhóm/trực tuyến hoặc sử dụng sản phẩm số, nhưng sang phần Tổ chức hoạt động dạy học (Hoạt động 1, 2, 3, 4) giáo viên lại chỉ cho học sinh làm việc cá nhân thủ công, không hề triển khai... => Coi là Mâu thuẫn.
+                                - Các mâu thuẫn hình thức khác (VD: Mục tiêu yêu cầu vẽ sơ đồ nhưng sản phẩm học sinh không có...).
+                                *BẮT BUỘC trích dẫn nguyên văn đoạn sai và chỉ rõ mâu thuẫn ở phần nào.*
+
+                                PHẦN 3: RÀ SOÁT LỖI NGÔN NGỮ, THUẬT NGỮ & KIẾN THỨC
+                                - 🔤 Lỗi chính tả & Câu từ thực sự (Bỏ qua lỗi dính khoảng trắng tự động, chỉ báo lỗi sai âm vần thực sự).
+                                - 📖 Lỗi thuật ngữ chuyên môn khoa học (đặc biệt là môn {mon_hoc}).
+                                - 🧠 Lỗi kiến thức khoa học (nếu có).
+                                *Nếu không phát hiện lỗi ở mục nào, ghi rõ "Không phát hiện lỗi".*
 
                                 NỘI DUNG KHBD THỰC TẾ CẦN PHÂN TÍCH:
                                 '''{st.session_state.noidung_khbd}'''
@@ -137,7 +146,7 @@ def render_kiem_tra_khbd(ai_engine=None):
                                 report = call_ai(prompt_scan)
                                 st.session_state.ai_analysis_report = report.replace("**", "")
                                 
-                                st.session_state.chat_history_khbd.append({"role": "assistant", "content": f"✅ Tôi đã phân tích xong giáo án **{mon_hoc} {khoi_lop}**. Mời thầy/cô xem **Báo cáo chi tiết** ở tab bên cạnh."})
+                                st.session_state.chat_history_khbd.append({"role": "assistant", "content": f"✅ Tôi đã thẩm định xong giáo án **{mon_hoc} {khoi_lop}**. Mời thầy/cô xem **Báo cáo phân tích chuyên sâu** ở tab bên cạnh."})
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Lỗi hệ thống hoặc lỗi kết nối AI: {e}")
@@ -148,7 +157,7 @@ def render_kiem_tra_khbd(ai_engine=None):
     # CỘT PHẢI: KHUNG CHAT & DASHBOARD
     # ==========================================
     with col_right:
-        tab_chat, tab_report = st.tabs(["💬 Trò chuyện với AI", "📊 Báo cáo AI phân tích (Thực tế)"])
+        tab_chat, tab_report = st.tabs(["💬 Trò chuyện với AI", "📊 Báo cáo Thẩm định Chuyên Sâu"])
 
         with tab_chat:
             chat_container = st.container(height=450)
@@ -158,15 +167,15 @@ def render_kiem_tra_khbd(ai_engine=None):
             clicked_quick_prompt = None
             
             with q1:
+                if st.button("💻 Kiểm tra chi tiết Năng lực số", use_container_width=True): 
+                    clicked_quick_prompt = "Hãy rà soát kỹ xem giáo án này đã đáp ứng đầy đủ tiêu chí Năng lực số theo Thông tư 02/2025 chưa? Nếu chưa, hãy chỉ rõ cần bổ sung vào hoạt động nào."
+                if st.button("🔄 Gợi ý khắc phục mâu thuẫn", use_container_width=True): 
+                    clicked_quick_prompt = "Hãy chỉ ra các điểm mâu thuẫn giữa Mục tiêu, Thiết bị học liệu và Tổ chức hoạt động trong giáo án này, sau đó hướng dẫn tôi cách sửa lại cho logic."
+            with q2:
                 if st.button("🎯 Kiểm tra Mục tiêu (Bloom)", use_container_width=True): 
                     clicked_quick_prompt = "Hãy rà soát xem phần Mục tiêu đã dùng đúng động từ Bloom chưa? Nếu sai, hãy trích dẫn câu sai và gợi ý cách sửa."
-                if st.button("🔄 Đề xuất lại HĐ Vận dụng", use_container_width=True): 
-                    clicked_quick_prompt = "Dựa vào nội dung bài này, hãy đề xuất một Hoạt động Vận dụng gắn với thực tiễn đời sống để bổ sung vào giáo án."
-            with q2:
-                if st.button("💻 Gợi ý Tích hợp Năng lực số", use_container_width=True): 
-                    clicked_quick_prompt = "Với bài học này, tôi có thể lồng ghép công cụ số, AI hay thí nghiệm ảo nào? Hãy gợi ý chi tiết."
-                if st.button("📝 Chỉnh lại văn phong", use_container_width=True): 
-                    clicked_quick_prompt = "Hãy tìm các đoạn diễn đạt lủng củng trong giáo án và viết lại chúng sao cho chuẩn văn phong sư phạm."
+                if st.button("📝 Chỉnh lại văn phong sư phạm", use_container_width=True): 
+                    clicked_quick_prompt = "Hãy tìm các đoạn diễn đạt lủng củng hoặc sai thuật ngữ trong giáo án và viết lại chúng sao cho chuẩn văn phong sư phạm."
 
             st.markdown("---")
             btn_tham_dinh = st.button("🧐 BÁO CÁO THẨM ĐỊNH TOÀN DIỆN (5 TIÊU CHÍ TỔ TRƯỞNG)", use_container_width=True, type="primary")
@@ -201,7 +210,6 @@ def render_kiem_tra_khbd(ai_engine=None):
                                     with open("prompts/prompt_tham_dinh_khbd.txt", "r", encoding="utf-8") as f:
                                         prompt_template = f.read()
                                 except FileNotFoundError:
-                                    # Fallback prompt chuẩn nếu chưa có file ngoài
                                     prompt_template = "Hãy thẩm định chi tiết Kế hoạch bài dạy sau theo 5 tiêu chí giáo dục phổ thông:\n[NOI_DUNG_KHBD_ODAY]"
 
                                 prompt_hoan_thien = prompt_template.replace("[NOI_DUNG_KHBD_ODAY]", st.session_state.noidung_khbd)
@@ -227,7 +235,7 @@ def render_kiem_tra_khbd(ai_engine=None):
 
         with tab_report:
             if st.session_state.ai_analysis_report:
-                st.success("Báo cáo dưới đây được AI tổng hợp TRỰC TIẾP từ dữ liệu file vừa tải lên.")
+                st.success("Báo cáo thẩm định chuyên sâu dưới đây được AI tổng hợp TRỰC TIẾP từ dữ liệu file vừa tải lên.")
                 st.markdown(st.session_state.ai_analysis_report)
             else:
-                st.info("💡 Bảng điều khiển đang trống. Vui lòng tải file giáo án (.docx hoặc .pdf) lên và nhấn 'Quét & Phân tích'.")
+                st.info("💡 Bảng điều khiển đang trống. Vui lòng tải file giáo án (.docx hoặc .pdf) lên và nhấn 'Quét & Phân tích Chuyên Sâu'.")
