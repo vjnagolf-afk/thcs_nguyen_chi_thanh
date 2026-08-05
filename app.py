@@ -1,4 +1,21 @@
 # -*- coding: utf-8 -*-
+# --- VÁ LỖI GZIP TRÊN PYTHON 3.14 (BẮT BUỘC Ở DÒNG ĐẦU TIÊN) ---
+try:
+    import streamlit.web.server.starlette.starlette_gzip_middleware as st_gzip
+    if hasattr(st_gzip, '_MediaAwareGZipResponder'):
+        _orig_media_init = st_gzip._MediaAwareGZipResponder.__init__
+        def _patched_media_init(self, *args, **kwargs):
+            if 'thread_minimum_size' not in kwargs:
+                kwargs['thread_minimum_size'] = 500
+            try:
+                _orig_media_init(self, *args, **kwargs)
+            except TypeError:
+                _orig_media_init(self, *args, **kwargs)
+        st_gzip._MediaAwareGZipResponder.__init__ = _patched_media_init
+except Exception:
+    pass
+# -------------------------------------------------------------
+
 """
 ============================================================
 ĐIỀU HƯỚNG TRUNG TÂM DỰ ÁN: NGUYỄN CHÍ THANH
@@ -47,16 +64,12 @@ except ImportError as e:
 # ============================================================
 # IMPORT PHÂN HỆ 2: HỖ TRỢ GIÁO VIÊN
 # ============================================================
-# Tách độc lập cơ chế import các file làm từ trước để bảo toàn hệ thống
-
-# 1. Module KHBD
 try:
     from views.xd_khbd_view import render_xd_khbd
 except ImportError:
     try: from views.xd_khbd_view import render_xd_khbd_view as render_xd_khbd
     except ImportError: render_xd_khbd = None
 
-# 2. Module Đề kiểm tra
 try:
     from views.xd_de_kt_view import render_xd_de_kt
 except ImportError:
@@ -65,14 +78,12 @@ except ImportError:
         try: from views.xd_de_kt_view import render_de_kt as render_xd_de_kt
         except ImportError: render_xd_de_kt = None
 
-# 3. Module Ma trận
 try:
     from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de
 except ImportError:
     try: from views.xd_ma_tran_tu_de import render_xd_ma_tran_tu_de_view as render_xd_ma_tran_tu_de
     except ImportError: render_xd_ma_tran_tu_de = None
 
-# Các module Hỗ trợ Giáo viên mới
 try:
     from modules.ho_tro_gv.xd_cham_viet import render_xd_cham_viet
     from modules.ho_tro_gv.xd_chu_nhiem import render_xd_chu_nhiem
@@ -92,7 +103,6 @@ except ImportError as e:
 # ============================================================
 try:
     from modules.ho_tro_giang_day.rag_ask import render_rag_ask
-    # VÔ HIỆU HÓA TẠM THỜI MODULE NÀY BẰNG DẤU #
     from modules.ho_tro_giang_day.xd_ca_nhan_hoa import render_xd_ca_nhan_hoa
     from modules.ho_tro_giang_day.xd_camera import render_xd_camera
     from modules.ho_tro_giang_day.xd_cham_nhanh import render_xd_cham_nhanh
@@ -103,8 +113,6 @@ try:
     from modules.ho_tro_giang_day.xd_phan_tich_bh import render_xd_phan_tich_bh
     from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
     from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
-    
-    # SỬA LẠI ĐƯỜNG DẪN NÀY: Trỏ đúng vào thư mục mo_phong/page.py
     from modules.ho_tro_giang_day.mo_phong.page import render_chuyen_gia_prompt
 except ImportError as e:
     st.error(f"❌ Lỗi import phân hệ Hỗ trợ Giảng dạy: {e}")
@@ -172,7 +180,6 @@ if user_api_key_input:
     st.sidebar.success("✅ Đã ghi nhận API Key cá nhân!")
 
 st.sidebar.markdown("---")
-# Hiển thị thông tin bản quyền chữ nhỏ, nghiêng, màu xanh dương
 st.sidebar.markdown(
     """
     <div style='font-size: 0.85em; font-style: italic; color: #0056b3; text-align: left; line-height: 1.5;'>
@@ -189,13 +196,11 @@ st.sidebar.markdown(
 db_instance = st.session_state.get("db")
 ai_instance = st.session_state.get("ai_engine")
 
-# --- VƯỢT RÀO CHẶN GIAO DIỆN KHI CHƯA NHẬP KEY ---
 if ai_instance is None:
     class DummyAIEngine:
         def generate_text(self, prompt, model_name=""):
             raise RuntimeError("Vui lòng nhập API Key hợp lệ ở menu bên trái để sử dụng tính năng này.")
     ai_instance = DummyAIEngine()
-# --------------------------------------------------
 
 # ------------------------------------------------------------
 # 1. PHÂN HỆ HỖ TRỢ GIÁO VIÊN
@@ -213,15 +218,15 @@ if menu_category == "👨‍🏫 Phân hệ Hỗ trợ Giáo viên":
     
     with tabs_gv[0]:
         if render_xd_khbd: render_xd_khbd(ai_instance)
-        else: st.warning("🚧 Hệ thống tạm cách ly Module KHBD do lỗi sai tên hàm bên trong file views/xd_khbd_view.py.")
+        else: st.warning("🚧 Hệ thống tạm cách ly Module KHBD.")
             
     with tabs_gv[1]:
         if render_xd_de_kt: render_xd_de_kt(ai_instance)
-        else: st.warning("🚧 Hệ thống tạm cách ly Module Đề kiểm tra do lỗi sai tên hàm bên trong file views/xd_de_kt_view.py.")
+        else: st.warning("🚧 Hệ thống tạm cách ly Module Đề kiểm tra.")
             
     with tabs_gv[2]:
         if render_xd_ma_tran_tu_de: render_xd_ma_tran_tu_de(ai_instance)
-        else: st.warning("🚧 Hệ thống tạm cách ly Module Ma trận do lỗi sai tên hàm bên trong file views/xd_ma_tran_tu_de.py.")
+        else: st.warning("🚧 Hệ thống tạm cách ly Module Ma trận.")
             
     with tabs_gv[3]:
         try: render_xd_cham_viet(ai_instance)
@@ -272,8 +277,6 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
         try: render_rag_ask(ai_instance)
         except NameError: st.warning("Module RAG Ask chưa sẵn sàng.")
     with tabs_gd[1]:
-        # VÔ HIỆU HÓA GIAO DIỆN TAB GAME AI TẠM THỜI
-        st.info("🚧 Tính năng Trợ lý Thiết kế Game AI đang được bảo trì tạm thời.")
         try: render_xd_ca_nhan_hoa(ai_instance)
         except NameError: st.warning("Module Cá nhân hóa chưa sẵn sàng.")
     with tabs_gd[2]:
@@ -322,17 +325,9 @@ elif menu_category == "🛠️ Phân hệ Ứng dụng khác":
 elif menu_category == "👥 Phân hệ Quản lý Tổ chuyên môn":
     st.markdown("## 👥 Phân hệ: Quản lý Tổ chuyên môn")
     sub_tab = st.tabs([
-        "Danh sách GV", 
-        "Phân công", 
-        "Thời khóa biểu", 
-        "Biên bản họp", 
-        "Kế hoạch chuyên đề", 
-        "Kiểm tra KHBD", 
-        "Chấm sáng kiến", 
-        "Viết sáng kiến", 
-        "Tóm tắt Email", 
-        "Tủ sách số", 
-        "Thi đua"
+        "Danh sách GV", "Phân công", "Thời khóa biểu", "Biên bản họp", 
+        "Kế hoạch chuyên đề", "Kiểm tra KHBD", "Chấm sáng kiến", 
+        "Viết sáng kiến", "Tóm tắt Email", "Tủ sách số", "Thi đua"
     ])
     
     with sub_tab[0]:
