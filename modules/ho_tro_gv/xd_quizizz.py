@@ -2,7 +2,7 @@
 """
 ====================================================
 AI Teacher Assistant
-Module: Xây dựng Quizizz Online (Cố định thông số Pusher)
+Module: Xây dựng Quizizz Online (Cố định thông số Pusher & Sửa lỗi io)
 File: modules/ho_tro_gv/xd_quizizz.py
 ====================================================
 """
@@ -11,6 +11,7 @@ import streamlit as st
 import sqlite3
 import os
 import time
+import io
 import urllib.parse as urlparse
 from datetime import datetime
 import pandas as pd
@@ -170,16 +171,11 @@ def render_xd_quizizz(ai_engine_cu=None):
 
             input_data_content = ""
             uploaded_file = None
-            extracted_images = []
 
             if "Nhập chủ đề" in nguon_nhap:
                 input_data_content = st.text_input("Nhập chủ đề bài kiểm tra:", placeholder="VD: Định luật Ôm, Phản ứng hóa học lớp 9...")
             elif "Trích xuất từ tệp" in nguon_nhap:
                 uploaded_file = st.file_uploader("Tải lên tài liệu (PDF, Word, TXT, Ảnh):", type=["pdf", "docx", "txt", "png", "jpg", "jpeg"])
-                if uploaded_file:
-                    with st.spinner("Đang đọc dữ liệu từ tệp..."):
-                        # Xử lý trích xuất đơn giản
-                        extracted_text = "Đã nhận tệp tài liệu"
             elif "YouTube" in nguon_nhap:
                 input_data_content = st.text_input("Dán đường dẫn (URL) Video YouTube:", placeholder="https://www.youtube.com/watch?v=...")
             else:
