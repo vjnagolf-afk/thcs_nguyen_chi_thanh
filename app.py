@@ -102,7 +102,8 @@ try:
     from modules.ho_tro_giang_day.xd_phan_tich_bh import render_xd_phan_tich_bh
     from modules.ho_tro_giang_day.xd_sinh_video import render_xd_sinh_video
     from modules.ho_tro_giang_day.xd_tro_choi import render_xd_tro_choi
-    from modules.ho_tro_giang_day.mo_phong.page import render_xd_mo_phong
+    # Đã sửa lại đường dẫn import đúng cho Chuyên gia Prompt:
+    from modules.ho_tro_giang_day.chuyen_gia_prompt import render_chuyen_gia_prompt
 except ImportError as e:
     st.error(f"❌ Lỗi import phân hệ Hỗ trợ Giảng dạy: {e}")
 
