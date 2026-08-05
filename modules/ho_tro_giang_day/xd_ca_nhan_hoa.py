@@ -13,7 +13,7 @@ import re
 import base64
 import logging
 import streamlit as st
-import streamlit.components.v1 as components
+# ĐÃ XÓA HOÀN TOÀN THƯ VIỆN streamlit.components.v1 ĐỂ TRÁNH LỖI MÁY CHỦ SẬP APP
 
 logger = logging.getLogger(__name__)
 
@@ -192,42 +192,49 @@ Nhiệm vụ: Đọc tài liệu giáo án dưới đây và LẬP TRÌNH ra m�
                 if res.startswith("❌"):
                     st.error(res)
                 else:
-                    # Bổ sung cờ re.IGNORECASE để bắt cả ```HTML nếu AI viết hoa
                     match = re.search(r'```html(.*?)```', res, re.DOTALL | re.IGNORECASE)
                     if match:
-                        st.session_state.game_html = match.group(1).strip()
+                        code_html = match.group(1).strip()
+                        code_html = code_html.replace("\\`", "`")
+                        st.session_state.game_html = code_html
                     else:
-                        st.session_state.game_html = res # Fallback nếu AI không dùng markdown đúng chuẩn
+                        st.session_state.game_html = res 
                     st.session_state.game_name = game_title.replace(" ", "_")
                     st.success("✅ AI đã lập trình game thành công!")
             except Exception as e:
                 st.error(f"❌ Lỗi khi sinh code: {e}")
 
     # ========================================================
-    # HIỂN THỊ GAME ĐÃ LẬP TRÌNH VÀ NÚT TẢI XUỐNG
+    # HIỂN THỊ TRÒ CHƠI BẰNG PHƯƠNG PHÁP AN TOÀN TUYỆT ĐỐI
     # ========================================================
     if st.session_state.game_html:
         st.markdown("---")
-        st.markdown("### 🕹️ TRẢI NGHIỆM TRÒ CHƠI")
+        st.markdown("### 🕹️ TRÒ CHƠI ĐÃ SẴN SÀNG")
         
-        # NHÚNG GAME AN TOÀN BẰNG BASE64 - LÁCH QUA LỖI MÁY CHỦ
-        with st.container(border=True):
-            try:
-                # Mã hóa HTML sang Base64 để hiển thị trực tiếp bằng trình duyệt, bỏ qua Backend của Streamlit
-                b64_html = base64.b64encode(st.session_state.game_html.encode('utf-8')).decode('utf-8')
-                iframe_src = f"data:text/html;base64,{b64_html}"
-                components.iframe(src=iframe_src, height=750, scrolling=True)
-            except Exception as e:
-                st.error("Trình duyệt không hỗ trợ xem trước Base64. Thầy/Cô vui lòng tải file bên dưới.")
+        st.info("🎉 Hệ thống đã tạo xong Game! Để đảm bảo tốc độ và tránh lỗi máy chủ, Thầy/Cô hãy click vào nút Xanh lá cây bên dưới để mở Game ở một Tab mới, hoặc tải file HTML về máy.")
+        
+        # 1. TẠO NÚT BẤM MỞ TRỰC TIẾP TRÊN TRÌNH DUYỆT (LÁCH QUA STREAMLIT BACKEND)
+        try:
+            b64_html = base64.b64encode(st.session_state.game_html.encode('utf-8')).decode('utf-8')
+            btn_play_html = f"""
+            <a href="data:text/html;base64,{b64_html}" target="_blank" style="display: block; text-align: center; background-color: #10B981; color: white; padding: 14px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                🎮 BẤM VÀO ĐÂY ĐỂ CHƠI NGAY TRÊN TAB MỚI
+            </a>
+            """
+            st.markdown(btn_play_html, unsafe_allow_html=True)
+        except Exception as e:
+            pass
 
-        st.markdown("### 📥 Lưu trữ Trò chơi")
-        st.info("Thầy/Cô có thể tải file HTML này về, gửi trực tiếp qua Zalo cho học sinh chơi (mở bằng trình duyệt), hoặc nhúng lên các trang web của trường.")
-        
+        # 2. NÚT TẢI XUỐNG BÌNH THƯỜNG
         st.download_button(
-            label="💾 TẢI XUỐNG GAME (.HTML)",
+            label="💾 TẢI XUỐNG FILE GAME (.HTML)",
             data=st.session_state.game_html,
             file_name=f"Game_{st.session_state.game_name}.html",
             mime="text/html",
             use_container_width=True,
             type="primary"
         )
+        
+        # 3. XEM TRƯỚC MÃ NGUỒN CHO GIÁO VIÊN TIN HỌC (TÙY CHỌN)
+        with st.expander("🔍 Dành cho GV Tin học: Xem trước mã nguồn HTML"):
+            st.code(st.session_state.game_html, language="html")
