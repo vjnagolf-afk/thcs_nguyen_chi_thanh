@@ -258,10 +258,10 @@ elif menu_category == "🎓 Phân hệ Hỗ trợ Giảng dạy":
     st.markdown("## 🎓 Phân hệ: Hỗ trợ Giảng dạy")
     
     tab_titles_gd = [
-        "1. RAG Ask", "2. Game AI", "3. Camera", 
-        "4. Chấm nhanh", "5. Học liệu đa phương tiện", "6. Kiểm tra nhanh", 
-        "7. Ngân hàng đề", "8. Phân tích KQHT", "9. Phân tích BH", 
-        "10. Sinh video", "11. Trò chơi", "12. ChatBot (Đang phát triển)"
+        "Hỏi đáp T.Liệu", "Game AI", "Camera", 
+        "Chấm nhanh", "Học liệu đa phương tiện", "Kiểm tra nhanh", 
+        "Ngân hàng đề", "Phân tích KQHT", "Phân tích BH", 
+        "Sinh video", "Trò chơi", "Sinh siêu Prompt"
     ]
     tabs_gd = st.tabs(tab_titles_gd)
     
