@@ -1,51 +1,54 @@
-python-multipart
-pydantic
-python-dotenv
-cachetools
-tenacity
-requests
-loguru
+streamlit>=1.40.0
 
-# Database & Storage
-supabase
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
+pydantic>=2.9.0
 
-# AI & LLM SDKs
-google-genai
-google-generativeai
-openai
-anthropic
+python-dotenv>=1.0.1
+cachetools>=5.5.0
+tenacity>=8.5.0,<9.0.0
+requests>=2.32.0
+loguru>=0.7.2
 
-# Document & File Processing
-pandas
-openpyxl
-xlrd
-python-docx
-python-pptx
-docxtpl
-jinja2
-pdfplumber
-pypdf
-PyMuPDF
+supabase>=2.10.0
 
-# Data Analysis & Image Processing
-plotly
-scikit-learn
-scipy
-sympy
-joblib
-Pillow
-beautifulsoup4
+google-genai>=1.0.0
+google-generativeai>=0.8.5
+openai>=1.10.0
+anthropic>=0.30.0
 
-# Audio & Video Stream
-gTTS
-streamlit-webrtc
-av
-youtube-transcript-api
-yt-dlp
+pandas>=2.2.0
+openpyxl>=3.1.5
+xlrd>=2.0.1
 
-# Google Auth Integration
+python-docx>=1.1.0
+python-pptx>=1.0.2
+docxtpl>=0.18.0
+jinja2>=3.1.0
+
+pdfplumber==0.10.3
+pypdf>=3.0.0
+PyMuPDF>=1.23.0
+
+plotly>=5.24.0
+scikit-learn>=1.5.0
+scipy>=1.14.0
+sympy>=1.13.0
+joblib>=1.4.0
+Pillow>=10.4.0
+beautifulsoup4>=4.12.0
+
+gTTS>=2.5.0
+streamlit-webrtc>=0.47.0
+av>=12.0.0
+
+youtube-transcript-api>=1.2.4
+yt-dlp>=2025.1.15
+
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+
 pusher
 qrcode
